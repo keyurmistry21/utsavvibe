@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Select } from "../Select";
 
 export type ViewState<K extends string, S extends string> = { order: K[]; visible: K[]; sort: S; dir: "asc" | "desc" };
 
@@ -34,9 +35,9 @@ export function ColumnsMenu<K extends string, S extends string>({ columns, sorts
     <div className="colmenu" ref={ref}>
       <div className="sortrow">
         <label htmlFor="sortby">Sort by</label>
-        <select id="sortby" value={view.sort} onChange={(e) => setView({ ...view, sort: e.target.value as S })}>
+        <Select id="sortby" value={view.sort} onChange={(e) => setView({ ...view, sort: e.target.value as S })}>
           {sorts.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </select>
+        </Select>
         <button className="dirbtn" title={view.dir === "asc" ? "Ascending" : "Descending"} aria-label="Toggle sort direction" onClick={() => setView({ ...view, dir: view.dir === "asc" ? "desc" : "asc" })}>{view.dir === "asc" ? "↑" : "↓"}</button>
       </div>
       <div className="colhead">Columns</div>

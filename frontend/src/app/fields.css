@@ -6,7 +6,9 @@
 [data-fields="classic"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input),
 .fieldpreview[data-fields="classic"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input),
 [data-fields="classic"] select,
+[data-fields="classic"] .selectbtn,
 .fieldpreview[data-fields="classic"] select,
+.fieldpreview[data-fields="classic"] .selectbtn,
 [data-fields="classic"] textarea,
 .fieldpreview[data-fields="classic"] textarea,
 [data-fields="classic"] .rte,
@@ -18,7 +20,9 @@
 [data-fields="classic"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):not(:disabled):not(:focus):hover,
 .fieldpreview[data-fields="classic"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):not(:disabled):not(:focus):hover,
 [data-fields="classic"] select:not(:disabled):not(:focus):hover,
+[data-fields="classic"] .selectbtn:not(:disabled):not(:focus):not([aria-expanded="true"]):hover,
 .fieldpreview[data-fields="classic"] select:not(:disabled):not(:focus):hover,
+.fieldpreview[data-fields="classic"] .selectbtn:not(:disabled):not(:focus):not([aria-expanded="true"]):hover,
 [data-fields="classic"] textarea:not(:disabled):not(:focus):hover,
 .fieldpreview[data-fields="classic"] textarea:not(:disabled):not(:focus):hover,
 [data-fields="classic"] .rte:not(:focus-within):hover,
@@ -30,7 +34,11 @@
 [data-fields="classic"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):focus,
 .fieldpreview[data-fields="classic"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):focus,
 [data-fields="classic"] select:focus,
+[data-fields="classic"] .selectbtn:focus,
+[data-fields="classic"] .selectbtn[aria-expanded="true"],
 .fieldpreview[data-fields="classic"] select:focus,
+.fieldpreview[data-fields="classic"] .selectbtn:focus,
+.fieldpreview[data-fields="classic"] .selectbtn[aria-expanded="true"],
 [data-fields="classic"] textarea:focus,
 .fieldpreview[data-fields="classic"] textarea:focus,
 [data-fields="classic"] .rte:focus-within,
@@ -44,7 +52,9 @@
 [data-fields="light"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input),
 .fieldpreview[data-fields="light"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input),
 [data-fields="light"] select,
+[data-fields="light"] .selectbtn,
 .fieldpreview[data-fields="light"] select,
+.fieldpreview[data-fields="light"] .selectbtn,
 [data-fields="light"] textarea,
 .fieldpreview[data-fields="light"] textarea,
 [data-fields="light"] .rte,
@@ -56,7 +66,9 @@
 [data-fields="light"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):not(:disabled):not(:focus):hover,
 .fieldpreview[data-fields="light"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):not(:disabled):not(:focus):hover,
 [data-fields="light"] select:not(:disabled):not(:focus):hover,
+[data-fields="light"] .selectbtn:not(:disabled):not(:focus):not([aria-expanded="true"]):hover,
 .fieldpreview[data-fields="light"] select:not(:disabled):not(:focus):hover,
+.fieldpreview[data-fields="light"] .selectbtn:not(:disabled):not(:focus):not([aria-expanded="true"]):hover,
 [data-fields="light"] textarea:not(:disabled):not(:focus):hover,
 .fieldpreview[data-fields="light"] textarea:not(:disabled):not(:focus):hover,
 [data-fields="light"] .rte:not(:focus-within):hover,
@@ -68,7 +80,11 @@
 [data-fields="light"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):focus,
 .fieldpreview[data-fields="light"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):focus,
 [data-fields="light"] select:focus,
+[data-fields="light"] .selectbtn:focus,
+[data-fields="light"] .selectbtn[aria-expanded="true"],
 .fieldpreview[data-fields="light"] select:focus,
+.fieldpreview[data-fields="light"] .selectbtn:focus,
+.fieldpreview[data-fields="light"] .selectbtn[aria-expanded="true"],
 [data-fields="light"] textarea:focus,
 .fieldpreview[data-fields="light"] textarea:focus,
 [data-fields="light"] .rte:focus-within,
@@ -82,7 +98,9 @@
 [data-fields="filled"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input),
 .fieldpreview[data-fields="filled"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input),
 [data-fields="filled"] select,
+[data-fields="filled"] .selectbtn,
 .fieldpreview[data-fields="filled"] select,
+.fieldpreview[data-fields="filled"] .selectbtn,
 [data-fields="filled"] textarea,
 .fieldpreview[data-fields="filled"] textarea,
 [data-fields="filled"] .rte,
@@ -94,7 +112,9 @@
 [data-fields="filled"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):not(:disabled):not(:focus):hover,
 .fieldpreview[data-fields="filled"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):not(:disabled):not(:focus):hover,
 [data-fields="filled"] select:not(:disabled):not(:focus):hover,
+[data-fields="filled"] .selectbtn:not(:disabled):not(:focus):not([aria-expanded="true"]):hover,
 .fieldpreview[data-fields="filled"] select:not(:disabled):not(:focus):hover,
+.fieldpreview[data-fields="filled"] .selectbtn:not(:disabled):not(:focus):not([aria-expanded="true"]):hover,
 [data-fields="filled"] textarea:not(:disabled):not(:focus):hover,
 .fieldpreview[data-fields="filled"] textarea:not(:disabled):not(:focus):hover,
 [data-fields="filled"] .rte:not(:focus-within):hover,
@@ -106,7 +126,11 @@
 [data-fields="filled"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):focus,
 .fieldpreview[data-fields="filled"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):focus,
 [data-fields="filled"] select:focus,
+[data-fields="filled"] .selectbtn:focus,
+[data-fields="filled"] .selectbtn[aria-expanded="true"],
 .fieldpreview[data-fields="filled"] select:focus,
+.fieldpreview[data-fields="filled"] .selectbtn:focus,
+.fieldpreview[data-fields="filled"] .selectbtn[aria-expanded="true"],
 [data-fields="filled"] textarea:focus,
 .fieldpreview[data-fields="filled"] textarea:focus,
 [data-fields="filled"] .rte:focus-within,
@@ -120,7 +144,9 @@
 [data-fields="underline"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input),
 .fieldpreview[data-fields="underline"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input),
 [data-fields="underline"] select,
+[data-fields="underline"] .selectbtn,
 .fieldpreview[data-fields="underline"] select,
+.fieldpreview[data-fields="underline"] .selectbtn,
 [data-fields="underline"] textarea,
 .fieldpreview[data-fields="underline"] textarea,
 [data-fields="underline"] .rte,
@@ -132,7 +158,9 @@
 [data-fields="underline"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):not(:disabled):not(:focus):hover,
 .fieldpreview[data-fields="underline"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):not(:disabled):not(:focus):hover,
 [data-fields="underline"] select:not(:disabled):not(:focus):hover,
+[data-fields="underline"] .selectbtn:not(:disabled):not(:focus):not([aria-expanded="true"]):hover,
 .fieldpreview[data-fields="underline"] select:not(:disabled):not(:focus):hover,
+.fieldpreview[data-fields="underline"] .selectbtn:not(:disabled):not(:focus):not([aria-expanded="true"]):hover,
 [data-fields="underline"] textarea:not(:disabled):not(:focus):hover,
 .fieldpreview[data-fields="underline"] textarea:not(:disabled):not(:focus):hover,
 [data-fields="underline"] .rte:not(:focus-within):hover,
@@ -144,7 +172,11 @@
 [data-fields="underline"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):focus,
 .fieldpreview[data-fields="underline"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):focus,
 [data-fields="underline"] select:focus,
+[data-fields="underline"] .selectbtn:focus,
+[data-fields="underline"] .selectbtn[aria-expanded="true"],
 .fieldpreview[data-fields="underline"] select:focus,
+.fieldpreview[data-fields="underline"] .selectbtn:focus,
+.fieldpreview[data-fields="underline"] .selectbtn[aria-expanded="true"],
 [data-fields="underline"] textarea:focus,
 .fieldpreview[data-fields="underline"] textarea:focus,
 [data-fields="underline"] .rte:focus-within,
@@ -164,13 +196,17 @@
 [data-fields="underline"] .prefixed:focus-within,
 .fieldpreview[data-fields="underline"] .prefixed:focus-within { background-image: linear-gradient(#005bd3, #005bd3) !important; background-repeat: no-repeat !important; background-position: center bottom !important; background-size: 100% 2px !important; animation: fieldGrow .3s ease-out !important; }
 [data-fields="underline"] select:focus,
+[data-fields="underline"] .selectbtn:focus,
+[data-fields="underline"] .selectbtn[aria-expanded="true"],
 .fieldpreview[data-fields="underline"] select:focus { border-bottom-color: #005bd3 !important; }
 
 /* glow */
 [data-fields="glow"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input),
 .fieldpreview[data-fields="glow"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input),
 [data-fields="glow"] select,
+[data-fields="glow"] .selectbtn,
 .fieldpreview[data-fields="glow"] select,
+.fieldpreview[data-fields="glow"] .selectbtn,
 [data-fields="glow"] textarea,
 .fieldpreview[data-fields="glow"] textarea,
 [data-fields="glow"] .rte,
@@ -182,7 +218,9 @@
 [data-fields="glow"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):not(:disabled):not(:focus):hover,
 .fieldpreview[data-fields="glow"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):not(:disabled):not(:focus):hover,
 [data-fields="glow"] select:not(:disabled):not(:focus):hover,
+[data-fields="glow"] .selectbtn:not(:disabled):not(:focus):not([aria-expanded="true"]):hover,
 .fieldpreview[data-fields="glow"] select:not(:disabled):not(:focus):hover,
+.fieldpreview[data-fields="glow"] .selectbtn:not(:disabled):not(:focus):not([aria-expanded="true"]):hover,
 [data-fields="glow"] textarea:not(:disabled):not(:focus):hover,
 .fieldpreview[data-fields="glow"] textarea:not(:disabled):not(:focus):hover,
 [data-fields="glow"] .rte:not(:focus-within):hover,
@@ -194,7 +232,11 @@
 [data-fields="glow"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):focus,
 .fieldpreview[data-fields="glow"] input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input):focus,
 [data-fields="glow"] select:focus,
+[data-fields="glow"] .selectbtn:focus,
+[data-fields="glow"] .selectbtn[aria-expanded="true"],
 .fieldpreview[data-fields="glow"] select:focus,
+.fieldpreview[data-fields="glow"] .selectbtn:focus,
+.fieldpreview[data-fields="glow"] .selectbtn[aria-expanded="true"],
 [data-fields="glow"] textarea:focus,
 .fieldpreview[data-fields="glow"] textarea:focus,
 [data-fields="glow"] .rte:focus-within,
@@ -205,6 +247,18 @@
 .fieldpreview[data-fields="glow"] .prefixed:focus-within { border-color: #4f8cf0 !important; box-shadow: 0 0 0 3px rgba(79,140,240,.22), 0 10px 28px rgba(79,140,240,.2) !important; animation: fieldGlow .4s ease-out !important;  outline: none !important; }
 
 /* filled: fields placed straight on the gray page background (not inside a white card) need a darker fill to stay visible */
-[data-fields="filled"] :is(.sidesec, .pagehead) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input), select, textarea, .rte, .chipsinput, .prefixed) { background-color: #e6e6e6 !important; }
-[data-fields="filled"] :is(.sidesec, .pagehead) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input), select, textarea, .rte, .chipsinput, .prefixed):not(:focus):not(:focus-within):hover { background-color: #dcdcdc !important; }
-[data-fields="filled"] :is(.sidesec, .pagehead) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input), select, textarea, .rte, .chipsinput, .prefixed):is(:focus, :focus-within) { background-color: #fff !important; }
+[data-fields="filled"] :is(.sidesec, .pagehead) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input), select, .selectbtn, textarea, .rte, .chipsinput, .prefixed) { background-color: #e6e6e6 !important; }
+[data-fields="filled"] :is(.sidesec, .pagehead) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input), select, .selectbtn, textarea, .rte, .chipsinput, .prefixed):not(:focus):not(:focus-within):hover { background-color: #dcdcdc !important; }
+[data-fields="filled"] :is(.sidesec, .pagehead) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input), select, .selectbtn, textarea, .rte, .chipsinput, .prefixed):is(:focus, :focus-within) { background-color: #fff !important; }
+
+/* underline: the dropdown trigger turns its line blue while open/focused (no growing line, same as a select) */
+[data-fields="underline"] .selectbtn:focus, [data-fields="underline"] .selectbtn[aria-expanded="true"],
+.fieldpreview[data-fields="underline"] .selectbtn:focus, .fieldpreview[data-fields="underline"] .selectbtn[aria-expanded="true"] { border-bottom-color: #005bd3 !important; }
+/* filled: a dropdown trigger sitting on the gray page needs the same darker fill as other page-level fields */
+
+/* ===== inline validation: invalid fields get a red outline in every field style (repeated attribute = outranks the style layers) ===== */
+:is(input, textarea, select, .selectbtn, .rte, .chipsinput, .prefixed)[aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"] {
+  border-color: #d72c0d !important; box-shadow: 0 0 0 3px rgba(215, 44, 13, .14) !important; animation: none !important; outline: none !important;
+}
+[data-fields="filled"] :is(input, textarea, select, .selectbtn, .rte, .chipsinput, .prefixed)[aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"] { background-color: #fff6f4 !important; }
+[data-fields="underline"] :is(input, textarea, select, .selectbtn, .rte, .chipsinput, .prefixed)[aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"][aria-invalid="true"] { border-bottom-color: #d72c0d !important; background-image: linear-gradient(#d72c0d, #d72c0d) !important; background-size: 100% 2px !important; box-shadow: none !important; }

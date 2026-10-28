@@ -9,7 +9,7 @@ export const toEditorHtml = (v: string) => (v && !/<[a-z][\s\S]*>/i.test(v) ? v.
 type Cmd = { label: string; title: string; run: () => void; active?: string };
 
 // Small WYSIWYG box. The server sanitizes the HTML on save, so this only needs to be convenient, not safe.
-export function RichTextEditor({ value, onChange, resetKey }: { value: string; onChange: (html: string) => void; resetKey: string }) {
+export function RichTextEditor({ value, onChange, resetKey, invalid, onBlur }: { value: string; onChange: (html: string) => void; resetKey: string; invalid?: boolean; onBlur?: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   // load the initial HTML once per product (re-setting innerHTML on every keystroke would move the cursor)
   useEffect(() => { if (ref.current) ref.current.innerHTML = toEditorHtml(value); }, [resetKey]);
@@ -42,7 +42,7 @@ export function RichTextEditor({ value, onChange, resetKey }: { value: string; o
   ];
 
   return (
-    <div className="rte">
+    <div className="rte" aria-invalid={invalid || undefined}>
       <div className="rte-bar" role="toolbar" aria-label="Formatting">
         {tools.map((t, i) => t === "sep" ? <span key={i} className="sep" /> : (
           <button key={t.title} type="button" title={t.title} aria-label={t.title} onMouseDown={(e) => e.preventDefault()} onClick={t.run} className={`rtebtn ${t.label === "B" ? "b" : t.label === "I" ? "i" : t.label === "U" ? "u" : ""}`}>{t.label}</button>
@@ -57,6 +57,7 @@ export function RichTextEditor({ value, onChange, resetKey }: { value: string; o
         aria-multiline="true"
         aria-label="Description"
         onInput={(e) => onChange((e.currentTarget as HTMLDivElement).innerHTML)}
+        onBlur={onBlur}
         onPaste={(e) => { e.preventDefault(); document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); }}
       />
     </div>

@@ -280,7 +280,7 @@ body:has(.sf) { background: #fff9f1; }
 .admin .actions { gap: 8px; }
 .admin .row > .field { margin-bottom: 12px; }
 .admin .row { align-items: flex-end; }
-.admin .row > button, .admin .row > div > button { margin-bottom: 12px; }
+.admin .row > button:not(.selectbtn), .admin .row > div > button:not(.selectbtn) { margin-bottom: 12px; }
 
 /* ================= responsive ================= */
 .admin .mbar, .admin .scrim { display: none; }
@@ -806,3 +806,74 @@ body:has(.sf) { background: #fff9f1; }
 .admin .fieldpreview input, .admin .fieldpreview textarea, .admin .fieldpreview select { width: 100%; font: inherit; padding: 8px 10px; }
 .admin .fieldpreview .searchfield { display: block; }
 .admin .fieldpreview .searchfield input { padding-left: 32px; }
+
+
+/* ================= custom dropdown (components/Select.tsx) ================= */
+.selectbtn { display: flex !important; align-items: center; justify-content: space-between; gap: 8px; width: 100%; height: 36px; padding: 0 10px 0 11px !important; font: inherit; font-size: 14px; font-weight: 400 !important; text-align: left; color: var(--text, #303030); background-color: #fff; border: 1px solid #dcdcdc; border-radius: 8px; cursor: pointer; line-height: 1.2; box-shadow: none; }
+.selectbtn:disabled { cursor: not-allowed; opacity: .6; }
+.selectbtn:active { transform: none !important; }
+.selectbtn .sb-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selectbtn .sb-label.ph { color: #8a8a8a; }
+.selectbtn .sb-chev { width: 16px; height: 16px; flex: none; fill: none; stroke: #616161; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s ease; }
+.selectbtn.is-open .sb-chev { transform: rotate(180deg); }
+.selectbtn:focus-visible { outline: none; }
+.store .selectbtn { height: 40px; border-color: #cdbba8; border-radius: 10px; }
+
+.selectpop { position: fixed; z-index: 120; display: flex; flex-direction: column; background: #fff; color: #303030; border-radius: 12px; padding: 6px; box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 16px 40px rgba(0,0,0,.18); animation: dropIn .14s ease-out; transform-origin: top; font-size: 14px; }
+.selectpop .slist { overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
+.selectpop .so { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; line-height: 1.3; transition: background-color .1s ease; }
+.selectpop .so + .so { margin-top: 1px; }
+.selectpop .so.active { background: #f1f1f1; }
+.selectpop .so.sel { font-weight: 600; }
+.selectpop .so.dis { opacity: .4; cursor: not-allowed; }
+.selectpop .so.empty { color: #8a8a8a; cursor: default; justify-content: center; }
+.selectpop .so .ph { color: #8a8a8a; }
+.selectpop .check { width: 16px; height: 16px; flex: none; fill: none; stroke: #005bd3; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.selectpop .ssearch { position: relative; padding: 2px 2px 6px; }
+.selectpop .ssearch svg { position: absolute; left: 12px; top: 13px; width: 15px; height: 15px; fill: none; stroke: #8a8a8a; stroke-width: 1.8; stroke-linecap: round; pointer-events: none; }
+.selectpop .ssearch input { width: 100%; height: 34px; padding: 0 10px 0 32px; font: inherit; font-size: 14px; }
+.selectpop[data-variant="store"] { color: #2a1d14; border-radius: 14px; box-shadow: 0 0 0 1px #eadfd3, 0 16px 40px rgba(60,30,10,.18); }
+.selectpop[data-variant="store"] .so.active { background: #f8ece0; }
+.selectpop[data-variant="store"] .check { stroke: #b4491f; }
+@media (prefers-reduced-motion: reduce) { .selectpop { animation: none; } }
+
+/* the trigger borrows .iconbtn only to dodge button hover effects; keep it a full-size field (beats `.admin .iconbtn`) */
+.admin .selectbtn.iconbtn, .store .selectbtn.iconbtn { width: 100%; height: 36px !important; padding: 0 10px 0 11px !important; font-size: 14px; color: var(--text, #303030); }
+/* explicit widths win over the full-width default (a class here, or an inline style at the call site) */
+.admin .selectbtn.viewselect { width: 130px; flex: none; }
+.store .selectbtn.iconbtn { height: 40px !important; }
+.admin .selectbtn.iconbtn:hover { color: var(--text, #303030); }
+
+/* a dropdown trigger never carries stray margins from generic button rules, so it lines up with neighbouring inputs */
+.admin .selectbtn, .store .selectbtn { margin: 0 !important; }
+
+/* ================= touch: thumb-sized targets (phones, tablets, anything with a coarse pointer) ================= */
+@media (pointer: coarse), (max-width: 700px) {
+  .admin button.link, .admin .crumb, .admin .lnk, .admin a.lnk { min-height: 40px; display: inline-flex; align-items: center; }
+  .admin button.link.namebtn { min-height: 44px; }
+  .admin button.link.soft { min-height: 40px; }
+  .admin .iconbtn, .admin .colbtn, .admin .colmenu .eye, .admin .colmenu .dirbtn, .admin .colmenu .movers button, .admin .pager button, .admin .modal-head .x, .admin .drawer-head .x { min-width: 40px; min-height: 40px; }
+  .admin .rtebtn { height: 40px !important; min-width: 40px; }
+  .admin .imgtile .tools button { height: 36px; }
+  .admin .custlist button, .selectpop .so { min-height: 44px; }
+  .admin .check, .admin .checks label { min-height: 40px; }
+  .admin .check input[type=checkbox], .admin .checks input[type=checkbox], .admin table input[type=checkbox] { width: 20px; height: 20px; }
+  .admin .tabs button, .admin .filterchips button { min-height: 40px; }
+  .admin .side a, .admin .side button.navbtn { min-height: 44px; }
+  .admin .switch { width: 48px; height: 28px; } .admin .switch .knob { width: 24px; height: 24px; } .admin .switch.on .knob { transform: translateX(20px); }
+  .admin .custtable td.chk, .admin .custtable th.chk { padding-left: 12px; padding-right: 8px; }
+  .admin .payrow button.link { min-height: 40px; }
+  /* inputs at 16px stop iOS zooming the page when you tap into a field */
+  .admin input:not([type=checkbox]):not([type=radio]), .admin textarea, .admin .selectbtn, .store input:not([type=checkbox]):not([type=radio]), .store textarea, .store .selectbtn, .selectpop .ssearch input, .rte-body { font-size: 16px !important; }
+}
+@media (pointer: coarse), (max-width: 700px) { .admin .colmenu .sortrow { grid-template-columns: auto minmax(0, 1fr) 40px; } .admin .colmenu { box-sizing: border-box; max-width: calc(100vw - 24px); } }
+
+/* inline validation message under a field */
+.ferr { display: flex; align-items: flex-start; gap: 6px; margin-top: 6px; color: #d72c0d; font-size: 13px; line-height: 1.4; animation: ferrIn .18s ease-out; }
+.ferr svg { width: 15px; height: 15px; flex: none; margin-top: 1px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.ferr.sm { font-size: 12px; margin-top: 4px; }
+@keyframes ferrIn { from { opacity: 0; transform: translateY(-3px); } }
+.store .ferr { color: #b42318; }
+@media (prefers-reduced-motion: reduce) { .ferr { animation: none; } }
+/* storefront header links: bigger touch area on phones */
+@media (pointer: coarse), (max-width: 700px) { .sf-head .logo, .sf-right > a, .sf-head nav a, .crumbs a { display: inline-flex; align-items: center; min-height: 44px; } .mkt summary { min-height: 40px; display: flex; align-items: center; } }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { money } from "@/lib/api";
 import { useApi } from "./hooks";
+import { Select } from "../Select";
 
 type Summary = {
   markets: { code: string; currency: string; orders: number; revenue: number; tax: number; shipping: number }[];
@@ -19,9 +20,9 @@ export function Dashboard() {
     <>
       <div className="pagehead">
         <h2>Analytics</h2>
-        <select style={{ width: 160 }} value={days} onChange={(e) => setDays(+e.target.value)}>
+        <Select style={{ width: 160 }} value={days} onChange={(e) => setDays(+e.target.value)}>
           {[7, 30, 90, 365].map((d) => <option key={d} value={d}>Last {d} days</option>)}
-        </select>
+        </Select>
       </div>
       <div className="stats">
         <div className="card stat">Customers<b>{data.customers}</b></div>

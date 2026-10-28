@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { email as emailErr, required } from "@/lib/validators";
+import { FieldError, useValidation } from "@/components/admin/validation";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { auth, api, type AdminUser } from "@/lib/api";
@@ -15,7 +17,9 @@ function Login({ onDone }: { onDone: (u: AdminUser) => void }) {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const val = useValidation({ email: emailErr(email, true), password: required(password, "Enter your password") });
   const submit = async () => {
+    if (!val.submit()) return;
     setBusy(true);
     setErr("");
     try {
@@ -27,22 +31,24 @@ function Login({ onDone }: { onDone: (u: AdminUser) => void }) {
   };
   return (
     <div className="admin">
-      <form className="card login" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      <form className="card login" noValidate onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <div className="brand" style={{ marginBottom: 16, color: "#303030" }}>
           <span className="logo" style={{ width: 28, height: 28, borderRadius: 8, background: "#95bf47", display: "grid", placeItems: "center", fontWeight: 800 }}>U</span>
           UtsavVibe
         </div>
         <h2 style={{ marginBottom: 16 }}>Log in</h2>
         <div className="field">
-          <label>Email</label>
-          <input type="email" autoComplete="username" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
+          <label htmlFor="lg-email">Email</label>
+          <input id="lg-email" type="email" autoComplete="username" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} {...val.props("email")} />
+          <FieldError k="email" msg={val.err("email")} />
         </div>
         <div className="field">
-          <label>Password</label>
-          <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <label htmlFor="lg-pw">Password</label>
+          <input id="lg-pw" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} {...val.props("password")} />
+          <FieldError k="password" msg={val.err("password")} />
         </div>
         {err && <div className="error">{err}</div>}
-        <button className="primary" type="submit" style={{ width: "100%" }} disabled={busy || !email || !password}>{busy ? "Logging in…" : "Log in"}</button>
+        <button className="primary" type="submit" style={{ width: "100%" }} disabled={busy}>{busy ? "Logging in…" : "Log in"}</button>
       </form>
     </div>
   );

@@ -38,6 +38,11 @@ app.use("/api/admin/settings", settingsRouter);
 
 const onError: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof ZodError) return void res.status(400).json({ error: "validation", issues: err.issues });
+  // Prisma unique-constraint violation -> a message the form can show next to the field
+  if (err.code === "P2002") {
+    const t = String((err.meta as { target?: unknown })?.target ?? "");
+    return void res.status(409).json({ error: /sku/i.test(t) ? "This SKU is already used by another product" : /email/i.test(t) ? "A customer with this email already exists" : /handle/i.test(t) ? "This URL handle is already used by another product" : "That value is already in use" });
+  }
   const status = err.status ?? 500;
   if (status === 500) console.error(err);
   res.status(status).json({ error: err.message ?? "server error" });

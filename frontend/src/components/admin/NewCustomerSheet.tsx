@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 import { api, hasAddress, type Address, type Customer, type Market } from "@/lib/api";
 import { countryName } from "@/lib/countries";
+import { email as emailErr, maxLen, phone as phoneErr } from "@/lib/validators";
+import { FieldError, useValidation } from "./validation";
 import { AddressModal } from "./AddressModal";
 import { PhoneInput } from "./PhoneInput";
 import { ArrowLeft, Plus } from "../Icons";
+import { Select } from "../Select";
 
 const LANGUAGES = [["en", "English [Default]"], ["fr", "French"], ["hi", "Hindi"], ["gu", "Gujarati"]] as const;
 
@@ -39,13 +42,25 @@ export function NewCustomerSheet({ markets, query = "", backLabel = "Back", onCr
     setTagText("");
   };
 
+  const [srvEmail, setSrvEmail] = useState("");
+  const E: Record<string, string> = {
+    firstName: maxLen(f.firstName, 100, "First name"),
+    lastName: maxLen(f.lastName, 100, "Last name"),
+    email: emailErr(f.email) || srvEmail,
+    phone: phoneErr(f.phone),
+    contact: !f.email.trim() && !f.phone.trim() ? "Add an email address or a phone number so you can reach this customer" : "",
+  };
+  const val = useValidation(E);
+
   const save = async () => {
+    if (!val.submit()) return;
     setErr(""); setSaving(true);
     try {
       const c = await api<Customer>("/customers", { method: "POST", json: { ...f, address, tags } });
       onCreated(c);
     } catch (e) {
-      setErr((e as Error).message);
+      const msg = (e as Error).message;
+      if (/email/i.test(msg)) setSrvEmail(msg); else setErr(msg);
       setSaving(false);
     }
   };
@@ -65,17 +80,17 @@ export function NewCustomerSheet({ markets, query = "", backLabel = "Back", onCr
             <h3 className="sheet-h">Customer overview</h3>
             <div className="card">
               <div className="row">
-                <div className="field"><label>First name</label><input autoFocus value={f.firstName} onChange={set("firstName")} autoComplete="off" /></div>
-                <div className="field"><label>Last name</label><input value={f.lastName} onChange={set("lastName")} autoComplete="off" /></div>
+                <div className="field"><label htmlFor="nc-first">First name</label><input id="nc-first" autoFocus value={f.firstName} onChange={set("firstName")} autoComplete="off" {...val.props("firstName")} /><FieldError k="firstName" msg={val.err("firstName")} /></div>
+                <div className="field"><label htmlFor="nc-last">Last name</label><input id="nc-last" value={f.lastName} onChange={set("lastName")} autoComplete="off" {...val.props("lastName")} /><FieldError k="lastName" msg={val.err("lastName")} /></div>
               </div>
               <div className="field"><label>Language</label>
-                <select value={f.language} onChange={(e) => setF({ ...f, language: e.target.value })}>
+                <Select value={f.language} onChange={(e) => setF({ ...f, language: e.target.value })}>
                   {LANGUAGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
+                </Select>
                 <div className="muted">This customer will receive notifications in this language.</div>
               </div>
-              <div className="field"><label>Email</label><input type="email" value={f.email} onChange={set("email")} autoComplete="off" /></div>
-              <div className="field"><label>Phone number</label><PhoneInput value={f.phone} onChange={(v) => setF((cur) => ({ ...cur, phone: v }))} /></div>
+              <div className="field"><label htmlFor="nc-email">Email</label><input id="nc-email" type="email" value={f.email} onChange={(e) => { setSrvEmail(""); set("email")(e); }} autoComplete="off" aria-invalid={val.err("email") || val.err("contact") ? true : undefined} onBlur={() => { val.touch("email"); val.touch("contact"); }} /><FieldError k="email" msg={val.err("email") || val.err("contact")} /></div>
+              <div className="field"><label htmlFor="nc-phone">Phone number</label><PhoneInput id="nc-phone" value={f.phone} onChange={(v) => setF((cur) => ({ ...cur, phone: v }))} invalid={!!(val.err("phone") || val.err("contact"))} onTouch={() => { val.touch("phone"); val.touch("contact"); }} /><FieldError k="phone" msg={val.err("phone")} /></div>
               <label className={`check ${hasEmail ? "" : "off"}`}><input type="checkbox" disabled={!hasEmail} checked={f.acceptsEmail && hasEmail} onChange={(e) => setF({ ...f, acceptsEmail: e.target.checked })} />Customer agreed to receive marketing emails.</label>
               <label className={`check ${hasPhone ? "" : "off"}`}><input type="checkbox" disabled={!hasPhone} checked={f.acceptsSms && hasPhone} onChange={(e) => setF({ ...f, acceptsSms: e.target.checked })} />Customer agreed to receive SMS marketing text messages.</label>
               <label className={`check ${hasPhone ? "" : "off"}`}><input type="checkbox" disabled={!hasPhone} checked={f.acceptsWhatsapp && hasPhone} onChange={(e) => setF({ ...f, acceptsWhatsapp: e.target.checked })} />Customer agreed to receive WhatsApp marketing messages.</label>
@@ -105,10 +120,10 @@ export function NewCustomerSheet({ markets, query = "", backLabel = "Back", onCr
             <h3 className="sheet-h">Tax details</h3>
             <div className="card">
               <div className="field" style={{ margin: 0 }}><label>Tax settings</label>
-                <select value={f.taxExempt ? "exempt" : "collect"} onChange={(e) => setF({ ...f, taxExempt: e.target.value === "exempt" })}>
+                <Select value={f.taxExempt ? "exempt" : "collect"} onChange={(e) => setF({ ...f, taxExempt: e.target.value === "exempt" })}>
                   <option value="collect">Collect tax</option>
                   <option value="exempt">Don’t collect tax</option>
-                </select>
+                </Select>
               </div>
             </div>
           </div>
@@ -131,7 +146,7 @@ export function NewCustomerSheet({ markets, query = "", backLabel = "Back", onCr
       <div className="savebar">
         <span style={{ flex: 1 }} />
         <button onClick={onClose}>Discard</button>
-        <button className="primary" disabled={saving || (!hasEmail && !hasPhone)} title={!hasEmail && !hasPhone ? "Add an email or phone number" : ""} onClick={save}>{saving ? "Saving…" : "Save"}</button>
+        <button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button>
       </div>
       {addrOpen && (
         <AddressModal

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, download, money, type ProductRow } from "@/lib/api";
 import { ColumnsMenu, loadView, saveView, type ViewState } from "./ColumnsMenu";
 import { Badge, TagList } from "./hooks";
+import { Select } from "../Select";
 
 const PAGE = 50;
 type ColKey = "status" | "inventory" | "markets" | "price" | "type" | "vendor" | "tags" | "variants" | "updated" | "created";
@@ -117,9 +118,9 @@ export function ProductList({ onAdd, onEdit }: { onAdd: () => void; onEdit: (id:
 
       <div className="card custlistcard">
         <div className="custtools">
-          <select className="viewselect" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Product view">
+          <Select className="viewselect" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Product view">
             {VIEWS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-          </select>
+          </Select>
           <div className="searchfield grow">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.3-4.3" /></svg>
             <input placeholder="Search and filter" value={q} onChange={(e) => setQ(e.target.value)} />

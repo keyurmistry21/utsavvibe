@@ -8,6 +8,7 @@ import { carriers, trackingUrl } from "@/lib/carriers";
 import { Badge } from "./hooks";
 import { OrderEmails } from "./OrderEmails";
 import { External } from "../Icons";
+import { Select } from "../Select";
 
 export function OrderDetail({ id }: { id: string }) {
   const router = useRouter();
@@ -86,9 +87,9 @@ export function OrderDetail({ id }: { id: string }) {
                   </button>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} style={{ width: 150 }}>
+                  <Select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} style={{ width: 150 }}>
                     <option value="bank_transfer">Bank transfer</option><option value="cash">Cash</option><option value="other">Other</option>
-                  </select>
+                  </Select>
                   <button onClick={() => confirm("Mark as paid? This takes stock and creates the order.") && run(() => api(`/drafts/${id}/mark-paid`, { method: "POST", json: { method: payMethod, notify: notify && !!o.customer?.email } }), notify && o.customer?.email ? "Order created. Confirmation emailed." : "Order created.")}>Mark as paid</button>
                 </div>
               </div>
@@ -115,9 +116,9 @@ export function OrderDetail({ id }: { id: string }) {
               <h3>Shipping &amp; tracking</h3>
               <div className="row">
                 <div className="field"><label>Carrier</label>
-                  <select value={ship.carrier} onChange={(e) => setShip({ ...ship, carrier: e.target.value })}>
+                  <Select value={ship.carrier} onChange={(e) => setShip({ ...ship, carrier: e.target.value })}>
                     <option value="">Select…</option>{carriers.map((c) => <option key={c.name}>{c.name}</option>)}
-                  </select>
+                  </Select>
                 </div>
                 <div className="field"><label>Tracking number</label><input value={ship.trackingNumber} onChange={(e) => setShip({ ...ship, trackingNumber: e.target.value })} /></div>
                 <div className="field"><label>Package weight (g)</label><input type="number" min={0} value={ship.weight} onChange={(e) => setShip({ ...ship, weight: e.target.value })} /></div>
