@@ -29,6 +29,9 @@ Next.js 16 App Router + React 19 + TypeScript. Plain CSS in `src/app/styles.css`
 
 - Storefront data goes through `lib/store.ts`, which fills missing fields (`images`, `regions`, ...) because Next can serve a cached API response from an older shape; pages may rely on those fields. Icons next to labels (`components/Icons.tsx`: Plus, ArrowLeft, ArrowRight, External) are SVGs so buttons/links can space them with `gap`; don't type `+`/`→` glyphs into labels.
 
+## Rich text and HTML code
+Every long-text field that is HTML (product description, pages, policies) uses `RichTextEditor`, which has a `</> HTML` button to edit the source. Pasted code goes through `lib/cleanHtml.ts` (DOMParser allow-list, mirrors the server) before it is shown, so `onerror=`/`<script>` can never run inside the admin; the real gate is `sanitizeDescription` in `backend/src/html.ts` on every save. Allowed: formatting, links, lists, headings h2-h4, tables, images (src must be http(s) or a `/` path), `pre`/`code`, and iframes ONLY from youtube.com / youtube-nocookie.com / player.vimeo.com. Everything else (scripts, styles, classes, inline handlers, other iframes, forms) is removed, so keep the client and server allow-lists in sync. Plain textareas (notes, meta descriptions, address fields) stay plain text on purpose. Storefront styling for the richer tags is under `.sf .desc`.
+
 ## Variant editor
 Variants are cards (`.vcard`), not a table, so nothing scrolls sideways: per-market price and compare-at (the crossed-out "was" price, must be above the price, display only), quantity, weight, then SKU and barcode side by side with Generate, plus "Preview barcode and QR". Don't go back to a wide table.
 

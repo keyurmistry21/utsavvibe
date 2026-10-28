@@ -1018,3 +1018,18 @@ body:has(.sf) { background: #fff9f1; }
 .admin .vcodes .field { min-width: 0; margin-bottom: 12px; }
 .admin .vgrid .genrow { margin-bottom: 0; }
 @media (max-width: 520px) { .admin .vgrid { grid-template-columns: 1fr 1fr; } .admin .vcodes { grid-template-columns: 1fr; } }
+
+/* HTML source view in the rich text editor + richer content (tables, images, embeds) */
+.admin .rtebtn.on { background: #303030; color: #fff; }
+.admin .rtebtn:disabled { opacity: .4; cursor: default; }
+.admin .rte-src { display: block; width: 100%; min-height: 240px; max-height: 480px; resize: vertical; border: 0; border-radius: 0; outline: none; padding: 12px 14px; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; background: #fbfbfb; color: #222; box-sizing: border-box; white-space: pre-wrap; tab-size: 2; }
+.admin .rte-note { font-size: 12px; color: #6b6b6b; padding: 6px 14px 10px; border-top: 1px solid var(--border, #e3e3e3); }
+.admin .rte-body img, .sf .desc img, .sf-page .desc img { max-width: 100%; height: auto; border-radius: 8px; }
+.admin .rte-body table, .sf .desc table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+.admin .rte-body td, .admin .rte-body th, .sf .desc td, .sf .desc th { border: 1px solid #ddd; padding: 6px 10px; text-align: left; vertical-align: top; }
+.admin .rte-body th, .sf .desc th { background: #f5f1ea; }
+.admin .rte-body pre, .sf .desc pre { background: #f4f4f4; padding: 10px 12px; border-radius: 8px; overflow-x: auto; }
+.admin .rte-body code, .sf .desc code { font-family: ui-monospace, Menlo, monospace; font-size: .92em; }
+.sf .desc iframe { width: 100%; aspect-ratio: 16 / 9; height: auto; border: 0; border-radius: 10px; }
+.sf .desc h4 { font-size: 15px; margin: 14px 0 6px; }
+.sf .desc hr { border: 0; border-top: 1px solid #e6dccb; margin: 18px 0; }
