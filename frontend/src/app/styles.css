@@ -932,3 +932,10 @@ body:has(.sf) { background: #fff9f1; }
 .admin .permgroup h4 { margin: 0 0 6px; }
 .admin .permgroup .check { margin: 4px 0; }
 .admin td > b + .chip { margin-left: 8px; }
+.admin .paystep { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; }
+.admin .paydot { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #c9c9c9; display: grid; place-items: center; font-size: 13px; font-weight: 700; margin-top: 1px; }
+.admin .paydot.ok { background: #1f9d55; border-color: #1f9d55; color: #fff; }
+.admin .kv { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; border-top: 1px solid var(--border, #e3e3e3); flex-wrap: wrap; }
+.admin .kv:first-of-type { border-top: 0; }
+.admin .kv > span:first-child { color: #616161; }
+.admin code { background: #f1f1f1; padding: 1px 5px; border-radius: 5px; font-size: 12.5px; overflow-wrap: anywhere; }

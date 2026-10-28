@@ -41,6 +41,9 @@ Product flags drive behaviour everywhere: `trackInventory`/`continueSelling` (`s
 ## Staff, roles, permissions
 `permissions.ts`: permission keys (`orders.view|manage`, `products.*`, `customers.*`, `analytics.view`, `markets.manage`, `online_store.manage`, `settings.manage`, `users.manage`; `manage` implies `view`), default roles (Owner locked with everything, Administrator, Fulfilment, Catalog manager, Content editor, Support), `ensureRoles()` runs on startup (never overwrites edited roles; users without a role become Owners, which is how pre-RBAC admins migrate). `auth.ts`: `currentUser` loads the role on every request, so role/active changes apply immediately and deactivated users are signed out; `guard({read, write, readOpen})` is mounted per router in `index.ts` (GET needs a read permission, other methods a write one; orders.manage may read products/customers for the draft picker). `routes/users.ts`: staff + roles CRUD with rules that must stay: you can't grant access you don't hold, only owners touch owners or assign Owner, no self role change/deactivate/delete, always one active owner, a role with users can't be deleted, Owner role is immutable, reset-password/deactivate delete the user's sessions. `create-admin` makes an Owner.
 
+## Payments page
+`routes/payments.ts` (`/api/admin/payments`, needs `settings.manage`): read-only Stripe status for Settings → Payments (account, charges/payouts enabled, bank last4 via `accounts.listExternalAccounts`, balance, recent payouts; stripe v23 uses `accounts.retrieveCurrent()`). Never collect or store card/bank numbers here: customers pay on Stripe Checkout, the payout bank is added in the Stripe Dashboard.
+
 ## Commands
 - `npm -w backend run dev:server` (tsx watch), `typecheck`, `db:push`, `seed`, `create-admin`
 - Schema change: edit `schema.prisma` → `npx prisma db push` (dev). Use `prisma migrate` before production.

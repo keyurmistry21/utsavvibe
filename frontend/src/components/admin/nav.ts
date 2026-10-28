@@ -6,6 +6,7 @@ export const icons = {
   customers: "M16 20v-1a4 4 0 00-4-4H8a4 4 0 00-4 4v1M10 11a3.5 3.5 0 100-7 3.5 3.5 0 000 7M20 20v-1a4 4 0 00-3-3.9M16 4.2a3.5 3.5 0 010 6.6",
   markets: "M12 21a9 9 0 100-18 9 9 0 000 18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18",
   store: "M4 9l1.5-5h13L20 9M4 9v11h16V9M4 9h16M9 20v-6h6v6",
+  card: "M3 6h18v12H3zM3 10h18M7 15h4",
   lock: "M6 11h12v9H6zM8 11V8a4 4 0 018 0v3",
   bell: "M6 16V11a6 6 0 0112 0v5l2 2H4zM10 20a2 2 0 004 0",
   brush: "M4 20c3 0 5-1 5-3a3 3 0 00-3-3c-2 0-2 3-2 6zM9 14L19 4l1 1-10 10",
@@ -37,6 +38,7 @@ export const actions = [
   { label: "Add market", href: "/admin/markets?new=1" },
   { label: "Open orders to fulfil", href: "/admin/orders?status=open" },
   { label: "Settings", href: "/admin/settings/general" },
+  { label: "Payments and payouts (Stripe, bank)", href: "/admin/settings/payments" },
   { label: "Staff users", href: "/admin/settings/users" },
   { label: "Roles and permissions", href: "/admin/settings/roles" },
   { label: "Change password", href: "/admin/settings/account" },
@@ -45,6 +47,7 @@ export const actions = [
 // Settings area: replaces the main sidebar while you're under /admin/settings (like Shopify)
 export const settingsLinks = [
   { href: "/admin/settings/general", label: "General", icon: icons.settings, perm: "settings.manage" },
+  { href: "/admin/settings/payments", label: "Payments", icon: icons.card, perm: "settings.manage" },
   { href: "/admin/settings/users", label: "Users", icon: icons.customers, perm: "users.manage" },
   { href: "/admin/settings/roles", label: "Roles and permissions", icon: icons.lock, perm: "users.manage" },
   { href: "/admin/settings/notifications", label: "Notifications", icon: icons.bell, perm: "settings.manage" },
