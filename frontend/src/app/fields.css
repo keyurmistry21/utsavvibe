@@ -203,3 +203,8 @@
 .fieldpreview[data-fields="glow"] .chipsinput:focus-within,
 [data-fields="glow"] .prefixed:focus-within,
 .fieldpreview[data-fields="glow"] .prefixed:focus-within { border-color: #4f8cf0 !important; box-shadow: 0 0 0 3px rgba(79,140,240,.22), 0 10px 28px rgba(79,140,240,.2) !important; animation: fieldGlow .4s ease-out !important;  outline: none !important; }
+
+/* filled: fields placed straight on the gray page background (not inside a white card) need a darker fill to stay visible */
+[data-fields="filled"] :is(.sidesec, .pagehead) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input), select, textarea, .rte, .chipsinput, .prefixed) { background-color: #e6e6e6 !important; }
+[data-fields="filled"] :is(.sidesec, .pagehead) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input), select, textarea, .rte, .chipsinput, .prefixed):not(:focus):not(:focus-within):hover { background-color: #dcdcdc !important; }
+[data-fields="filled"] :is(.sidesec, .pagehead) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not(.searchbox input):not(.chipsinput input):not(.prefixed input), select, textarea, .rte, .chipsinput, .prefixed):is(:focus, :focus-within) { background-color: #fff !important; }

@@ -9,7 +9,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <head>
         {/* apply the saved field style before first paint (no flash) */}
-        <script dangerouslySetInnerHTML={{ __html: 'try{var s=localStorage.getItem("fieldStyle");if(s)document.documentElement.setAttribute("data-fields",s)}catch(e){}' }} />
+        <script dangerouslySetInnerHTML={{ __html: 'var d=document.documentElement;try{d.setAttribute("data-fields",localStorage.getItem("fieldStyle.v2")||"filled")}catch(e){d.setAttribute("data-fields","filled")}' }} />
       </head>
       <body>{children}</body>
     </html>

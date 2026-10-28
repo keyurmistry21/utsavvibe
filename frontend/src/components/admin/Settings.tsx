@@ -40,7 +40,7 @@ function ShipFrom() {
 }
 
 function Appearance() {
-  const [cur, setCur] = useState<FieldStyleId>("classic");
+  const [cur, setCur] = useState<FieldStyleId>("filled");
   useEffect(() => { setCur(getFieldStyle()); }, []);
   const pick = (id: FieldStyleId) => { setFieldStyle(id); setCur(id); };
   return (
