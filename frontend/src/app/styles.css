@@ -963,3 +963,17 @@ body:has(.sf) { background: #fff9f1; }
 .admin .side .storepop .ico.solid { border-style: solid; border-color: transparent; background: #2a2a2a; }
 .admin .side .storepop .avatar { width: 30px; height: 30px; border-radius: 50%; background: #2fa67c; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 11px; flex: none; }
 .admin .side .storepop .avatar.sq { border-radius: 8px; background: #95bf47; color: #111; font-weight: 800; }
+
+/* Settings: the main sidebar collapses to an icon rail and the settings menu sits beside it */
+.admin .shell.withrail { grid-template-columns: 60px 232px 1fr; }
+.admin .side.rail { padding: 12px 8px; align-items: center; overflow: visible; border-right: 1px solid #1c1c1c; position: relative; z-index: 5; }
+.admin .side.rail .brand { padding: 4px 0 12px; display: block; }
+.admin .side.rail a { width: 42px; height: 42px; padding: 0; justify-content: center; }
+.admin .side.rail a svg { width: 19px; height: 19px; }
+.admin .side.setpanel { border-right: 1px solid #1c1c1c; }
+.admin .storesw.compact { margin: 6px 0 0; }
+.admin .storesw.compact .storebtn .who, .admin .storesw.compact .storebtn .chev { display: none; }
+.admin .side .storesw.compact .storebtn { width: 44px; height: 44px; padding: 6px; justify-content: center; border-radius: 12px; }
+.admin .side .storesw.compact .storepop { left: 0; right: auto; width: 250px; }
+@media (max-width: 900px) { .admin .side.rail { display: none; } .admin .shell.withrail { display: block; } }
+.admin .pagehead > div:first-child { min-width: 0; flex: 1 1 240px; } .admin .pagehead .muted { white-space: normal; overflow-wrap: anywhere; }

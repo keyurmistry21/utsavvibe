@@ -116,8 +116,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <span className="logo">U</span><b>UtsavVibe</b>
       </header>
       {menu && <div className="scrim" onClick={() => setMenu(false)} />}
-      <div className="shell">
-        <nav className={`side ${menu ? "open" : ""}`}>
+      <div className={`shell ${inSettings ? "withrail" : ""}`}>
+        {inSettings && (
+          <nav className="side rail" aria-label="Main">
+            <Link href="/admin" className="brand" title="Home"><span className="logo">U</span></Link>
+            {links.filter((l) => can(l.perm)).map((l) => (
+              <Link key={l.href} href={l.href} title={l.label} aria-label={l.label}><Icon d={l.icon} /></Link>
+            ))}
+            <div className="grow" />
+            <Link href="/admin/settings" className="active" title="Settings" aria-label="Settings"><Icon d={icons.settings} /></Link>
+            <StoreSwitcher
+              compact
+              name={name}
+              role={user.role}
+              onLogout={async () => { await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}
+            />
+          </nav>
+        )}
+        <nav className={`side ${inSettings ? "setpanel" : ""} ${menu ? "open" : ""}`}>
           {inSettings ? (
             <>
           <Link href="/admin" className="setback"><Icon d={icons.back} />Settings</Link>
@@ -174,11 +190,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           )}
           <div className="grow" />
           {!inSettings && <Link href="/admin/settings" className="settingslink"><Icon d={icons.settings} />Settings</Link>}
-          <StoreSwitcher
-            name={name}
-            role={user.role}
-            onLogout={async () => { await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}
-          />
+          {!inSettings && (
+            <StoreSwitcher
+              name={name}
+              role={user.role}
+              onLogout={async () => { await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}
+            />
+          )}
         </nav>
         <main className={`content ${path === "/admin" ? "is-home" : ""}`}><div className="inner">{needs && !can(needs) ? <NoAccess /> : children}</div></main>
       </div>

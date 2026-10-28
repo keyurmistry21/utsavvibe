@@ -6,7 +6,7 @@ import { Modal } from "./Modal";
 import { Plus } from "../Icons";
 
 // Bottom-of-sidebar store menu. This app runs one store, so the list has just the current store; "Create store" explains how a second one is set up.
-export function StoreSwitcher({ name: me, role, onLogout }: { name: string; role: string | null; onLogout: () => void }) {
+export function StoreSwitcher({ name: me, role, onLogout, compact = false }: { name: string; role: string | null; onLogout: () => void; compact?: boolean }) {
   const [name, setName] = useState("UtsavVibe");
   const [host, setHost] = useState("");
   const [open, setOpen] = useState(false);
@@ -27,7 +27,7 @@ export function StoreSwitcher({ name: me, role, onLogout }: { name: string; role
 
   const initials = name.trim().slice(0, 2).toUpperCase();
   return (
-    <div className="storesw" ref={box}>
+    <div className={`storesw ${compact ? "compact" : ""}`} ref={box}>
       {open && (
         <div className="storepop" role="menu">
           <div className="storepop-h">Stores</div>
@@ -48,7 +48,7 @@ export function StoreSwitcher({ name: me, role, onLogout }: { name: string; role
           </button>
         </div>
       )}
-      <button className="storebtn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button className="storebtn" title={compact ? name : undefined} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span className="avatar sq">{initials}</span>
         <span className="who"><b>{name}</b><small>{host}</small></span>
         <svg viewBox="0 0 20 20" aria-hidden="true" className="chev"><path d="M6 8l4-4 4 4M6 12l4 4 4-4" /></svg>
