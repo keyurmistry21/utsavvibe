@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma, parseJson } from "../db.js";
 import { currentUser } from "../auth.js";
 import { testEmail } from "../emails.js";
+import { shipFromAddress } from "./locations.js";
 import { mailConfigured, sendMail } from "../mail.js";
 
 export const settingsRouter = Router();
@@ -19,14 +20,18 @@ const shipFrom = z.object({
   phone: z.string().default(""),
 });
 
+// Sender address on labels = the default location (kept as an endpoint so labels and the General page keep working).
 settingsRouter.get("/ship-from", async (_req, res) => {
-  const row = await prisma.setting.findUnique({ where: { key: "shipFrom" } });
-  res.json(shipFrom.parse(parseJson(row?.value ?? "{}", {})));
+  res.json(shipFrom.parse(await shipFromAddress()));
 });
 
+// Editing it edits the default location (created if there is none yet).
 settingsRouter.put("/ship-from", async (req, res) => {
   const v = shipFrom.parse(req.body);
-  await prisma.setting.upsert({ where: { key: "shipFrom" }, create: { key: "shipFrom", value: JSON.stringify(v) }, update: { value: JSON.stringify(v) } });
+  const loc = await prisma.location.findFirst({ where: { isDefault: true } });
+  const data = { name: v.name || v.company || "Main location", company: v.company, line1: v.line1, line2: v.line2, city: v.city, region: v.region, postcode: v.postcode, country: v.country.toUpperCase().slice(0, 2), phone: v.phone };
+  if (loc) await prisma.location.update({ where: { id: loc.id }, data });
+  else await prisma.location.create({ data: { ...data, isDefault: true } });
   res.json(v);
 });
 

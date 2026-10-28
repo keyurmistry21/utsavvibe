@@ -11,6 +11,7 @@ import { createCheckoutSession } from "../checkout.js";
 import { imageUrls } from "../storage.js";
 import { sendOrderConfirmation } from "../orderEmails.js";
 import { loadPrefs } from "./onlineStore.js";
+import { publicPolicy, publishedPolicies } from "./policies.js";
 
 // Public storefront API: catalog, quote, checkout. Plus Stripe webhook.
 export const storeRouter = Router();
@@ -24,6 +25,13 @@ storeRouter.get("/markets", async (_req, res) => {
 
 // Store name, announcement, menus: one call for the storefront layout.
 storeRouter.get("/site", async (_req, res) => res.json(await loadPrefs()));
+
+storeRouter.get("/policies", async (_req, res) => res.json(await publishedPolicies()));
+storeRouter.get("/policies/:key", async (req, res) => {
+  const p = await publicPolicy(req.params.key);
+  if (!p) return void res.status(404).json({ error: "not found" });
+  res.json(p);
+});
 
 storeRouter.get("/pages", async (_req, res) => {
   res.json(await prisma.page.findMany({ where: { visible: true }, orderBy: { title: "asc" }, select: { handle: true, title: true } }));

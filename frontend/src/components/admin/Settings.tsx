@@ -27,8 +27,8 @@ export function ShipFrom() {
   };
   return (
     <div className="card" style={{ maxWidth: 640 }}>
-      <h3>Ship-from address</h3>
-      <p className="muted">Printed on shipping labels and packing slips.</p>
+      <h3>Default location address</h3>
+      <p className="muted">Printed as the sender on shipping labels and packing slips. This edits your default location; add more under <a className="lnk" href="/admin/settings/locations">Locations</a>.</p>
       <div className="row">
         <div className="field"><label>Contact name</label><input value={f.name} onChange={set("name")} /></div>
         <div className="field"><label>Business name</label><input value={f.company} onChange={set("company")} /></div>

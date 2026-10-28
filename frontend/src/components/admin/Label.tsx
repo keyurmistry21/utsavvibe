@@ -30,7 +30,7 @@ export function Label({ id }: { id: string }) {
           <button className="primary" onClick={() => window.print()}>Print</button>
         </div>
       </div>
-      {noFrom && <div className="error noprint">No ship-from address yet. Add it under <a href="/admin/settings">Settings</a>.</div>}
+      {noFrom && <div className="error noprint">No ship-from address yet. Add it under <a href="/admin/settings/locations">Settings</a>.</div>}
       {!slip ? (
         <div className="label4x6">
           <div className="lfrom">

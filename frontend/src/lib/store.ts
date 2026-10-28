@@ -48,3 +48,7 @@ export type CmsPage = { handle: string; title: string; content: string; seoTitle
 export const getPage = (handle: string) => get<CmsPage>(`/pages/${encodeURIComponent(handle)}`, true) // not cached: Next keeps a stale 200 forever when the page later becomes a 404 (hidden/deleted);
 /** "/pages/about" is relative to the market being browsed; full links are left alone. */
 export const menuHref = (code: string, url: string) => (url.startsWith("/") ? `/${code}${url === "/" ? "" : url}` : url);
+
+export type PolicyLink = { key: string; title: string };
+export const getPolicyLinks = async (): Promise<PolicyLink[]> => { try { return (await get<PolicyLink[]>("/policies", true)) ?? []; } catch { return []; } };
+export const getPolicy = (key: string) => get<{ key: string; title: string; content: string }>(`/policies/${encodeURIComponent(key)}`, true);

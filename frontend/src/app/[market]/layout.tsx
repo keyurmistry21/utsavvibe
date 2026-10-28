@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getMarkets, getSite, menuHref } from "@/lib/store";
+import { getMarkets, getPolicyLinks, getSite, menuHref } from "@/lib/store";
 import { CartProvider } from "@/components/store/cart";
 import { CartLink } from "@/components/store/CartLink";
 
 export default async function MarketLayout({ children, params }: { children: React.ReactNode; params: Promise<{ market: string }> }) {
   const { market } = await params;
   const code = market.toLowerCase();
-  const [markets, site] = await Promise.all([getMarkets(), getSite()]);
+  const [markets, site, policies] = await Promise.all([getMarkets(), getSite(), getPolicyLinks()]);
   const current = markets.find((m) => m.code.toLowerCase() === code);
   if (!current) notFound();
 
@@ -39,6 +39,7 @@ export default async function MarketLayout({ children, params }: { children: Rea
             <p>{site.tagline}</p>
             {site.footerMenu.length > 0 && <ul className="sf-footnav">{site.footerMenu.map((m, i) => <li key={i}><Link href={menuHref(code, m.url)}>{m.label}</Link></li>)}</ul>}
           </div>
+          {policies.length > 0 && <ul className="sf-footnav sf-policies">{policies.map((p) => <li key={p.key}><Link href={`/${code}/policies/${p.key}`}>{p.title}</Link></li>)}</ul>}
           <div className="muted">
             Secure payments by Stripe · {current.taxInclusive ? "Prices include tax" : "Tax added at checkout"}
           </div>

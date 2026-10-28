@@ -214,6 +214,30 @@ model Session {
 }
 
 // Key/value store settings (e.g. ship-from address). Value is JSON.
+// Where stock is kept and orders ship from. The default one is printed as the sender on labels and packing slips.
+model Location {
+  id        String   @id @default(cuid())
+  name      String
+  company   String   @default("")
+  line1     String   @default("")
+  line2     String   @default("")
+  city      String   @default("")
+  region    String   @default("")
+  postcode  String   @default("")
+  country   String   @default("")
+  phone     String   @default("")
+  active    Boolean  @default(true)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// Store policies (refund, privacy, ...). One row per fixed key; empty content = not published.
+model Policy {
+  key       String   @id
+  content   String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
 // Online store content pages (About, Shipping policy, ...), shown at /<market>/pages/<handle>.
 model Page {
   id             String   @id @default(cuid())

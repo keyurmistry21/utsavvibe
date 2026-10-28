@@ -939,3 +939,23 @@ body:has(.sf) { background: #fff9f1; }
 .admin .kv:first-of-type { border-top: 0; }
 .admin .kv > span:first-child { color: #616161; }
 .admin code { background: #f1f1f1; padding: 1px 5px; border-radius: 5px; font-size: 12.5px; overflow-wrap: anywhere; }
+.sf .sf-policies { margin-top: 0; }
+
+/* store switcher (bottom of the sidebar) */
+.admin .storesw { position: relative; margin: 8px 0 4px; }
+.admin .side .storebtn { width: 100%; display: flex; align-items: center; gap: 10px; background: #1b1b1b; border: 1px solid #2a2a2a; border-radius: 10px; padding: 8px 10px; color: #fff; text-align: left; height: auto; box-shadow: none; cursor: pointer; }
+.admin .side .storebtn:hover { background: #242424; }
+.admin .storesw .avatar.sq { border-radius: 8px; background: #95bf47; color: #111; width: 30px; height: 30px; display: grid; place-items: center; font-weight: 800; font-size: 12px; flex: none; }
+.admin .storesw .who { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; }
+.admin .storesw .who b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin .storesw .who small { font-size: 11px; opacity: .6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin .storesw .chev, .admin .storesw .tick { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; opacity: .7; }
+.admin .side .storepop { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); background: #1f1f1f; color: #fff; border: 1px solid #333; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.5); padding: 6px; z-index: 40; animation: ferrIn .14s ease-out; min-width: 230px; opacity: 1; }
+.admin .side .storepop-h { font-size: 12px; color: #9a9a9a; padding: 6px 8px 4px; }
+.admin .side .storepop .storerow { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border-radius: 8px; background: transparent; border: 0; box-shadow: none; color: #fff; text-decoration: none; text-align: left; height: auto; cursor: pointer; margin: 0; }
+.admin .side .storepop .storerow:hover { background: #2c2c2c; }
+.admin .side .storepop .storerow.current { background: #2a2a2a; cursor: default; }
+.admin .side .storepop .ico { width: 30px; height: 30px; display: grid; place-items: center; border: 1px dashed #666; border-radius: 8px; flex: none; color: #ddd; }
+.admin .side .storepop .ico svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+.admin .side .storepop .who small { opacity: .65; }
+.admin .side .storepop .who b { color: #fff; }

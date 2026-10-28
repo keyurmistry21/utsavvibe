@@ -24,6 +24,8 @@ export const ROUTE_PERMS: [string, string][] = [
   ["/admin/settings/users", "users.manage"],
   ["/admin/settings/roles", "users.manage"],
   ["/admin/settings/payments", "settings.manage"],
+  ["/admin/settings/locations", "settings.manage"],
+  ["/admin/settings/policies", "settings.manage"],
   ["/admin/settings/general", "settings.manage"],
   ["/admin/settings/notifications", "settings.manage"],
 ];

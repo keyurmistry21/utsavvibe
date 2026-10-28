@@ -12,6 +12,8 @@ import { customersRouter } from "./routes/customers.js";
 import { draftsRouter } from "./routes/drafts.js";
 import { settingsRouter } from "./routes/settings.js";
 import { usersRouter, rolesRouter } from "./routes/users.js";
+import { locationsRouter, ensureDefaultLocation } from "./routes/locations.js";
+import { policiesRouter } from "./routes/policies.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { ensureRoles } from "./permissions.js";
 import { onlineStoreRouter } from "./routes/onlineStore.js";
@@ -41,6 +43,8 @@ app.use("/api/admin/analytics", guard({ write: ["analytics.view"] }), analyticsR
 app.use("/api/admin/drafts", guard({ read: ["orders.view"], write: ["orders.manage"] }), draftsRouter);
 app.use("/api/admin/settings", guard({ readOpen: true, write: ["settings.manage"] }), settingsRouter);
 app.use("/api/admin/online-store", guard({ write: ["online_store.manage"] }), onlineStoreRouter);
+app.use("/api/admin/locations", guard({ write: ["settings.manage"] }), locationsRouter);
+app.use("/api/admin/policies", guard({ write: ["settings.manage"] }), policiesRouter);
 app.use("/api/admin/payments", guard({ write: ["settings.manage"] }), paymentsRouter);
 app.use("/api/admin/users", guard({ write: ["users.manage"] }), usersRouter);
 app.use("/api/admin/roles", guard({ write: ["users.manage"] }), rolesRouter);
@@ -60,4 +64,5 @@ app.use(onError);
 
 const port = Number(process.env.PORT) || 4000;
 await ensureRoles();
+await ensureDefaultLocation();
 app.listen(port, () => console.log(`api on :${port}`));

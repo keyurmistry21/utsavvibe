@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { auth, api, type AdminUser } from "@/lib/api";
 import { actions, icons, links, settingsLinks } from "@/components/admin/nav";
+import { StoreSwitcher } from "@/components/admin/StoreSwitcher";
 import { NoAccess } from "@/components/admin/NoAccess";
 import { PermsProvider, ROUTE_PERMS } from "@/lib/perms";
 
@@ -173,6 +174,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           )}
           <div className="grow" />
           {!inSettings && <Link href="/admin/settings" className="settingslink"><Icon d={icons.settings} />Settings</Link>}
+          <StoreSwitcher />
           <Link href="/admin/settings/account" className="me" title="My account" style={{ textDecoration: "none" }}>
             <span className="avatar">{name.slice(0, 2).toUpperCase()}</span>
             <span className="who">{name}{user.role && <small style={{ display: "block", opacity: 0.6, fontSize: 11 }}>{user.role}</small>}</span>
