@@ -17,9 +17,9 @@ export const links = [
   { href: "/admin/orders", label: "Orders", icon: icons.orders },
   { href: "/admin/products", label: "Products", icon: icons.products },
   { href: "/admin/customers", label: "Customers", icon: icons.customers },
-  { href: "/admin/online-store", label: "Online Store", icon: icons.store },
   { href: "/admin/markets", label: "Markets", icon: icons.markets },
   { href: "/admin/analytics", label: "Analytics", icon: icons.analytics },
+  { href: "/admin/online-store", label: "Online Store", icon: icons.store },
 ] as const;
 
 // things the search / finder can jump to

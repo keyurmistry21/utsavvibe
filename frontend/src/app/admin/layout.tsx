@@ -128,6 +128,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           {links.map((l) => (
             <div key={l.href} style={{ display: "contents" }}>
+              {l.label === "Online Store" && <div className="navhead">Sales channels</div>}
               <Link href={l.href} className={active(l.href) && !(l.label === "Orders" && isDrafts) ? "active" : ""}>
                 <Icon d={l.icon} />{l.label}
                 {l.label === "Orders" && toFulfil > 0 && <span className="count">{toFulfil}</span>}
