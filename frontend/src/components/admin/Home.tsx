@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { auth, money, type AdminUser } from "@/lib/api";
+import { ROUTE_PERMS, useCan } from "@/lib/perms";
 import { useApi } from "./hooks";
 import { actions } from "./nav";
 
@@ -27,7 +28,9 @@ export function Home() {
   const [hi, setHi] = useState(0);
   useEffect(() => { auth<AdminUser>("/me").then(setUser).catch(() => {}); }, []);
 
-  const matches = q ? actions.filter((a) => a.label.toLowerCase().includes(q.toLowerCase())) : [];
+  const { can } = useCan();
+  const allowed = actions.filter((a) => { const p = ROUTE_PERMS.find(([prefix]) => a.href.startsWith(prefix))?.[1]; return !p || can(p); });
+  const matches = q ? allowed.filter((a) => a.label.toLowerCase().includes(q.toLowerCase())) : [];
   const totalOrders = summary?.markets.reduce((s, m) => s + m.orders, 0) ?? 0;
 
   const cards = status && [

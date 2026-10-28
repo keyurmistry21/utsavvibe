@@ -9,7 +9,7 @@ import { Select } from "../Select";
 
 const blankFrom = { name: "", company: "", line1: "", line2: "", city: "", region: "", postcode: "", country: "", phone: "" };
 
-function ShipFrom() {
+export function ShipFrom() {
   const [f, setF] = useState(blankFrom);
   const [msg, setMsg] = useState("");
   useEffect(() => { api<typeof blankFrom>("/settings/ship-from").then(setF).catch(() => {}); }, []);
@@ -50,7 +50,7 @@ function ShipFrom() {
   );
 }
 
-function Appearance() {
+export function Appearance() {
   const [cur, setCur] = useState<FieldStyleId>("filled");
   useEffect(() => { setCur(getFieldStyle()); }, []);
   const pick = (id: FieldStyleId) => { setFieldStyle(id); setCur(id); };
@@ -76,7 +76,7 @@ function Appearance() {
   );
 }
 
-function EmailSettings() {
+export function EmailSettings() {
   const [st, setSt] = useState<{ configured: boolean; from: string | null; host: string | null; dev: boolean } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -104,11 +104,10 @@ function EmailSettings() {
   );
 }
 
-export function Settings() {
+export function PasswordCard() {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
   const PE: Record<string, string> = {
     current: required(current, "Enter your current password"),
     next: !next ? "Enter a new password" : next.length < 10 ? `Use at least 10 characters (${next.length} so far)` : next === current ? "The new password must be different from the current one" : "",
@@ -119,27 +118,19 @@ export function Settings() {
     if (!pv.submit()) return;
     try {
       await auth("/password", { method: "POST", json: { current, next } });
-      setCurrent("");
-      setNext("");
+      setCurrent(""); setNext(""); pv.reset();
       setMsg({ ok: true, text: "Password updated. Other devices were signed out." });
     } catch (e) {
       setMsg({ ok: false, text: (e as Error).message });
     }
   };
-
   return (
-    <>
-      <div className="pagehead"><h2>Settings</h2></div>
-      <div className="card" style={{ maxWidth: 480 }}>
-        <h3>Change password</h3>
-        <div className="field"><label htmlFor="pw-cur">Current password</label><input id="pw-cur" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} {...pv.props("current")} /><FieldError k="current" msg={pv.err("current")} /></div>
-        <div className="field"><label htmlFor="pw-new">New password (10+ characters)</label><input id="pw-new" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} {...pv.props("next")} /><FieldError k="next" msg={pv.err("next")} /></div>
-        {msg && <div className={msg.ok ? "muted" : "error"}>{msg.text}</div>}
-        <button className="primary" onClick={save}>Update password</button>
-      </div>
-      <ShipFrom />
-      <EmailSettings />
-      <Appearance />
-    </>
+    <div className="card" style={{ maxWidth: 480 }}>
+      <h3>Change password</h3>
+      <div className="field"><label htmlFor="pw-cur">Current password</label><input id="pw-cur" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} {...pv.props("current")} /><FieldError k="current" msg={pv.err("current")} /></div>
+      <div className="field"><label htmlFor="pw-new">New password (10+ characters)</label><input id="pw-new" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} {...pv.props("next")} /><FieldError k="next" msg={pv.err("next")} /></div>
+      {msg && <div className={msg.ok ? "muted" : "error"}>{msg.text}</div>}
+      <button className="primary" onClick={save}>Update password</button>
+    </div>
   );
 }

@@ -925,3 +925,10 @@ body:has(.sf) { background: #fff9f1; }
 .admin td.excerpt { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin button.link.sortbtn { font-weight: 600; color: inherit; }
 .admin .side .navhead { margin: 14px 10px 4px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #8a8a8a; }
+.admin .side .setback { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #fff; padding: 8px 10px; }
+.admin .side .setback svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.admin .side .me { color: inherit; }
+.admin .permgroup { border-top: 1px solid var(--border, #e3e3e3); padding: 10px 0 4px; }
+.admin .permgroup h4 { margin: 0 0 6px; }
+.admin .permgroup .check { margin: 4px 0; }
+.admin td > b + .chip { margin-left: 8px; }

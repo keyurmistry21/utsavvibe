@@ -184,8 +184,23 @@ model AdminUser {
   email        String    @unique
   name         String    @default("")
   passwordHash String
+  roleId       String?
+  role         Role?     @relation(fields: [roleId], references: [id])
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   sessions     Session[]
+}
+
+// Staff role: a named set of permission keys (see src/permissions.ts). "Owner" is the locked system role with everything.
+model Role {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String      @default("") @db.VarChar(300)
+  permissions String      @db.Text // JSON array of permission keys
+  isSystem    Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  users       AdminUser[]
 }
 
 // Only the sha256 of the cookie token is stored, so a DB leak can't be replayed as a session.

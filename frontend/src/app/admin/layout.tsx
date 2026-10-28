@@ -6,7 +6,9 @@ import { FieldError, useValidation } from "@/components/admin/validation";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { auth, api, type AdminUser } from "@/lib/api";
-import { actions, icons, links } from "@/components/admin/nav";
+import { actions, icons, links, settingsLinks } from "@/components/admin/nav";
+import { NoAccess } from "@/components/admin/NoAccess";
+import { PermsProvider, ROUTE_PERMS } from "@/lib/perms";
 
 const Icon = ({ d }: { d: string }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
@@ -64,6 +66,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState(false); // mobile drawer
   const [qs, setQs] = useState("");
+  const [sq, setSq] = useState(""); // settings search
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -92,13 +95,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (user === undefined) return null;
   if (!user) return <Login onDone={setUser} />;
 
+  const can = (perm: string) => !perm || user.owner || user.permissions.includes(perm) || (perm.endsWith(".view") && user.permissions.includes(perm.replace(/\.view$/, ".manage")));
+  const needs = ROUTE_PERMS.find(([prefix]) => path === prefix || path.startsWith(prefix + "/"))?.[1];
+  const inSettings = path.startsWith("/admin/settings");
   const active = (href: string) => (href === "/admin" ? path === href : path.startsWith(href));
-  const matches = q ? actions.filter((a) => a.label.toLowerCase().includes(q.toLowerCase())).slice(0, 6) : [];
+  const allowedActions = actions.filter((a) => { const p = ROUTE_PERMS.find(([prefix]) => a.href.startsWith(prefix))?.[1]; return !p || can(p); });
+  const matches = q ? allowedActions.filter((a) => a.label.toLowerCase().includes(q.toLowerCase())).slice(0, 6) : [];
   const go = (href: string) => { setQ(""); setOpen(false); searchRef.current?.blur(); router.push(href); };
   const name = user.name || user.email;
   const isDrafts = path.startsWith("/admin/orders/new") || path.endsWith("/edit") || (path === "/admin/orders" && qs.includes("status=draft"));
 
   return (
+    <PermsProvider value={user}>
     <div className="admin">
       <header className="mbar">
         <button className="burger" aria-label="Open menu" aria-expanded={menu} onClick={() => setMenu(true)}>
@@ -109,6 +117,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {menu && <div className="scrim" onClick={() => setMenu(false)} />}
       <div className="shell">
         <nav className={`side ${menu ? "open" : ""}`}>
+          {inSettings ? (
+            <>
+          <Link href="/admin" className="setback"><Icon d={icons.back} />Settings</Link>
+          <div className="searchbox">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icons.search} /></svg>
+            <input placeholder="Search settings" value={sq} onChange={(e) => setSq(e.target.value)} aria-label="Search settings" />
+          </div>
+          {settingsLinks.filter((l) => can(l.perm) && l.label.toLowerCase().includes(sq.toLowerCase())).map((l) => (
+            <Link key={l.href} href={l.href} className={active(l.href) ? "active" : ""}><Icon d={l.icon} />{l.label}</Link>
+          ))}
+            </>
+          ) : (
+            <>
           <div className="brand"><span className="logo">U</span></div>
           <div className="searchbox">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icons.search} /></svg>
@@ -126,7 +147,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <ul className="results">{matches.map((m) => <li key={m.href}><button onMouseDown={() => go(m.href)}>{m.label}</button></li>)}</ul>
             )}
           </div>
-          {links.map((l) => (
+          {links.filter((l) => can(l.perm)).map((l) => (
             <div key={l.href} style={{ display: "contents" }}>
               {l.label === "Online Store" && <div className="navhead">Sales channels</div>}
               <Link href={l.href} className={active(l.href) && !(l.label === "Orders" && isDrafts) ? "active" : ""}>
@@ -148,16 +169,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )}
             </div>
           ))}
+            </>
+          )}
           <div className="grow" />
-          <Link href="/admin/settings" className={active("/admin/settings") ? "active" : ""}><Icon d={icons.settings} />Settings</Link>
-          <div className="me">
+          {!inSettings && <Link href="/admin/settings" className="settingslink"><Icon d={icons.settings} />Settings</Link>}
+          <Link href="/admin/settings/account" className="me" title="My account" style={{ textDecoration: "none" }}>
             <span className="avatar">{name.slice(0, 2).toUpperCase()}</span>
-            <span className="who">{name}</span>
-            <button className="navbtn out" title="Log out" onClick={async () => { await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}><Icon d={icons.out} /></button>
-          </div>
+            <span className="who">{name}{user.role && <small style={{ display: "block", opacity: 0.6, fontSize: 11 }}>{user.role}</small>}</span>
+            <button className="navbtn out" title="Log out" onClick={async (e) => { e.preventDefault(); await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}><Icon d={icons.out} /></button>
+          </Link>
         </nav>
-        <main className={`content ${path === "/admin" ? "is-home" : ""}`}><div className="inner">{children}</div></main>
+        <main className={`content ${path === "/admin" ? "is-home" : ""}`}><div className="inner">{needs && !can(needs) ? <NoAccess /> : children}</div></main>
       </div>
     </div>
+    </PermsProvider>
   );
 }

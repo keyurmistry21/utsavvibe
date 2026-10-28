@@ -75,7 +75,7 @@ export async function uploadImage(productId: string, file: File, alt = ""): Prom
 
 export const api = <T>(path: string, init?: RequestInit & { json?: unknown }) => request<T>(`/api/admin${path}`, init);
 export const auth = <T>(path: string, init?: RequestInit & { json?: unknown }) => request<T>(`/api/auth${path}`, init);
-export type AdminUser = { id: string; email: string; name: string };
+export type AdminUser = { id: string; email: string; name: string; role: string | null; owner: boolean; permissions: string[] };
 
 // minor units <-> display
 export const money = (minor: number, currency: string) =>

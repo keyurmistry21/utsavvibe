@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import type { Request, RequestHandler, Response } from "express";
 import { prisma } from "./db.js";
+import { has, permsOf, type Perms } from "./permissions.js";
 
 export const COOKIE = "uv_session";
 const SESSION_MS = 7 * 24 * 3600 * 1000;
@@ -43,12 +44,13 @@ export function readCookie(req: Request, name: string): string | undefined {
 export async function currentUser(req: Request) {
   const token = readCookie(req, COOKIE);
   if (!token) return null;
-  const s = await prisma.session.findUnique({ where: { tokenHash: sha(token) }, include: { user: true } });
+  const s = await prisma.session.findUnique({ where: { tokenHash: sha(token) }, include: { user: { include: { role: true } } } });
   if (!s) return null;
   if (s.expiresAt < new Date()) {
     await prisma.session.delete({ where: { id: s.id } }).catch(() => {});
     return null;
   }
+  if (!s.user.active) return null; // a deactivated user is signed out on their next request
   return s.user;
 }
 
@@ -70,4 +72,20 @@ export const requireAdmin: RequestHandler = async (req, res, next) => {
   if (!user) return void res.status(401).json({ error: "unauthorized" });
   (req as Request & { user?: typeof user }).user = user;
   next();
+};
+
+export type AdminReq = Request & { user: NonNullable<Awaited<ReturnType<typeof currentUser>>> };
+export const actor = (req: Request) => (req as AdminReq).user;
+export const actorPerms = (req: Request): Perms => permsOf(actor(req).role);
+
+/**
+ * Route guard. GET/HEAD need one of `read`, everything else one of `write` (`manage` includes `view`).
+ * `readOpen`: any signed-in staff may read (markets are needed on almost every screen).
+ */
+export const guard = (o: { read?: string[]; write: string[]; readOpen?: boolean }): RequestHandler => (req, res, next) => {
+  const p = actorPerms(req);
+  const reading = req.method === "GET" || req.method === "HEAD";
+  if (reading && o.readOpen) return next();
+  if ((reading ? (o.read ?? o.write) : o.write).some((x) => has(p, x))) return next();
+  res.status(403).json({ error: "You don't have permission to do that. Ask an owner to change your role." });
 };
