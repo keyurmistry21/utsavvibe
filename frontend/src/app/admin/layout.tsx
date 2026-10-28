@@ -174,12 +174,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           )}
           <div className="grow" />
           {!inSettings && <Link href="/admin/settings" className="settingslink"><Icon d={icons.settings} />Settings</Link>}
-          <StoreSwitcher />
-          <Link href="/admin/settings/account" className="me" title="My account" style={{ textDecoration: "none" }}>
-            <span className="avatar">{name.slice(0, 2).toUpperCase()}</span>
-            <span className="who">{name}{user.role && <small style={{ display: "block", opacity: 0.6, fontSize: 11 }}>{user.role}</small>}</span>
-            <button className="navbtn out" title="Log out" onClick={async (e) => { e.preventDefault(); await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}><Icon d={icons.out} /></button>
-          </Link>
+          <StoreSwitcher
+            name={name}
+            role={user.role}
+            onLogout={async () => { await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}
+          />
         </nav>
         <main className={`content ${path === "/admin" ? "is-home" : ""}`}><div className="inner">{needs && !can(needs) ? <NoAccess /> : children}</div></main>
       </div>
