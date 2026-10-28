@@ -35,6 +35,9 @@ Product flags drive behaviour everywhere: `trackInventory`/`continueSelling` (`s
 ## Images
 `routes/products.ts` image endpoints take the raw file as the request body (no multipart). `images.ts` decodes with sharp (only JPEG/PNG/WebP/GIF, 50MP cap, EXIF rotated then stripped) and writes `<id>.webp` + `<id>-thumb.webp` through `storage.ts` into `UPLOAD_DIR` (default `backend/uploads`, git-ignored), served at `/uploads` with immutable caching. Swap `storage.ts` for S3/R2 when deploying to a host without a persistent disk.
 
+## Online store
+`routes/onlineStore.ts` (admin, `/api/admin/online-store`): `Page` CRUD + bulk, and `/preferences` (store name, announcement, SEO, menus; zod-validated, stored in `Setting` key `onlineStore`, `loadPrefs()` fills defaults). Public: `GET /api/store/site`, `/pages`, `/pages/:handle` (visible only). Page content goes through `sanitizeDescription` on every save.
+
 ## Commands
 - `npm -w backend run dev:server` (tsx watch), `typecheck`, `db:push`, `seed`, `create-admin`
 - Schema change: edit `schema.prisma` → `npx prisma db push` (dev). Use `prisma migrate` before production.

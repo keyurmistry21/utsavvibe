@@ -199,6 +199,19 @@ model Session {
 }
 
 // Key/value store settings (e.g. ship-from address). Value is JSON.
+// Online store content pages (About, Shipping policy, ...), shown at /<market>/pages/<handle>.
+model Page {
+  id             String   @id @default(cuid())
+  title          String
+  handle         String   @unique
+  content        String   @db.Text
+  visible        Boolean  @default(true)
+  seoTitle       String   @default("")
+  seoDescription String   @default("") @db.VarChar(500)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model Setting {
   key   String @id
   value String @db.Text

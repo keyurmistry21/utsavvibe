@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fromPrice, getMarkets, getProducts } from "@/lib/store";
+import { fromPrice, getMarkets, getProducts, getSite } from "@/lib/store";
 import { money } from "@/lib/api";
 import { ProductArt } from "@/components/store/ProductArt";
 
 export async function generateMetadata({ params }: { params: Promise<{ market: string }> }) {
   const { market } = await params;
-  return { title: `UtsavVibe — Festive & devotional gifts (${market.toUpperCase()})` };
+  const site = await getSite();
+  return { title: site.metaTitle || `${site.storeName} — Festive & devotional gifts (${market.toUpperCase()})`, ...(site.metaDescription ? { description: site.metaDescription } : {}) };
 }
 
 export default async function MarketHome({ params }: { params: Promise<{ market: string }> }) {

@@ -10,6 +10,7 @@ import { stripe } from "../stripe.js";
 import { createCheckoutSession } from "../checkout.js";
 import { imageUrls } from "../storage.js";
 import { sendOrderConfirmation } from "../orderEmails.js";
+import { loadPrefs } from "./onlineStore.js";
 
 // Public storefront API: catalog, quote, checkout. Plus Stripe webhook.
 export const storeRouter = Router();
@@ -19,6 +20,19 @@ const bad = (msg: string) => Object.assign(new Error(msg), { status: 400 });
 storeRouter.get("/markets", async (_req, res) => {
   const markets = await prisma.market.findMany({ where: { active: true }, include: { shippingRates: true, regions: { orderBy: { name: "asc" } } } });
   res.json(markets.map((m) => ({ ...m, countries: parseJson<string[]>(m.countries, []) })));
+});
+
+// Store name, announcement, menus: one call for the storefront layout.
+storeRouter.get("/site", async (_req, res) => res.json(await loadPrefs()));
+
+storeRouter.get("/pages", async (_req, res) => {
+  res.json(await prisma.page.findMany({ where: { visible: true }, orderBy: { title: "asc" }, select: { handle: true, title: true } }));
+});
+
+storeRouter.get("/pages/:handle", async (req, res) => {
+  const p = await prisma.page.findFirst({ where: { handle: req.params.handle, visible: true }, select: { handle: true, title: true, content: true, seoTitle: true, seoDescription: true, updatedAt: true } });
+  if (!p) return void res.status(404).json({ error: "not found" });
+  res.json(p);
 });
 
 const publicProduct = (

@@ -132,6 +132,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Icon d={l.icon} />{l.label}
                 {l.label === "Orders" && toFulfil > 0 && <span className="count">{toFulfil}</span>}
               </Link>
+              {l.label === "Online Store" && path.startsWith("/admin/online-store") && (
+                <div className="sub">
+                  <Link href="/admin/online-store/pages" className={path.startsWith("/admin/online-store/pages") ? "active" : ""}>Pages</Link>
+                  <Link href="/admin/online-store/preferences" className={path.startsWith("/admin/online-store/preferences") ? "active" : ""}>Preferences</Link>
+                  <a href="/uk" target="_blank" rel="noreferrer">View your store ↗</a>
+                </div>
+              )}
               {l.label === "Orders" && path.startsWith("/admin/orders") && (
                 <div className="sub">
                   <Link href="/admin/orders" className={!isDrafts ? "active" : ""}>All orders</Link>

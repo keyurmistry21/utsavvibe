@@ -1,0 +1,78 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { maxLen, required } from "@/lib/validators";
+import { FieldError, useValidation } from "./validation";
+import { useApi } from "./hooks";
+import { MenuCard, urlErr, type Item } from "./Menus";
+
+type Prefs = { storeName: string; announcement: string; tagline: string; metaTitle: string; metaDescription: string; headerMenu: Item[]; footerMenu: Item[] };
+
+export function Preferences() {
+  const { data, error } = useApi<Prefs>("/online-store/preferences");
+  const [p, setP] = useState<Prefs | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (data) setP(data); }, [data]);
+  const menuErrors: Record<string, string> = {};
+  (["header", "footer"] as const).forEach((k) => (p?.[k === "header" ? "headerMenu" : "footerMenu"] ?? []).forEach((it, i) => {
+    menuErrors[`${k}-l${i}`] = it.label.trim() ? (it.label.length > 60 ? "Keep it under 60 characters" : "") : "Enter a label";
+    menuErrors[`${k}-u${i}`] = urlErr(it.url);
+  }));
+  const val = useValidation({
+    ...menuErrors,
+    storeName: p ? required(p.storeName, "Enter a store name") || maxLen(p.storeName, 60, "The store name") : "",
+    announcement: p ? maxLen(p.announcement, 200, "The announcement") : "",
+    tagline: p ? maxLen(p.tagline, 160, "The tagline") : "",
+    metaTitle: p ? maxLen(p.metaTitle, 70, "The title") : "",
+    metaDescription: p ? maxLen(p.metaDescription, 320, "The description") : "",
+  });
+  const save = async () => {
+    if (!p || !val.submit()) return;
+    setSaving(true); setMsg(null);
+    try {
+      const clean = (m: Item[]) => m.map((x) => ({ label: x.label.trim(), url: x.url.trim() }));
+      await api("/online-store/preferences", { method: "PUT", json: { ...p, headerMenu: clean(p.headerMenu), footerMenu: clean(p.footerMenu) } }); setMsg({ ok: true, text: "Preferences saved. The storefront updates within a few seconds." }); }
+    catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
+    setSaving(false);
+  };
+  const { data: pages } = useApi<{ handle: string; title: string; visible: boolean }[]>("/online-store/pages");
+  const f = (k: "storeName" | "announcement" | "tagline" | "metaTitle" | "metaDescription", label: string, hint?: string, area = false) => p && (
+    <div className="field"><label htmlFor={`pf-${k}`}>{label}</label>
+      {area
+        ? <textarea id={`pf-${k}`} rows={3} value={p[k]} onChange={(e) => setP({ ...p, [k]: e.target.value })} {...val.props(k)} />
+        : <input id={`pf-${k}`} value={p[k]} onChange={(e) => setP({ ...p, [k]: e.target.value })} {...val.props(k)} />}
+      {hint && <div className="muted">{hint}</div>}
+      <FieldError k={k} msg={val.err(k)} />
+    </div>
+  );
+  return (
+    <>
+      <div className="pagehead"><h2>Preferences</h2></div>
+      {error && <div className="error">{error}</div>}
+      {p && (
+        <>
+          <div className="card" style={{ maxWidth: 720 }}>
+            <h3>Storefront</h3>
+            {f("storeName", "Store name", "Shown in the header, footer and browser tab.")}
+            {f("tagline", "Footer tagline")}
+            {f("announcement", "Announcement bar", "Leave empty to show the free-shipping message for the customer's market.")}
+          </div>
+          <div className="card" style={{ maxWidth: 720 }}>
+            <h3>Home page title and description</h3>
+            <p className="muted" style={{ marginTop: -4 }}>What search engines show for your store's home page.</p>
+            {f("metaTitle", "Title tag", `${p.metaTitle.length} of 70 characters used`)}
+            {f("metaDescription", "Meta description", `${p.metaDescription.length} of 320 characters used`, true)}
+          </div>
+          <div style={{ maxWidth: 720 }}>
+            <MenuCard id="header" title="Header menu" hint="Links across the top of every storefront page. A link of / is the shop home." items={p.headerMenu} onChange={(headerMenu) => setP({ ...p, headerMenu })} val={val} pages={(pages ?? []).filter((x) => x.visible)} />
+            <MenuCard id="footer" title="Footer menu" hint="Links at the bottom of every page. Good for policies and contact." items={p.footerMenu} onChange={(footerMenu) => setP({ ...p, footerMenu })} val={val} pages={(pages ?? []).filter((x) => x.visible)} />
+          </div>
+          {msg && <div className={msg.ok ? "okmsg" : "error"} style={{ maxWidth: 720 }}>{msg.text}</div>}
+          <div className="savebar" style={{ maxWidth: 720 }}><span style={{ flex: 1 }} /><button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button></div>
+        </>
+      )}
+    </>
+  );
+}

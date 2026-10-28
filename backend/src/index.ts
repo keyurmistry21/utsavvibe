@@ -11,6 +11,7 @@ import { ordersRouter } from "./routes/orders.js";
 import { customersRouter } from "./routes/customers.js";
 import { draftsRouter } from "./routes/drafts.js";
 import { settingsRouter } from "./routes/settings.js";
+import { onlineStoreRouter } from "./routes/onlineStore.js";
 import { analyticsRouter } from "./routes/analytics.js";
 import { storeRouter, stripeWebhook, webhookBody } from "./routes/store.js";
 
@@ -35,6 +36,7 @@ app.use("/api/admin/customers", customersRouter);
 app.use("/api/admin/analytics", analyticsRouter);
 app.use("/api/admin/drafts", draftsRouter);
 app.use("/api/admin/settings", settingsRouter);
+app.use("/api/admin/online-store", onlineStoreRouter);
 
 const onError: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof ZodError) return void res.status(400).json({ error: "validation", issues: err.issues });

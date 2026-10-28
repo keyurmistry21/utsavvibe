@@ -14,8 +14,8 @@ export type StoreProduct = {
   id: string; handle: string; title: string; description: string; descriptionHtml: string; seoTitle: string; seoDescription: string; tags: string[]; currency: string; regions: string[]; images: { url: string; thumbUrl: string; alt: string }[]; variants: StoreVariant[];
 };
 
-async function get<T>(path: string): Promise<T | null> {
-  const res = await fetch(`${BACKEND}/api/store${path}`, { next: { revalidate: 15 } });
+async function get<T>(path: string, fresh = false): Promise<T | null> {
+  const res = await fetch(`${BACKEND}/api/store${path}`, fresh ? { cache: "no-store" } : { next: { revalidate: 15 } });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`store api ${res.status}`);
   return res.json();
@@ -37,3 +37,14 @@ export const fromPrice = (p: StoreProduct) => {
   const prices = p.variants.map((v) => v.price).filter((x): x is number => x != null);
   return prices.length ? Math.min(...prices) : null;
 };
+
+export type Site = { storeName: string; announcement: string; tagline: string; metaTitle: string; metaDescription: string; headerMenu: { label: string; url: string }[]; footerMenu: { label: string; url: string }[] };
+const defaultSite: Site = { storeName: "UtsavVibe", announcement: "", tagline: "Festive & devotional gifts for every celebration.", metaTitle: "", metaDescription: "", headerMenu: [{ label: "Shop", url: "/" }], footerMenu: [] };
+// never let a CMS hiccup take the whole storefront down: fall back to the defaults
+export const getSite = async (): Promise<Site> => {
+  try { return { ...defaultSite, ...((await get<Site>("/site")) ?? {}) }; } catch { return defaultSite; }
+};
+export type CmsPage = { handle: string; title: string; content: string; seoTitle: string; seoDescription: string };
+export const getPage = (handle: string) => get<CmsPage>(`/pages/${encodeURIComponent(handle)}`, true) // not cached: Next keeps a stale 200 forever when the page later becomes a 404 (hidden/deleted);
+/** "/pages/about" is relative to the market being browsed; full links are left alone. */
+export const menuHref = (code: string, url: string) => (url.startsWith("/") ? `/${code}${url === "/" ? "" : url}` : url);
