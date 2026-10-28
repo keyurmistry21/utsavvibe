@@ -5,7 +5,7 @@ Next.js 16 App Router + React 19 + TypeScript. Plain CSS in `src/app/styles.css`
 ## Layout
 - `src/app/[market]/…` SSR storefront (server components): home grid, product page, cart, order confirmation. Market code in the URL (`/uk`, `/us`, `/ca`); unknown market → 404.
 - `src/app/admin/…` admin. `layout.tsx` is a client component: login gate (`/api/auth/me`), dark sidebar, search (⌘K), orders badge. Pages are thin wrappers around `src/components/admin/*`.
-- `src/components/admin/` client components: `Home`, `Dashboard` (Analytics), `Products` (list + form), `Orders`, `Customers`, `Markets`, `Settings`, `hooks.tsx` (`useApi`, `Badge`, `TagList`), `nav.ts` (sidebar links + search actions).
+- `src/components/admin/` client components: `Home`, `Dashboard` (Analytics), `ProductList`/`ProductEditor`/`PrintLabels`/`CodePreview`, `Orders`/`OrderDetail`/`DraftEditor`/`Label`, `Customers`, `Markets`, `Pages`/`Preferences`/`Menus` (Online Store), settings screens (`Settings` exports `ShipFrom`/`EmailSettings`/`Appearance`/`PasswordCard`; plus `AccountSettings`, `Users`, `Roles`, `Locations`, `Policies`, `Payments`), `StoreSwitcher`, `NoAccess`, `validation.tsx`, `hooks.tsx` (`useApi`, `Badge`, `TagList`), `nav.ts` (sidebar links, settings links, ⌘K actions, each with the permission it needs).
 - `src/components/store/` cart context (per-market localStorage), `AddToCart`, `CartPage` (quote + Stripe checkout), `ClearCart`.
 - `src/lib/api.ts` `api()` for `/api/admin/*`, `auth()` for `/api/auth/*`, money helpers. `src/lib/store.ts` server-side fetch to the backend for storefront SSR (revalidate 60s).
 - `next.config.mjs` rewrites `/api/*` to `BACKEND_URL` (default `http://localhost:4000`).
@@ -64,6 +64,9 @@ Never use a native `<select>` (the browser draws its list and it can't be styled
 ## Motion and overlays
 - `Modal` (centered dialogs) and `Drawer` (right panel for long forms) are the only overlay components; both close on Escape, `dismissOnScrim={false}` protects typed data. Nested dialogs sit above (`.modal-scrim` z-index > `.drawer-scrim`).
 - All field/button motion lives in the "motion" block at the end of `styles.css` (hover border, blue focus ring + label, press/lift on buttons, dropdown/dialog/drawer entrances). It is disabled under `prefers-reduced-motion`. New form controls inherit it automatically; don't add per-component transitions.
+
+## Verifying UI work
+`npm -w frontend run typecheck` and `npx next build` (from `frontend/`). Then look at it for real: Playwright (`playwright-core` + the Chrome binary) logs in at `/admin`, drives the flow, asserts, and screenshots (keep scripts and shots in the scratchpad, not the repo). Gotchas found the hard way: the storefront caches API fetches for 15s with stale-while-revalidate, so load a page twice after an admin change; `no-store` is used for pages/policies because Next never replaces a cached 200 with a later 404; wait for hydration/animation before asserting or screenshotting (popups fade in); a blur-triggered error must not move a button during a click (handled in `validation.tsx`). Check phone width (390px) for horizontal overflow on every new screen. Class names are global per scope: don't reuse short names (`.lbl` is the print-label preview, the sidebar text is `.navlbl`). Remove any test data you created.
 
 ## Commands
 - `npm -w frontend run dev:web` (port 5173), `build`, `typecheck`

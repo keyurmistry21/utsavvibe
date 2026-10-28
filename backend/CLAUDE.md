@@ -3,11 +3,11 @@
 Express 5 (async handlers may throw; the error handler in `src/index.ts` maps `ZodError` to 400 and `err.status`), TypeScript ESM, Prisma 6, MySQL.
 
 ## Layout
-- `src/index.ts` app wiring. Order matters: Stripe webhook (raw body) → `express.json()` → `/api/store` (public) → `/api/auth` → `/api/admin` (behind `requireAdmin`).
+- `src/index.ts` app wiring. Order matters: Stripe webhook (raw body) → `express.json()` → `/api/store` (public) → `/api/auth` → `/api/admin` (behind `requireAdmin`, then a per-router `guard()` permission check, see Staff, roles, permissions). Startup runs `ensureRoles()` and `ensureDefaultLocation()` before listening, and the API has no auto-reload when started with plain `tsx`: restart it after backend edits (`npm -w backend run dev:server` watches).
 - `src/auth.ts` scrypt password hashing, sessions (only the sha256 of the cookie token is stored), `requireAdmin` (session check + Origin check on writes).
 - `src/money.ts` `computeTax`, `computeTotal`, `pickShipping`. All integer minor units. Tax can be inclusive (already in price) or exclusive (added at checkout).
 - `src/db.ts` Prisma client, `parseJson`, `nextOrderNumber` (Counter table).
-- `src/routes/` `markets`, `products`, `orders`, `customers`, `analytics` (admin); `store` (public catalog/quote/checkout + Stripe webhook); `auth`.
+- `src/routes/` admin: `markets`, `products`, `orders`, `drafts`, `customers`, `analytics`, `settings`, `onlineStore` (pages + preferences), `locations`, `policies`, `payments`, `users` (staff + roles); `store` (public catalog/quote/checkout/site/pages/policies + Stripe webhook); `auth`. Shared: `permissions.ts`, `stock.ts`, `html.ts`, `mail.ts`/`emails.ts`/`orderEmails.ts`, `checkout.ts`, `images.ts`/`storage.ts`.
 - `prisma/schema.prisma`, `prisma/seed.ts` (UK/US/CA markets), `prisma/create-admin.ts`.
 
 ## Conventions
@@ -38,11 +38,20 @@ Product flags drive behaviour everywhere: `trackInventory`/`continueSelling` (`s
 ## Online store
 `routes/onlineStore.ts` (admin, `/api/admin/online-store`): `Page` CRUD + bulk, and `/preferences` (store name, announcement, SEO, menus; zod-validated, stored in `Setting` key `onlineStore`, `loadPrefs()` fills defaults). Public: `GET /api/store/site`, `/pages`, `/pages/:handle` (visible only). Page content goes through `sanitizeDescription` on every save.
 
+## Error handling
+The handler in `index.ts` maps `ZodError` to 400 `{error:"validation"}`, `err.status`, and Prisma `P2002` (unique violation) to a friendly 409 (SKU, customer email, handle). Forms show these under the field, so keep the wording stable ("SKU", "email", "URL handle"). Products: `POST /products/codes/taken` tells the editor which SKUs/barcodes other products already use (Generate buttons); SKU is unique in the DB (case-insensitive), barcode is not.
+
 ## Staff, roles, permissions
 `permissions.ts`: permission keys (`orders.view|manage`, `products.*`, `customers.*`, `analytics.view`, `markets.manage`, `online_store.manage`, `settings.manage`, `users.manage`; `manage` implies `view`), default roles (Owner locked with everything, Administrator, Fulfilment, Catalog manager, Content editor, Support), `ensureRoles()` runs on startup (never overwrites edited roles; users without a role become Owners, which is how pre-RBAC admins migrate). `auth.ts`: `currentUser` loads the role on every request, so role/active changes apply immediately and deactivated users are signed out; `guard({read, write, readOpen})` is mounted per router in `index.ts` (GET needs a read permission, other methods a write one; orders.manage may read products/customers for the draft picker). `routes/users.ts`: staff + roles CRUD with rules that must stay: you can't grant access you don't hold, only owners touch owners or assign Owner, no self role change/deactivate/delete, always one active owner, a role with users can't be deleted, Owner role is immutable, reset-password/deactivate delete the user's sessions. `create-admin` makes an Owner.
 
+## Locations and policies
+`routes/locations.ts` (`/api/admin/locations`, `settings.manage`): the first location is the default and the default can't be deleted or deactivated; `shipFromAddress()` returns the default location (else the legacy `shipFrom` Setting) and backs `GET/PUT /settings/ship-from`, which labels and packing slips read. Stock is NOT per location. `routes/policies.ts`: seven fixed keys (`refund, privacy, terms, shipping, contact, legal, cancellation`), empty content = unpublished, content sanitized on save; public `GET /api/store/policies[/:key]` returns published ones only.
+
 ## Payments page
 `routes/payments.ts` (`/api/admin/payments`, needs `settings.manage`): read-only Stripe status for Settings → Payments (account, charges/payouts enabled, bank last4 via `accounts.listExternalAccounts`, balance, recent payouts; stripe v23 uses `accounts.retrieveCurrent()`). Never collect or store card/bank numbers here: customers pay on Stripe Checkout, the payout bank is added in the Stripe Dashboard.
+
+## Verifying backend work
+`npm -w backend run typecheck`, then drive the real API (curl with a session cookie, or Playwright `page.evaluate(fetch)` after logging in). Always test the 403 side of a new permission and the unhappy paths (duplicate, blocked, missing). Clean up only rows you created (scripts via `npx tsx` with `DATABASE_URL="mysql://utsavvibe:utsavvibe@localhost:3307/utsavvibe"`); never `--force-reset`. A new table = edit `schema.prisma` + `npx prisma db push` (additive is safe), then restart the API.
 
 ## Commands
 - `npm -w backend run dev:server` (tsx watch), `typecheck`, `db:push`, `seed`, `create-admin`
