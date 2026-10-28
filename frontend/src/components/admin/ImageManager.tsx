@@ -58,7 +58,7 @@ export function ImageManager({ productId, images, onImages, pending, onPending }
 
   return (
     <div className="card">
-      <h3>Images</h3>
+      <h3>Media</h3>
       <div className="imgs">
         {images.map((img, i) => (
           <div key={img.id} className="imgtile">

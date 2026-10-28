@@ -53,6 +53,14 @@ model Product {
   handle      String          @unique
   description String @db.Text
   status      String          @default("draft") // draft | active | archived
+  vendor      String          @default("")
+  productType String          @default("")
+  trackInventory  Boolean     @default(true)
+  continueSelling Boolean     @default(false) // keep selling when stock runs out
+  physical        Boolean     @default(true)  // false = digital/service: no shipping
+  chargeTax       Boolean     @default(true)
+  seoTitle        String      @default("")
+  seoDescription  String?     @db.Text
   tags        String @db.Text // JSON array
   notes       String @db.Text // internal only
   createdAt   DateTime        @default(now())
@@ -82,6 +90,8 @@ model Variant {
   sku       String?        @unique
   inventory Int            @default(0)
   weightG   Int            @default(0)
+  barcode   String?
+  costPerItem Int? // minor units, admin-only
   prices    VariantPrice[]
   orderItems OrderItem[]
 }

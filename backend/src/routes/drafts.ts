@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma, nextOrderNumber } from "../db.js";
 import { priceTotals, pickShipping, taxRateFor } from "../money.js";
+import { canSell, shouldDecrement } from "../stock.js";
 import { createCheckoutSession } from "../checkout.js";
 import { stripe } from "../stripe.js";
 import { sendOrderConfirmation, sendPaymentLinkEmail } from "../orderEmails.js";
@@ -74,8 +75,8 @@ async function build(d: DraftInput) {
       title: v.title === "Default" ? v.product.title : `${v.product.title} — ${v.title}`,
       quantity: it.quantity,
       unitPrice,
-      taxable: true,
-      physical: true,
+      taxable: v.product.chargeTax,
+      physical: v.product.physical,
       weightG: v.weightG,
     });
   }
@@ -98,8 +99,9 @@ const shipName = (d: DraftInput, customerName?: string | null) => `${d.address.f
 const include = { items: true, customer: true, market: { include: { regions: true } } } as const;
 
 draftsRouter.post("/quote", async (req, res) => {
-  const b = await build(draftInput.parse(req.body));
-  res.json({ currency: b.market.currency, taxInclusive: b.market.taxInclusive, taxRateBps: b.taxRateBps, lines: b.lines, subtotal: b.subtotal, discount: b.discount, tax: b.tax, shipping: b.shipping, total: b.total });
+  const d = draftInput.parse(req.body);
+  const b = await build(d);
+  res.json({ region: d.address.region || null, currency: b.market.currency, taxInclusive: b.market.taxInclusive, taxRateBps: b.taxRateBps, lines: b.lines, subtotal: b.subtotal, discount: b.discount, tax: b.tax, shipping: b.shipping, total: b.total });
 });
 
 draftsRouter.post("/", async (req, res) => {
@@ -211,9 +213,9 @@ draftsRouter.post("/:id/mark-paid", async (req, res) => {
   const order = await prisma.$transaction(async (tx) => {
     for (const i of o.items) {
       if (!i.variantId) continue;
-      const v = await tx.variant.findUnique({ where: { id: i.variantId } });
-      if (!v || v.inventory < i.quantity) throw bad(`insufficient stock for ${i.title}`, 409);
-      await tx.variant.update({ where: { id: i.variantId }, data: { inventory: { decrement: i.quantity } } });
+      const v = await tx.variant.findUnique({ where: { id: i.variantId }, include: { product: { select: { trackInventory: true, continueSelling: true } } } });
+      if (!v || !canSell(v.product, v.inventory, i.quantity)) throw bad(`insufficient stock for ${i.title}`, 409);
+      if (shouldDecrement(v.product)) await tx.variant.update({ where: { id: i.variantId }, data: { inventory: { decrement: i.quantity } } });
     }
     return tx.order.update({ where: { id: o.id }, data: { status: "open", paymentStatus: "paid", paymentMethod: method }, include });
   });

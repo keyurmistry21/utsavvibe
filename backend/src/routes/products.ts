@@ -2,6 +2,8 @@ import { Router, raw } from "express";
 import { z } from "zod";
 import { prisma, parseJson } from "../db.js";
 import { processImage } from "../images.js";
+import { csvCell } from "../csv.js";
+import { normalizeHandle, sanitizeDescription } from "../html.js";
 import { imageFiles, imageUrls, removeFiles, saveFile } from "../storage.js";
 
 export const productsRouter = Router();
@@ -13,6 +15,14 @@ const productInput = z.object({
   handle: z.string().min(1).optional(),
   description: z.string().default(""),
   status: z.enum(["draft", "active", "archived"]).default("draft"),
+  vendor: z.string().trim().max(120).default(""),
+  productType: z.string().trim().max(120).default(""),
+  trackInventory: z.boolean().default(true),
+  continueSelling: z.boolean().default(false),
+  physical: z.boolean().default(true),
+  chargeTax: z.boolean().default(true),
+  seoTitle: z.string().trim().max(70).default(""),
+  seoDescription: z.string().trim().max(320).default(""),
   tags: z.array(z.string()).default([]),
   notes: z.string().default(""),
   marketIds: z.array(z.string()).min(1, "select at least one market"),
@@ -27,12 +37,36 @@ const productInput = z.object({
         sku: z.string().nullable().optional(),
         inventory: z.number().int().min(0).default(0),
         weightG: z.number().int().min(0).default(0),
+        barcode: z.string().trim().max(64).nullable().optional(),
+        costPerItem: z.number().int().min(0).nullable().optional(),
         // keyed by marketId
         prices: z.record(z.string(), price),
       }),
     )
     .min(1),
 });
+
+const flags = (d: z.infer<typeof productInput>) => ({
+  trackInventory: d.trackInventory, continueSelling: d.continueSelling, physical: d.physical, chargeTax: d.chargeTax,
+  seoTitle: d.seoTitle, seoDescription: d.seoDescription || null,
+});
+
+// Nice URL for a new product: "brass-lamp", then "brass-lamp-2", "brass-lamp-3"…
+async function freeHandle(base: string) {
+  for (let n = 1; n < 200; n++) {
+    const h = n === 1 ? base : `${base}-${n}`;
+    if (!(await prisma.product.findUnique({ where: { handle: h }, select: { id: true } }))) return h;
+  }
+  return `${base}-${Date.now().toString(36)}`;
+}
+
+// URL handle must be unique; the product being edited may keep its own.
+async function uniqueHandle(handle: string, selfId?: string) {
+  if (!handle) throw Object.assign(new Error("URL handle can't be empty"), { status: 400 });
+  const other = await prisma.product.findUnique({ where: { handle } });
+  if (other && other.id !== selfId) throw Object.assign(new Error(`The URL handle "${handle}" is already used by another product`), { status: 409 });
+  return handle;
+}
 
 const regionsJson = (d: z.infer<typeof productInput>, marketId: string) => {
   const r = d.regions[marketId];
@@ -49,6 +83,7 @@ const include = {
 
 const shape = (p: any) => ({
   ...p,
+  seoDescription: p.seoDescription ?? "",
   images: (p.images ?? []).map((i: any) => ({ id: i.id, alt: i.alt, position: i.position, width: i.width, height: i.height, ...imageUrls(i.id) })),
   tags: parseJson<string[]>(p.tags, []),
   marketIds: p.markets.map((m: any) => m.marketId),
@@ -74,6 +109,8 @@ function variantData(v: z.infer<typeof productInput>["variants"][number], market
     sku: v.sku || null,
     inventory: v.inventory,
     weightG: v.weightG,
+    barcode: v.barcode || null,
+    costPerItem: v.costPerItem ?? null,
     prices: { create: marketIds.map((marketId) => ({ marketId, ...v.prices[marketId], compareAt: v.prices[marketId].compareAt ?? null })) },
   };
 }
@@ -88,6 +125,115 @@ productsRouter.get("/", async (req, res) => {
   res.json(products.map(shape));
 });
 
+// ---- list page (paged), stats, bulk actions, export ----
+const listQuery = z.object({
+  q: z.string().trim().default(""),
+  status: z.enum(["all", "active", "draft", "archived"]).default("all"),
+  filter: z.enum(["all", "out_of_stock", "low_stock"]).default("all"),
+  sort: z.enum(["updated", "created", "title"]).default("updated"),
+  dir: z.enum(["asc", "desc"]).default("desc"),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+const LOW_STOCK = 5;
+
+function productWhere(q: z.infer<typeof listQuery>) {
+  const text = q.q;
+  return {
+    ...(q.status !== "all" ? { status: q.status } : {}),
+    ...(text ? { OR: [{ title: { contains: text } }, { vendor: { contains: text } }, { productType: { contains: text } }, { tags: { contains: text } }, { variants: { some: { sku: { contains: text } } } }] } : {}),
+    ...(q.filter === "out_of_stock" ? { variants: { none: { inventory: { gt: 0 } } } } : {}),
+    ...(q.filter === "low_stock" ? { variants: { some: { inventory: { gt: 0, lte: LOW_STOCK } } } } : {}),
+  };
+}
+
+const listInclude = {
+  images: { orderBy: { position: "asc" as const }, take: 1 },
+  variants: { select: { inventory: true, prices: { select: { amount: true, marketId: true } } } },
+  markets: { include: { market: { select: { code: true, currency: true } } } },
+};
+
+function summarize(p: any) {
+  const prices: Record<string, { currency: string; min: number }> = {};
+  for (const m of p.markets) {
+    const mins = p.variants.flatMap((v: any) => v.prices.filter((x: any) => x.marketId === m.marketId).map((x: any) => x.amount));
+    if (mins.length) prices[m.market.code] = { currency: m.market.currency, min: Math.min(...mins) };
+  }
+  return {
+    id: p.id, title: p.title, handle: p.handle, status: p.status, vendor: p.vendor, productType: p.productType,
+    tags: parseJson<string[]>(p.tags, []), createdAt: p.createdAt, updatedAt: p.updatedAt,
+    thumbUrl: p.images[0] ? imageUrls(p.images[0].id).thumbUrl : null,
+    inventory: p.variants.reduce((s: number, v: any) => s + v.inventory, 0),
+    variantCount: p.variants.length,
+    markets: p.markets.map((m: any) => m.market.code).sort(),
+    prices,
+  };
+}
+
+productsRouter.get("/list", async (req, res) => {
+  const q = listQuery.parse(req.query);
+  const where = productWhere(q);
+  const orderBy = q.sort === "title" ? [{ title: q.dir }, { id: q.dir }] : q.sort === "created" ? [{ createdAt: q.dir }, { id: q.dir }] : [{ updatedAt: q.dir }, { id: q.dir }];
+  const [rows, total] = await Promise.all([
+    prisma.product.findMany({ where, orderBy, take: q.limit, skip: q.offset, include: listInclude }),
+    prisma.product.count({ where }),
+  ]);
+  res.json({ items: rows.map(summarize), total });
+});
+
+productsRouter.get("/stats", async (_req, res) => {
+  const [total, active, draft, archived, out] = await Promise.all([
+    prisma.product.count(),
+    prisma.product.count({ where: { status: "active" } }),
+    prisma.product.count({ where: { status: "draft" } }),
+    prisma.product.count({ where: { status: "archived" } }),
+    prisma.product.count({ where: { status: { not: "archived" }, variants: { none: { inventory: { gt: 0 } } } } }),
+  ]);
+  res.json({ total, active, draft, archived, outOfStock: out });
+});
+
+productsRouter.post("/bulk", async (req, res) => {
+  const { ids, action } = z.object({ ids: z.array(z.string()).min(1).max(200), action: z.enum(["activate", "draft", "archive", "delete"]) }).parse(req.body);
+  if (action !== "delete") {
+    const r = await prisma.product.updateMany({ where: { id: { in: ids } }, data: { status: action === "activate" ? "active" : action === "draft" ? "draft" : "archived" } });
+    return void res.json({ updated: r.count, deleted: 0, archived: 0 });
+  }
+  let deleted = 0, archived = 0;
+  for (const id of ids) {
+    // products that were ever ordered are archived instead, so order history stays intact
+    if (await prisma.orderItem.count({ where: { variant: { productId: id } } })) {
+      await prisma.product.update({ where: { id }, data: { status: "archived" } }).catch(() => {});
+      archived++;
+      continue;
+    }
+    const imgs = await prisma.productImage.findMany({ where: { productId: id }, select: { id: true } });
+    const r = await prisma.product.deleteMany({ where: { id } });
+    if (r.count) { deleted++; await removeFiles(imgs.flatMap((i) => imageFiles(i.id))); }
+  }
+  res.json({ updated: 0, deleted, archived });
+});
+
+// One row per variant, with a price column for every market.
+productsRouter.get("/export", async (req, res) => {
+  const ids = String(req.query.ids ?? "").split(",").filter(Boolean);
+  const q = listQuery.parse({ ...req.query, limit: 100, offset: 0 });
+  const [products, markets] = await Promise.all([
+    prisma.product.findMany({ where: ids.length ? { id: { in: ids } } : productWhere(q), orderBy: { createdAt: "asc" }, take: 10000, include: { variants: { include: { prices: true } }, markets: true } }),
+    prisma.market.findMany({ orderBy: { code: "asc" } }),
+  ]);
+  const header = ["Handle", "Title", "Status", "Vendor", "Type", "Tags", "Variant", "Options", "SKU", "Inventory", ...markets.flatMap((m) => [`Price ${m.code} (${m.currency})`, `Compare-at ${m.code} (${m.currency})`]), "Markets", "Notes"];
+  const lines = products.flatMap((p) =>
+    p.variants.map((v) => {
+      const price = (mid: string) => v.prices.find((x) => x.marketId === mid);
+      const money = (n?: number | null) => (n == null ? "" : (n / 100).toFixed(2));
+      return [p.handle, p.title, p.status, p.vendor, p.productType, parseJson<string[]>(p.tags, []).join(", "), v.title, Object.entries(parseJson<Record<string, string>>(v.options, {})).map(([k, x]) => `${k}=${x}`).join("; "), v.sku, v.inventory, ...markets.flatMap((m) => [money(price(m.id)?.amount), money(price(m.id)?.compareAt)]), p.markets.map((pm) => markets.find((m) => m.id === pm.marketId)?.code).filter(Boolean).join(", "), p.notes].map(csvCell).join(",");
+    }),
+  );
+  res.setHeader("content-type", "text/csv; charset=utf-8");
+  res.setHeader("content-disposition", `attachment; filename="products-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send([header.map(csvCell).join(","), ...lines].join("\r\n"));
+});
+
 productsRouter.get("/:id", async (req, res) => {
   const p = await prisma.product.findUnique({ where: { id: req.params.id }, include });
   if (!p) return void res.status(404).json({ error: "not found" });
@@ -100,9 +246,12 @@ productsRouter.post("/", async (req, res) => {
   const p = await prisma.product.create({
     data: {
       title: d.title,
-      handle: d.handle ?? `${slug(d.title)}-${Date.now().toString(36)}`,
-      description: d.description,
+      handle: d.handle ? await uniqueHandle(normalizeHandle(d.handle)) : await freeHandle(slug(d.title) || "product"),
+      description: sanitizeDescription(d.description),
       status: d.status,
+      vendor: d.vendor,
+      productType: d.productType,
+      ...flags(d),
       tags: JSON.stringify(d.tags),
       notes: d.notes,
       markets: { create: d.marketIds.map((marketId) => ({ marketId, regions: regionsJson(d, marketId) })) },
@@ -136,8 +285,12 @@ productsRouter.put("/:id", async (req, res) => {
       where: { id },
       data: {
         title: d.title,
-        description: d.description,
+        ...(d.handle ? { handle: await uniqueHandle(normalizeHandle(d.handle), id) } : {}),
+        description: sanitizeDescription(d.description),
         status: d.status,
+        vendor: d.vendor,
+        productType: d.productType,
+        ...flags(d),
         tags: JSON.stringify(d.tags),
         notes: d.notes,
         markets: { create: d.marketIds.map((marketId) => ({ marketId, regions: regionsJson(d, marketId) })) },

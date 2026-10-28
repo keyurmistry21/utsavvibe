@@ -3,7 +3,9 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import Stripe from "stripe";
 import { prisma, parseJson, nextOrderNumber } from "../db.js";
-import { computeTax, computeTotal, pickShipping, taxRateFor } from "../money.js";
+import { pickShipping, priceTotals, taxRateFor } from "../money.js";
+import { htmlToText } from "../html.js";
+import { canSell, shouldDecrement } from "../stock.js";
 import { stripe } from "../stripe.js";
 import { createCheckoutSession } from "../checkout.js";
 import { imageUrls } from "../storage.js";
@@ -20,13 +22,16 @@ storeRouter.get("/markets", async (_req, res) => {
 });
 
 const publicProduct = (
-  p: { images?: { id: string; alt: string }[]; markets?: { regions: string | null }[]; id: string; handle: string; title: string; description: string; tags: string; variants: { id: string; title: string; options: string; inventory: number; prices: { amount: number; compareAt: number | null }[] }[] },
+  p: { trackInventory?: boolean; continueSelling?: boolean; seoTitle?: string; seoDescription?: string | null; images?: { id: string; alt: string }[]; markets?: { regions: string | null }[]; id: string; handle: string; title: string; description: string; tags: string; variants: { id: string; title: string; options: string; inventory: number; prices: { amount: number; compareAt: number | null }[] }[] },
   currency: string,
 ) => ({
   id: p.id,
   handle: p.handle,
   title: p.title,
-  description: p.description,
+  description: htmlToText(p.description),
+  descriptionHtml: p.description, // sanitized when saved
+  seoTitle: p.seoTitle || "",
+  seoDescription: p.seoDescription || "",
   tags: parseJson<string[]>(p.tags, []),
   currency,
   images: (p.images ?? []).map((i) => ({ alt: i.alt, ...imageUrls(i.id) })),
@@ -36,7 +41,7 @@ const publicProduct = (
     id: v.id,
     title: v.title,
     options: parseJson(v.options, {}),
-    inStock: v.inventory > 0,
+    inStock: canSell({ trackInventory: p.trackInventory ?? true, continueSelling: p.continueSelling ?? false }, v.inventory),
     price: v.prices[0]?.amount ?? null,
     compareAt: v.prices[0]?.compareAt ?? null,
   })),
@@ -93,21 +98,25 @@ async function priceCart(d: z.infer<typeof cartInput>) {
       throw bad(`item not available in ${market.name}`);
     const sold = parseJson<string[]>(v.product.markets.find((m) => m.marketId === market.id)?.regions ?? "[]", []);
     if (region && sold.length && !sold.includes(region)) throw bad(`${v.product.title} is not available in ${market.regions.find((r) => r.code === region)?.name ?? region}`);
-    if (v.inventory < it.quantity) throw bad(`insufficient stock for ${v.product.title}`);
+    if (!canSell(v.product, v.inventory, it.quantity)) throw bad(`insufficient stock for ${v.product.title}`);
     lines.push({
       variantId: v.id,
       title: v.title === "Default" ? v.product.title : `${v.product.title} — ${v.title}`,
       quantity: it.quantity,
       unitPrice: v.prices[0].amount,
       weightG: v.weightG,
+      taxable: v.product.chargeTax,
+      physical: v.product.physical,
     });
   }
   const subtotal = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+  const taxableSubtotal = lines.filter((l) => l.taxable).reduce((s, l) => s + l.unitPrice * l.quantity, 0);
   const taxRateBps = taxRateFor(market, region);
-  const tax = computeTax(subtotal, taxRateBps, market.taxInclusive);
   const ship = pickShipping(market.shippingRates, subtotal, d.shippingRateId);
-  const total = computeTotal(subtotal, tax, ship.amount, market.taxInclusive);
-  return { market, region, taxRateBps, lines, subtotal, tax, shipping: ship.amount, shippingRate: ship.rate, total };
+  // nothing physical in the cart (digital/service only) means nothing to ship
+  const shipping = lines.some((l) => l.physical) ? ship.amount : 0;
+  const { tax, total } = priceTotals({ subtotal, taxableSubtotal, taxRateBps, inclusive: market.taxInclusive, shipping });
+  return { market, region, taxRateBps, lines, subtotal, tax, shipping, shippingRate: ship.rate, total };
 }
 
 storeRouter.post("/quote", async (req, res) => {
@@ -205,7 +214,11 @@ export async function stripeWebhook(req: Request, res: Response) {
           if (!flipped.count) return false;
           await tx.order.updateMany({ where: { id: orderId, status: "draft" }, data: { status: "open" } });
           const items = await tx.orderItem.findMany({ where: { orderId } });
-          for (const i of items) if (i.variantId) await tx.variant.update({ where: { id: i.variantId }, data: { inventory: { decrement: i.quantity } } });
+          for (const i of items) {
+            if (!i.variantId) continue;
+            const v = await tx.variant.findUnique({ where: { id: i.variantId }, include: { product: { select: { trackInventory: true } } } });
+            if (v && shouldDecrement(v.product)) await tx.variant.update({ where: { id: i.variantId }, data: { inventory: { decrement: i.quantity } } });
+          }
           return true;
         });
         // after the commit, and never allowed to fail the webhook (Stripe would retry and we'd double-process)

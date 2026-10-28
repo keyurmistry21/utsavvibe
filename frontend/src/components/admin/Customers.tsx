@@ -6,6 +6,7 @@ import { CustomerDetails } from "./CustomerDetails";
 import { ImportCustomers } from "./ImportCustomers";
 import { NewCustomerSheet } from "./NewCustomerSheet";
 import { Badge, TagList } from "./hooks";
+import { ColumnsMenu, loadView, saveView, type ViewState } from "./ColumnsMenu";
 
 const PAGE = 50;
 type ColKey = "email_sub" | "location" | "orders" | "spent" | "email" | "phone" | "first" | "last" | "postcode" | "language" | "id" | "added" | "updated" | "sms" | "whatsapp" | "tax" | "tags";
@@ -38,80 +39,11 @@ type Sort = "updated" | "created" | "name" | "orders";
 const SORTS: [Sort, string][] = [["updated", "Date customer updated"], ["created", "Customer added date"], ["name", "Customer name"], ["orders", "Orders"]];
 const FILTERS: [string, string][] = [["all", "All"], ["subscribed", "Email subscribed"], ["unsubscribed", "Not subscribed"], ["with_orders", "Has orders"], ["no_orders", "No orders"], ["tax_exempt", "Tax exempt"]];
 
-type View = { order: ColKey[]; visible: ColKey[]; sort: Sort; dir: "asc" | "desc" };
+type View = ViewState<ColKey, Sort>;
 const KEY = "customers.view.v1";
+const SORT_KEYS = SORTS.map(([k]) => k);
 const defaultView = (): View => ({ order: COLS.map((c) => c.key), visible: DEFAULT_VISIBLE, sort: "updated", dir: "desc" });
-function loadView(): View {
-  try {
-    const v = JSON.parse(localStorage.getItem(KEY) ?? "null") as View | null;
-    if (!v) return defaultView();
-    // tolerate columns added/removed since this view was saved
-    const all = COLS.map((c) => c.key);
-    const order = [...v.order.filter((k) => all.includes(k)), ...all.filter((k) => !v.order.includes(k))];
-    return { order, visible: v.visible.filter((k) => all.includes(k)), sort: SORTS.some(([s]) => s === v.sort) ? v.sort : "updated", dir: v.dir === "asc" ? "asc" : "desc" };
-  } catch { return defaultView(); }
-}
-
-function ColumnsMenu({ view, setView, onClose }: { view: View; setView: (v: View) => void; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const drag = useRef<number | null>(null);
-  const [over, setOver] = useState<number | null>(null);
-  useEffect(() => {
-    const out = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node) && !(e.target as HTMLElement).closest(".colbtn")) onClose(); };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("mousedown", out); document.addEventListener("keydown", esc);
-    return () => { document.removeEventListener("mousedown", out); document.removeEventListener("keydown", esc); };
-  }, [onClose]);
-
-  const move = (from: number, to: number) => {
-    if (from === to) return;
-    const order = [...view.order];
-    order.splice(to, 0, order.splice(from, 1)[0]);
-    setView({ ...view, order });
-  };
-  const toggle = (k: ColKey) => setView({ ...view, visible: view.visible.includes(k) ? view.visible.filter((x) => x !== k) : [...view.visible, k] });
-
-  return (
-    <div className="colmenu" ref={ref}>
-      <div className="sortrow">
-        <label htmlFor="sortby">Sort by</label>
-        <select id="sortby" value={view.sort} onChange={(e) => setView({ ...view, sort: e.target.value as Sort })}>
-          {SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </select>
-        <button className="dirbtn" title={view.dir === "asc" ? "Ascending" : "Descending"} aria-label="Toggle sort direction" onClick={() => setView({ ...view, dir: view.dir === "asc" ? "desc" : "asc" })}>{view.dir === "asc" ? "↑" : "↓"}</button>
-      </div>
-      <div className="colhead">Columns</div>
-      <ul>
-        {view.order.map((k, i) => {
-          const col = COLS.find((c) => c.key === k)!;
-          const on = view.visible.includes(k);
-          return (
-            <li
-              key={k}
-              draggable
-              className={over === i ? "over" : ""}
-              onDragStart={() => { drag.current = i; }}
-              onDragOver={(e) => { e.preventDefault(); setOver(i); }}
-              onDragLeave={() => setOver(null)}
-              onDrop={() => { if (drag.current !== null) move(drag.current, i); drag.current = null; setOver(null); }}
-              onDragEnd={() => { drag.current = null; setOver(null); }}
-            >
-              <span className="grip" aria-hidden="true">⠿</span>
-              <span className={on ? "" : "dim"}>{col.label}</span>
-              <span className="movers">
-                <button aria-label={`Move ${col.label} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>↑</button>
-                <button aria-label={`Move ${col.label} down`} disabled={i === view.order.length - 1} onClick={() => move(i, i + 1)}>↓</button>
-              </span>
-              <button className="eye" aria-pressed={on} aria-label={`${on ? "Hide" : "Show"} ${col.label}`} title={on ? "Hide column" : "Show column"} onClick={() => toggle(k)}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">{on ? <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></> : <><path d="M3 3l18 18M10.6 5.1A9.8 9.8 0 0112 5c6.5 0 10 7 10 7a17 17 0 01-3.2 4.2M6.5 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7c1.6 0 3-.4 4.3-1" /></>}</svg>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
+const loadCustomerView = (): View => loadView(KEY, COLS.map((c) => c.key), DEFAULT_VISIBLE, SORT_KEYS, "updated" as Sort);
 
 export function Customers() {
   const [view, setViewState] = useState<View>(defaultView());
@@ -129,8 +61,8 @@ export function Customers() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const seq = useRef(0);
 
-  useEffect(() => { setViewState(loadView()); setReady(true); api<Market[]>("/markets").then((m) => setMarkets(m.filter((x) => x.active))).catch(() => {}); }, []);
-  const setView = (v: View) => { setViewState(v); setPage(0); try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} };
+  useEffect(() => { setViewState(loadCustomerView()); setReady(true); api<Market[]>("/markets").then((m) => setMarkets(m.filter((x) => x.active))).catch(() => {}); }, []);
+  const setView = (v: View) => { setViewState(v); setPage(0); saveView(KEY, v); };
 
   const load = useCallback(() => {
     const my = ++seq.current;
@@ -156,6 +88,8 @@ export function Customers() {
     } catch (e) { setError((e as Error).message); }
   };
 
+  if (adding && markets.length > 0) return <NewCustomerSheet markets={markets} backLabel="Customers" onCreated={() => { setAdding(false); load(); }} onClose={() => setAdding(false)} />;
+
   return (
     <>
       <div className="pagehead">
@@ -180,7 +114,7 @@ export function Customers() {
             <button className="colbtn iconbtn" aria-label="Sort and choose columns" title="Sort and columns" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16M15 4v16" /></svg>
             </button>
-            {menu && <ColumnsMenu view={view} setView={setView} onClose={() => setMenu(false)} />}
+            {menu && <ColumnsMenu columns={COLS} sorts={SORTS} view={view} setView={setView} onClose={() => setMenu(false)} />}
           </div>
         </div>
         <div className="filterchips">
@@ -225,7 +159,6 @@ export function Customers() {
         )}
       </div>
 
-      {adding && markets.length > 0 && <NewCustomerSheet markets={markets} onCreated={() => { setAdding(false); load(); }} onClose={() => setAdding(false)} />}
       {importing && <ImportCustomers onDone={load} onClose={() => setImporting(false)} />}
       {open && <CustomerDetails customer={open} onSaved={() => { setOpen(null); load(); }} onClose={() => setOpen(null)} />}
     </>

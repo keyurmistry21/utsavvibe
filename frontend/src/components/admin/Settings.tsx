@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, auth } from "@/lib/api";
+import { FIELD_STYLES, getFieldStyle, setFieldStyle, type FieldStyleId } from "@/lib/fieldStyle";
 
 const blankFrom = { name: "", company: "", line1: "", line2: "", city: "", region: "", postcode: "", country: "", phone: "" };
 
@@ -34,6 +35,32 @@ function ShipFrom() {
       <div className="field" style={{ maxWidth: 260 }}><label>Phone</label><input value={f.phone} onChange={set("phone")} /></div>
       {msg && <div className="muted">{msg}</div>}
       <button className="primary" onClick={save}>Save address</button>
+    </div>
+  );
+}
+
+function Appearance() {
+  const [cur, setCur] = useState<FieldStyleId>("classic");
+  useEffect(() => { setCur(getFieldStyle()); }, []);
+  const pick = (id: FieldStyleId) => { setFieldStyle(id); setCur(id); };
+  return (
+    <div className="card">
+      <h3>Appearance: input style</h3>
+      <p className="muted">How text boxes, search boxes and text areas look everywhere (admin and storefront). Click a style to try it. Your choice is saved in this browser.</p>
+      <div className="fieldopts">
+        {FIELD_STYLES.map((s) => (
+          <div key={s.id} role="radio" tabIndex={0} aria-checked={cur === s.id} className={`fieldopt ${cur === s.id ? "on" : ""}`} onClick={() => pick(s.id)} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); pick(s.id); } }}>
+            <span className="fieldopt-head"><b>{s.label}</b>{cur === s.id && <span className="badge good">In use</span>}</span>
+            <span className="muted fieldopt-note">{s.note}</span>
+            <span className="fieldpreview" data-fields={s.id}>
+              <span className="searchfield"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.3-4.3" /></svg><input placeholder="Search customers" aria-label={`${s.label}: search sample`} /></span>
+              <input placeholder="Text box" aria-label={`${s.label}: text sample`} />
+              <textarea rows={2} placeholder="Text area" aria-label={`${s.label}: text area sample`} />
+              <select aria-label={`${s.label}: dropdown sample`}><option>Dropdown</option><option>Another choice</option></select>
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -95,6 +122,7 @@ export function Settings() {
       </div>
       <ShipFrom />
       <EmailSettings />
+      <Appearance />
     </>
   );
 }

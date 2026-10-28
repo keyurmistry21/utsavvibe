@@ -1,19 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, hasAddress, type Address, type Customer, type Market } from "@/lib/api";
 import { countryName } from "@/lib/countries";
 import { AddressModal } from "./AddressModal";
-import { Drawer } from "./Drawer";
 import { PhoneInput } from "./PhoneInput";
-import { Plus } from "../Icons";
+import { ArrowLeft, Plus } from "../Icons";
 
 const LANGUAGES = [["en", "English [Default]"], ["fr", "French"], ["hi", "Hindi"], ["gu", "Gujarati"]] as const;
 
-// Full-screen "New customer" page (opens over the current page, like Shopify).
-export function NewCustomerSheet({ markets, query = "", onCreated, onClose }: {
+// "New customer" page. Rendered in the main panel in place of the page that opened it (sidebar stays visible).
+export function NewCustomerSheet({ markets, query = "", backLabel = "Back", onCreated, onClose }: {
   markets: Market[];
   query?: string;
+  backLabel?: string;
   onCreated: (c: Customer) => void;
   onClose: () => void;
 }) {
@@ -50,26 +50,17 @@ export function NewCustomerSheet({ markets, query = "", onCreated, onClose }: {
     }
   };
 
+  useEffect(() => { document.querySelector("main.content")?.scrollTo({ top: 0 }); }, []);
+
   const hasEmail = !!f.email.trim();
   const hasPhone = !!f.phone.trim();
 
   return (
     <>
-      <Drawer
-        title="New customer"
-        dismissOnScrim={false}
-        onClose={() => { if (!addrOpen) onClose(); }}
-        footer={
-          <>
-            {err ? <span className="error" style={{ margin: 0 }}>{err}</span> : <span />}
-            <span style={{ display: "flex", gap: 12 }}>
-              <button onClick={onClose}>Discard</button>
-              <button className="primary" disabled={saving || (!hasEmail && !hasPhone)} title={!hasEmail && !hasPhone ? "Add an email or phone number" : ""} onClick={save}>{saving ? "Saving…" : "Save"}</button>
-            </span>
-          </>
-        }
-      >
-        <div className="custform">
+      <div className="crumbbar"><button className="link crumb" onClick={onClose}><ArrowLeft />{backLabel}</button></div>
+      <div className="pagehead"><h2>New customer</h2></div>
+      {err && <div className="error">{err}</div>}
+      <div className="cols">
           <div>
             <h3 className="sheet-h">Customer overview</h3>
             <div className="card">
@@ -122,7 +113,7 @@ export function NewCustomerSheet({ markets, query = "", onCreated, onClose }: {
             </div>
           </div>
 
-          <div>
+          <aside className="sideform">
             <h3 className="sheet-h">Notes</h3>
             <div className="card">
               <textarea rows={3} value={f.notes} onChange={set("notes")} placeholder="Notes are private and won’t be shared with the customer." />
@@ -134,9 +125,14 @@ export function NewCustomerSheet({ markets, query = "", onCreated, onClose }: {
                 {tags.map((t) => <span key={t} className="chip">{t} <button className="link" aria-label={`Remove ${t}`} onClick={() => setTags(tags.filter((x) => x !== t))}>✕</button></span>)}
               </div>
             </div>
-          </div>
-        </div>
-      </Drawer>
+          </aside>
+      </div>
+
+      <div className="savebar">
+        <span style={{ flex: 1 }} />
+        <button onClick={onClose}>Discard</button>
+        <button className="primary" disabled={saving || (!hasEmail && !hasPhone)} title={!hasEmail && !hasPhone ? "Add an email or phone number" : ""} onClick={save}>{saving ? "Saving…" : "Save"}</button>
+      </div>
       {addrOpen && (
         <AddressModal
           title="Add default address"

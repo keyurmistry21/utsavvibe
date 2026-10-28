@@ -8,12 +8,13 @@ export type Market = {
 export type Price = { amount: number; compareAt?: number | null };
 export type Variant = {
   id?: string; title: string; options: Record<string, string>; sku?: string | null;
-  inventory: number; weightG: number; prices: Record<string, Price>;
+  inventory: number; weightG: number; barcode?: string | null; costPerItem?: number | null; prices: Record<string, Price>;
 };
 export type ProductImage = { id: string; url: string; thumbUrl: string; alt: string; position: number; width: number; height: number };
 export type Product = {
   images: ProductImage[];
-  id: string; title: string; description: string; status: "draft" | "active" | "archived";
+  id: string; title: string; handle: string; description: string; status: "draft" | "active" | "archived"; vendor: string; productType: string;
+  trackInventory: boolean; continueSelling: boolean; physical: boolean; chargeTax: boolean; seoTitle: string; seoDescription: string;
   tags: string[]; notes: string; marketIds: string[]; regions: Record<string, string[]>; variants: Variant[];
 };
 export type Order = {
@@ -100,3 +101,9 @@ export async function download(path: string, fallbackName: string) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+export type ProductRow = {
+  id: string; title: string; handle: string; status: "draft" | "active" | "archived"; vendor: string; productType: string;
+  tags: string[]; createdAt: string; updatedAt: string; thumbUrl: string | null;
+  inventory: number; variantCount: number; markets: string[]; prices: Record<string, { currency: string; min: number }>;
+};

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma, parseJson } from "../db.js";
+import { csvCell } from "../csv.js";
 
 export const customersRouter = Router();
 
@@ -111,12 +112,6 @@ customersRouter.get("/", async (req, res) => {
 });
 
 // ---- CSV export / import ----
-const csvCell = (v: unknown) => {
-  let s = String(v ?? "");
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // stop spreadsheet formula injection (Shopify does the same, so a re-import strips it)
-  return `"${s.replace(/"/g, '""')}"`;
-};
-
 customersRouter.get("/export", async (req, res) => {
   const ids = String(req.query.ids ?? "").split(",").filter(Boolean);
   const q = String(req.query.q ?? "").trim();

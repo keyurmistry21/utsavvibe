@@ -10,7 +10,7 @@ type Props = { params: Promise<{ market: string; handle: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { market, handle } = await params;
   const p = await getProduct(market.toUpperCase(), handle);
-  return p ? { title: `${p.title} | UtsavVibe`, description: p.description.slice(0, 160) } : {};
+  return p ? { title: p.seoTitle || `${p.title} | UtsavVibe`, description: p.seoDescription || p.description.slice(0, 160) } : {};
 }
 
 export default async function ProductPage({ params }: Props) {
@@ -27,7 +27,8 @@ export default async function ProductPage({ params }: Props) {
         <div>
           <h1>{p.title}</h1>
           <AddToCart product={p} market={market.toLowerCase()} />
-          <p className="desc">{p.description}</p>
+          {/* sanitized by the API when the product is saved */}
+          <div className="desc" dangerouslySetInnerHTML={{ __html: p.descriptionHtml }} />
           <ul className="notes">
             <li>{current.taxInclusive ? "Price includes tax" : "Tax calculated at checkout"}</li>
             {current.shippingRates[0] && <li>Delivery: {current.shippingRates[0].name}{current.shippingRates[0].freeOverAmount != null ? " (free over threshold)" : ""}</li>}

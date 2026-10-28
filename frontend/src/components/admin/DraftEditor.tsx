@@ -14,7 +14,7 @@ import { ArrowLeft, Plus } from "../Icons";
 
 // variantId absent = custom item (not in the catalog, no stock tracking)
 type Line = { variantId?: string; title: string; quantity: number; price: string; taxable?: boolean; physical?: boolean; weightG?: number };
-type Quote = { currency: string; taxInclusive: boolean; taxRateBps: number; subtotal: number; discount: number; tax: number; shipping: number; total: number };
+type Quote = { region: string | null; currency: string; taxInclusive: boolean; taxRateBps: number; subtotal: number; discount: number; tax: number; shipping: number; total: number };
 type Picked_ = { id: string; name: string; email: string | null; phone: string | null; taxExempt: boolean };
 type CustomForm = { title: string; price: string; qty: string; taxable: boolean; physical: boolean; weight: string; unit: keyof typeof UNIT_G };
 const UNIT_G = { kg: 1000, g: 1, lb: 453.592, oz: 28.3495 } as const;
@@ -167,6 +167,9 @@ export function DraftEditor({ id }: { id?: string }) {
     </div>
   );
 
+  // New customer replaces this page in the main panel; all the order state above is kept while it is open
+  if (newCust !== null) return <NewCustomerSheet markets={markets} query={newCust} backLabel={id ? "Edit draft order" : "Create order"} onCreated={customerCreated} onClose={() => setNewCust(null)} />;
+
   return (
     <>
       <div className="crumbbar">
@@ -240,7 +243,7 @@ export function DraftEditor({ id }: { id?: string }) {
               </div>
             )}
             <div className={`payrow ${has ? "" : "dim"}`}>
-              <span>{quote?.taxInclusive ? "Tax (included)" : "Estimated tax"}{" "}<span className="info" title="Tax is worked out from the delivery address. Add the customer’s address for the exact amount.">ⓘ</span>{customer?.taxExempt ? " · exempt" : quote && regionName ? ` · ${regionName} ${quote.taxRateBps / 100}%` : quote ? ` · ${quote.taxRateBps / 100}%` : ""}</span>
+              <span>{quote?.taxInclusive ? "Tax (included)" : "Estimated tax"}{" "}<span className="info" title="Tax is worked out from the delivery address. Add the customer’s address for the exact amount.">ⓘ</span>{customer?.taxExempt ? " · exempt" : quote ? ` · ${market?.regions.find((r) => r.code === quote.region)?.name ?? ""} ${quote.taxRateBps / 100}%`.replace("  ", " ") : ""}</span>
               <span>{quote ? money(quote.tax, cur) : "Not calculated"}</span>
             </div>
             <div className="payrow total"><span>Total</span><span>{money(quote?.total ?? 0, cur)}{market ? ` ${market.currency}` : ""}</span></div>
@@ -304,7 +307,6 @@ export function DraftEditor({ id }: { id?: string }) {
       {picker && market && (
         <ProductPicker products={products} market={market} inOrder={new Set(lines.map((l) => l.variantId).filter(Boolean) as string[])} onAdd={addPicked} onClose={() => setPicker(false)} />
       )}
-      {newCust !== null && <NewCustomerSheet markets={markets} query={newCust} onCreated={customerCreated} onClose={() => setNewCust(null)} />}
       {addrOpen && (
         <AddressModal
           title="Shipping address"

@@ -29,6 +29,13 @@ Next.js 16 App Router + React 19 + TypeScript. Plain CSS in `src/app/styles.css`
 
 - Storefront data goes through `lib/store.ts`, which fills missing fields (`images`, `regions`, ...) because Next can serve a cached API response from an older shape; pages may rely on those fields. Icons next to labels (`components/Icons.tsx`: Plus, ArrowLeft, ArrowRight, External) are SVGs so buttons/links can space them with `gap`; don't type `+`/`→` glyphs into labels.
 
+## Product pages
+- List: `ProductList.tsx` (same pattern as Customers: views Active/Draft/Archived, stock chips, column picker via shared `ColumnsMenu`, bulk activate/draft/archive/delete, CSV export) against `GET /products/list`. Editor: `ProductEditor.tsx` (two columns like Shopify). Adding options (Size, Color) rebuilds variants with `syncVariants`: existing combinations keep their data, refinements inherit (first child takes the old variant, others copy prices only because SKUs are unique), so never replace it with a plain regenerate. Description is edited in `RichTextEditor` (execCommand) and sanitized by the API on save. Toggles use `Switch`.
+- "New customer" is a page rendered in the main panel in place of the page that opened it (`NewCustomerSheet`); callers `return` it early after all hooks so their state (e.g. the draft order being built) survives.
+
+## Field styles
+`Settings > Appearance` lets staff pick one of five input looks (`lib/fieldStyle.ts`, generated `app/fields.css`, attribute `data-fields` on `<html>`, set early by an inline script in `app/layout.tsx`). They are `!important` override layers on top of the base field styles, so a new kind of input must be added to the selector list in `fields.css` to follow the choice.
+
 ## Customers list
 `components/admin/Customers.tsx` mirrors Shopify's list: search, filter chips (stand-in for the AI segment bar), sort + column picker (`ColumnsMenu`: eye toggles, drag or ↑/↓ to reorder; view saved in localStorage key `customers.view.v1`), row selection, 50-per-page paging via `GET /api/admin/customers?q&filter&sort&dir&limit&offset` → `{items,total}`. Export uses `download()` (authenticated blob). Import (`ImportCustomers`, `lib/csv.ts`) reads Shopify's customer CSV or our own export and posts 500-row chunks to `/customers/import`. To add a column, add one entry to `COLS` (and the field to `customerRows` in the backend if it isn't there yet).
 - Global button/field rules use `:where(...)` so component styles (icon buttons, chips, list rows) can override them. Don't re-add `:not()` chains with higher specificity.

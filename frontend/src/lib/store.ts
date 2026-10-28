@@ -11,7 +11,7 @@ export type StoreVariant = {
   id: string; title: string; options: Record<string, string>; inStock: boolean; price: number | null; compareAt: number | null;
 };
 export type StoreProduct = {
-  id: string; handle: string; title: string; description: string; tags: string[]; currency: string; regions: string[]; images: { url: string; thumbUrl: string; alt: string }[]; variants: StoreVariant[];
+  id: string; handle: string; title: string; description: string; descriptionHtml: string; seoTitle: string; seoDescription: string; tags: string[]; currency: string; regions: string[]; images: { url: string; thumbUrl: string; alt: string }[]; variants: StoreVariant[];
 };
 
 async function get<T>(path: string): Promise<T | null> {
@@ -22,7 +22,8 @@ async function get<T>(path: string): Promise<T | null> {
 }
 
 // The API response can be an older shape when it comes from Next's data cache, so fill in anything missing.
-const normProduct = (p: StoreProduct): StoreProduct => ({ ...p, images: p.images ?? [], regions: p.regions ?? [], tags: p.tags ?? [], variants: p.variants ?? [] });
+const escHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const normProduct = (p: StoreProduct): StoreProduct => ({ ...p, descriptionHtml: p.descriptionHtml ?? (p.description ? `<p>${escHtml(p.description)}</p>` : ""), seoTitle: p.seoTitle ?? "", seoDescription: p.seoDescription ?? "", images: p.images ?? [], regions: p.regions ?? [], tags: p.tags ?? [], variants: p.variants ?? [] });
 const normMarket = (m: StoreMarket): StoreMarket => ({ ...m, regions: m.regions ?? [], shippingRates: m.shippingRates ?? [], countries: m.countries ?? [] });
 
 export const getMarkets = async () => ((await get<StoreMarket[]>("/markets")) ?? []).map(normMarket);
