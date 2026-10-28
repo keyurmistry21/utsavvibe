@@ -1,0 +1,32 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: utsavvibe-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: utsavvibe
+      MYSQL_USER: utsavvibe
+      MYSQL_PASSWORD: utsavvibe
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci", "--default-time-zone=+00:00"]
+    ports:
+      - "3307:3306" # 3306 is taken by another local project
+    volumes:
+      - utsavvibe_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Local fake inbox: all mail sent by the API in development lands here (UI on :8026). Nothing leaves the machine.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: utsavvibe-mailpit
+    restart: unless-stopped
+    ports:
+      - "1026:1025" # SMTP (1025 is used by another local project)
+      - "8026:8025" # web UI
+
+volumes:
+  utsavvibe_mysql:

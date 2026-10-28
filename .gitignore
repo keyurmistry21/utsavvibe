@@ -1,0 +1,15 @@
+node_modules
+.env
+*.db
+*.db-journal
+dist
+.next
+next-env.d.ts
+uploads
+.idea
+.DS_Store
+*.log
+.env.*
+!.env.example
+.claude/settings.local.json
+*.tsbuildinfo

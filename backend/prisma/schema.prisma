@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// One row per selling region. Money is always integer minor units (pence/cents).
+model Market {
+  id           String         @id @default(cuid())
+  code         String         @unique // UK, US, CA
+  name         String
+  currency     String // GBP, USD, CAD
+  countries    String @db.Text // JSON array of ISO codes
+  taxRateBps   Int            @default(0) // 2000 = 20%
+  taxInclusive Boolean        @default(false)
+  active       Boolean        @default(true)
+  shippingRates ShippingRate[]
+  regions      MarketRegion[]
+  prices       VariantPrice[]
+  products     ProductMarket[]
+  orders       Order[]
+}
+
+// Provinces/states with their own tax rate (Canada: GST/HST/PST/QST combined).
+model MarketRegion {
+  id         String @id @default(cuid())
+  marketId   String
+  market     Market @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  code       String
+  name       String
+  taxRateBps Int    @default(0)
+
+  @@unique([marketId, code])
+}
+
+model ShippingRate {
+  id            String  @id @default(cuid())
+  marketId      String
+  market        Market  @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  name          String
+  amount        Int
+  freeOverAmount Int?
+  minDays       Int?
+  maxDays       Int?
+}
+
+model Product {
+  id          String          @id @default(cuid())
+  title       String
+  handle      String          @unique
+  description String @db.Text
+  status      String          @default("draft") // draft | active | archived
+  tags        String @db.Text // JSON array
+  notes       String @db.Text // internal only
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  variants    Variant[]
+  markets     ProductMarket[]
+  images      ProductImage[]
+}
+
+// Which markets a product is sold in.
+model ProductMarket {
+  productId String
+  marketId  String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  market    Market  @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  regions   String? @db.Text // JSON array of region codes the product is sold in; null = whole market
+
+  @@id([productId, marketId])
+}
+
+model Variant {
+  id        String         @id @default(cuid())
+  productId String
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  title     String         @default("Default")
+  options   String @db.Text // JSON e.g. {"Size":"M","Color":"Red"}
+  sku       String?        @unique
+  inventory Int            @default(0)
+  weightG   Int            @default(0)
+  prices    VariantPrice[]
+  orderItems OrderItem[]
+}
+
+// Manual price per variant per market.
+model VariantPrice {
+  variantId  String
+  marketId   String
+  amount     Int
+  compareAt  Int?
+  variant    Variant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  market     Market  @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@id([variantId, marketId])
+}
+
+model Customer {
+  id              String   @id @default(cuid())
+  email           String?  @unique // phone-only customers are allowed
+  name            String   @default("")
+  phone           String?
+  language        String   @default("en")
+  acceptsEmail    Boolean  @default(false)
+  acceptsSms      Boolean  @default(false)
+  acceptsWhatsapp Boolean  @default(false)
+  taxExempt       Boolean  @default(false) // "Don't collect tax"
+  address         String?  @db.Text // JSON default address
+  tags            String   @db.Text
+  notes           String   @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  orders          Order[]
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  number          Int         @unique
+  customerId      String?
+  customer        Customer?   @relation(fields: [customerId], references: [id])
+  marketId        String
+  market          Market      @relation(fields: [marketId], references: [id])
+  currency        String
+  subtotal        Int
+  tax             Int
+  shipping        Int
+  total           Int
+  shippingName    String      @default("")
+  shippingAddress String @db.Text // JSON
+  status          String      @default("open") // draft | open | fulfilled | cancelled
+  paymentStatus   String      @default("pending") // pending | paid | refunded | failed
+  stripeSessionId String?     @unique
+  stripePaymentIntentId String?
+  discount        Int         @default(0)
+  discountNote    String?
+  paymentMethod   String? // stripe | cash | bank_transfer | other
+  paymentLinkUrl  String?     @db.Text
+  carrier         String?
+  trackingNumber  String?
+  trackingUrl     String?     @db.Text
+  packageWeightG  Int?
+  shippedAt       DateTime?
+  tags            String @db.Text
+  notes           String @db.Text
+  createdAt       DateTime    @default(now())
+  items           OrderItem[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId String?
+  variant   Variant? @relation(fields: [variantId], references: [id])
+  title     String
+  quantity  Int
+  unitPrice Int
+  taxable   Boolean @default(true)
+  physical  Boolean @default(true) // false = digital/service: no shipping needed
+  weightG   Int     @default(0)
+}
+
+// Single-row-per-name counters (order numbers).
+model Counter {
+  name  String @id
+  value Int    @default(1000)
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String    @default("")
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+}
+
+// Only the sha256 of the cookie token is stored, so a DB leak can't be replayed as a session.
+model Session {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+}
+
+// Key/value store settings (e.g. ship-from address). Value is JSON.
+model Setting {
+  key   String @id
+  value String @db.Text
+}
+
+// Files live in the upload dir as <id>.webp (full) and <id>-thumb.webp. Position 0 is the cover.
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  alt       String   @default("")
+  position  Int      @default(0)
+  width     Int
+  height    Int
+  createdAt DateTime @default(now())
+
+  @@index([productId, position])
+}
+
+// One row per email we tried to send (also used to send each confirmation only once).
+model EmailLog {
+  id        String   @id @default(cuid())
+  orderId   String?
+  kind      String // order_confirmation | payment_link | test
+  toEmail   String
+  subject   String
+  status    String // sent | failed | skipped
+  error     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([orderId, kind])
+}

@@ -1,0 +1,14 @@
+{
+  "name": "utsavvibe",
+  "private": true,
+  "workspaces": ["backend", "frontend"],
+  "scripts": {
+    "db:up": "docker compose up -d mysql",
+    "db:push": "npm -w backend run db:push",
+    "create-admin": "npm -w backend run create-admin --",
+    "dev:server": "npm -w backend run dev",
+    "dev:web": "npm -w frontend run dev",
+    "typecheck": "npm -w backend run typecheck && npm -w frontend run typecheck",
+    "seed": "npm -w backend run seed"
+  }
+}
