@@ -34,7 +34,7 @@ const productInput = z.object({
         id: z.string().optional(),
         title: z.string().default("Default"),
         options: z.record(z.string(), z.string()).default({}),
-        sku: z.string().nullable().optional(),
+        sku: z.string().trim().max(64).nullable().optional(),
         inventory: z.number().int().min(0).default(0),
         weightG: z.number().int().min(0).default(0),
         barcode: z.string().trim().max(64).nullable().optional(),
@@ -232,6 +232,17 @@ productsRouter.get("/export", async (req, res) => {
   res.setHeader("content-type", "text/csv; charset=utf-8");
   res.setHeader("content-disposition", `attachment; filename="products-${new Date().toISOString().slice(0, 10)}.csv"`);
   res.send([header.map(csvCell).join(","), ...lines].join("\r\n"));
+});
+
+// Which of these SKUs / barcodes are already used by another product? Powers the Generate buttons in the editor.
+productsRouter.post("/codes/taken", async (req, res) => {
+  const d = z.object({ skus: z.array(z.string().max(64)).max(200).default([]), barcodes: z.array(z.string().max(64)).max(200).default([]), productId: z.string().optional() }).parse(req.body);
+  const other = d.productId ? { productId: { not: d.productId } } : {};
+  const [s, b] = await Promise.all([
+    d.skus.length ? prisma.variant.findMany({ where: { sku: { in: d.skus }, ...other }, select: { sku: true } }) : [],
+    d.barcodes.length ? prisma.variant.findMany({ where: { barcode: { in: d.barcodes }, ...other }, select: { barcode: true } }) : [],
+  ]);
+  res.json({ skus: s.map((x) => x.sku), barcodes: b.map((x) => x.barcode) });
 });
 
 productsRouter.get("/:id", async (req, res) => {

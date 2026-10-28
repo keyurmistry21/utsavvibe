@@ -877,3 +877,11 @@ body:has(.sf) { background: #fff9f1; }
 @media (prefers-reduced-motion: reduce) { .ferr { animation: none; } }
 /* storefront header links: bigger touch area on phones */
 @media (pointer: coarse), (max-width: 700px) { .sf-head .logo, .sf-right > a, .sf-head nav a, .crumbs a { display: inline-flex; align-items: center; min-height: 44px; } .mkt summary { min-height: 40px; display: flex; align-items: center; } }
+
+/* barcode / QR preview */
+.admin .codegrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+.admin .codegrid h4 { margin: 0 0 8px; }
+.admin .codebox { background: #fff; border: 1px solid var(--border, #e3e3e3); border-radius: 10px; padding: 10px; display: grid; place-items: center; margin-bottom: 6px; overflow: hidden; }
+.admin .codebox svg { max-width: 100%; height: auto; }
+.admin .genrow { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.admin .genrow .acts { display: flex; gap: 12px; font-size: 13px; }

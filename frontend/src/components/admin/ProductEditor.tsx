@@ -3,6 +3,8 @@
 import { Fragment, useState } from "react";
 import { api, toMajor, toMinor, uploadImage, type Market, type Product, type ProductImage } from "@/lib/api";
 import { decimal, int, money } from "@/lib/validators";
+import { barcodeError, makeEan13, makeSku } from "@/lib/codes";
+import { CodePreview } from "./CodePreview";
 import { FieldError, useValidation } from "./validation";
 import { ArrowLeft, Plus } from "../Icons";
 import { ImageManager, type Pending } from "./ImageManager";
@@ -102,6 +104,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
   const [pending, setPending] = useState<Pending[]>([]);
   const [unit, setUnit] = useState<Unit>("kg");
   const [detail, setDetail] = useState<number | null>(null);
+  const [codesFor, setCodesFor] = useState<number | null>(null);
   const selected = markets.filter((m) => f.marketIds.includes(m.id));
   const hasOptions = f.options.length > 0;
   const single = f.variants[0];
@@ -120,6 +123,8 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
     });
     const skuCount = new Map<string, number>();
     f.variants.forEach((x) => { const k = x.sku.trim().toLowerCase(); if (k) skuCount.set(k, (skuCount.get(k) ?? 0) + 1); });
+    const bcCount = new Map<string, number>();
+    f.variants.forEach((x) => { const k = x.barcode.trim(); if (k) bcCount.set(k, (bcCount.get(k) ?? 0) + 1); });
     f.variants.forEach((x, i) => {
       selected.forEach((m) => {
         const a = x.prices[m.id]?.amount ?? "", c = x.prices[m.id]?.compareAt ?? "";
@@ -129,7 +134,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
       E[`qty:${i}`] = f.trackInventory ? int(x.inventory, 0, 1_000_000, "quantity") : "";
       const sku = x.sku.trim();
       E[`sku:${i}`] = sku.length > 64 ? "The SKU is too long (max 64 characters)" : sku && (skuCount.get(sku.toLowerCase()) ?? 0) > 1 ? "Another variant already uses this SKU" : srv[`sku:${sku}`] ? srv[`sku:${sku}`] : "";
-      E[`barcode:${i}`] = x.barcode.length > 64 ? "The barcode is too long (max 64 characters)" : "";
+      E[`barcode:${i}`] = barcodeError(x.barcode) || (x.barcode.trim() && (bcCount.get(x.barcode.trim()) ?? 0) > 1 ? "Another variant already uses this barcode" : "");
       E[`weight:${i}`] = f.physical ? decimal(x.weight, 100_000, "weight") : "";
     });
     E.handle = !handle ? "Enter a URL handle" : srv.handle ?? "";
@@ -137,6 +142,28 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
   const val = useValidation(E);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((cur) => ({ ...cur, [k]: v }));
+  // Generate: a SKU from the product name + options, or an EAN-13 with a valid check digit. Both are checked against the
+  // other variants here and against every other product on the server, so the result is never a duplicate.
+  const generate = async (kind: "sku" | "barcode", only?: number[]) => {
+    setErr("");
+    try {
+      const idx = only ?? f.variants.map((_, i) => i).filter((i) => !f.variants[i][kind].trim());
+      const skuTaken = new Set(f.variants.map((v) => v.sku.trim().toLowerCase()).filter(Boolean));
+      const bcTaken = new Set(f.variants.map((v) => v.barcode.trim()).filter(Boolean));
+      const out: Record<number, string> = {};
+      for (const i of idx) {
+        for (let tries = 0; tries < 6; tries++) {
+          const cand = kind === "sku" ? makeSku(f.title || "Item", f.variants[i].options, skuTaken) : makeEan13();
+          const t = await api<{ skus: (string | null)[]; barcodes: (string | null)[] }>("/products/codes/taken", { method: "POST", json: { skus: kind === "sku" ? [cand] : [], barcodes: kind === "barcode" ? [cand] : [], productId: f.id } });
+          const used = (kind === "sku" ? t.skus : t.barcodes).some((x) => x?.toLowerCase() === cand.toLowerCase());
+          if (used || (kind === "barcode" && bcTaken.has(cand))) { if (kind === "sku") skuTaken.add(cand.toLowerCase()); continue; }
+          out[i] = cand; (kind === "sku" ? skuTaken : bcTaken).add(kind === "sku" ? cand.toLowerCase() : cand); break;
+        }
+      }
+      setF((cur) => ({ ...cur, variants: cur.variants.map((v, j) => (out[j] ? { ...v, [kind]: out[j] } : v)) }));
+      setSrv((cur) => Object.fromEntries(Object.entries(cur).filter(([k]) => !k.startsWith("sku:"))));
+    } catch (e) { setErr((e as Error).message); }
+  };
   const setVariant = (i: number, patch: Partial<VForm>) => setF((cur) => ({ ...cur, variants: cur.variants.map((v, j) => (j === i ? { ...v, ...patch } : v)) }));
   const setPrice = (i: number, mid: string, key: keyof PriceForm, val: string) =>
     setF((cur) => ({
@@ -252,8 +279,8 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
                   <div className="field" style={{ maxWidth: 220 }}><label>Quantity</label><input type="number" min={0} value={single.inventory} onChange={(e) => setVariant(0, { inventory: e.target.value })} {...val.props("qty:0")} /><FieldError k="qty:0" msg={val.err("qty:0")} /></div>
                 )}
                 <div className="row">
-                  <div className="field"><label>SKU (stock keeping unit)</label><input value={single.sku} onChange={(e) => setVariant(0, { sku: e.target.value })} {...val.props("sku:0")} /><FieldError k="sku:0" msg={val.err("sku:0")} /></div>
-                  <div className="field"><label>Barcode (ISBN, UPC, GTIN…)</label><input value={single.barcode} onChange={(e) => setVariant(0, { barcode: e.target.value })} {...val.props("barcode:0")} /><FieldError k="barcode:0" msg={val.err("barcode:0")} /></div>
+                  <div className="field"><div className="genrow"><label htmlFor="sku-0">SKU (stock keeping unit)</label><span className="acts"><button className="link" type="button" onClick={() => generate("sku", [0])}>Generate</button></span></div><input id="sku-0" value={single.sku} onChange={(e) => setVariant(0, { sku: e.target.value })} {...val.props("sku:0")} /><FieldError k="sku:0" msg={val.err("sku:0")} /></div>
+                  <div className="field"><div className="genrow"><label htmlFor="bc-0">Barcode (ISBN, UPC, GTIN…)</label><span className="acts"><button className="link" type="button" onClick={() => generate("barcode", [0])}>Generate</button><button className="link" type="button" disabled={!single.sku.trim() && !single.barcode.trim()} onClick={() => setCodesFor(0)}>Preview</button></span></div><input id="bc-0" value={single.barcode} onChange={(e) => setVariant(0, { barcode: e.target.value })} {...val.props("barcode:0")} /><FieldError k="barcode:0" msg={val.err("barcode:0")} /></div>
                 </div>
                 {f.trackInventory && <label className="check"><input type="checkbox" checked={f.continueSelling} onChange={(e) => set("continueSelling", e.target.checked)} />Continue selling when out of stock</label>}
               </div>
@@ -289,7 +316,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
 
                 <div className="tablescroll" style={{ marginTop: 18 }}>
                   <table className="vtable">
-                    <thead><tr><th>Variant</th>{selected.map((m) => <th key={m.id}>{m.code} price</th>)}{f.trackInventory && <th>Quantity</th>}<th>SKU</th><th /></tr></thead>
+                    <thead><tr><th>Variant</th>{selected.map((m) => <th key={m.id}>{m.code} price</th>)}{f.trackInventory && <th>Quantity</th>}<th>SKU <button className="link" type="button" onClick={() => generate("sku")}>Generate missing</button></th><th /></tr></thead>
                     <tbody>
                       {f.variants.map((v, i) => (
                         <Fragment key={v.title + i}>
@@ -304,7 +331,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
                             <tr className="vdetail"><td colSpan={selected.length + 3 + (f.trackInventory ? 1 : 0)}>
                               <div className="row">
                                 {selected.map((m) => <div key={m.id} className="field"><label>{m.code} compare-at price</label><input type="number" step="0.01" min={0} placeholder="Optional" value={v.prices[m.id]?.compareAt ?? ""} onChange={(e) => setPrice(i, m.id, "compareAt", e.target.value)} {...val.props(`compare:${i}:${m.id}`)} /><FieldError small k={`compare:${i}:${m.id}`} msg={val.err(`compare:${i}:${m.id}`)} /></div>)}
-                                <div className="field"><label>Barcode</label><input value={v.barcode} onChange={(e) => setVariant(i, { barcode: e.target.value })} {...val.props(`barcode:${i}`)} /><FieldError small k={`barcode:${i}`} msg={val.err(`barcode:${i}`)} /></div>
+                                <div className="field"><div className="genrow"><label htmlFor={`bc-${i}`}>Barcode</label><span className="acts"><button className="link" type="button" onClick={() => generate("barcode", [i])}>Generate</button><button className="link" type="button" disabled={!v.sku.trim() && !v.barcode.trim()} onClick={() => setCodesFor(i)}>Preview</button></span></div><input id={`bc-${i}`} value={v.barcode} onChange={(e) => setVariant(i, { barcode: e.target.value })} {...val.props(`barcode:${i}`)} /><FieldError small k={`barcode:${i}`} msg={val.err(`barcode:${i}`)} /></div>
                                 {f.physical && <div className="field"><label>Weight ({unit})</label><input type="number" min={0} step="0.001" value={v.weight} onChange={(e) => setVariant(i, { weight: e.target.value })} {...val.props(`weight:${i}`)} /><FieldError small k={`weight:${i}`} msg={val.err(`weight:${i}`)} /></div>}
                               </div>
                             </td></tr>
@@ -393,6 +420,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
           </div>
         </aside>
       </div>
+      {codesFor !== null && f.variants[codesFor] && <CodePreview title={`${f.title || "New product"}${f.variants[codesFor].title !== "Default" ? ` — ${f.variants[codesFor].title}` : ""}`} sku={f.variants[codesFor].sku} barcode={f.variants[codesFor].barcode} onClose={() => setCodesFor(null)} />}
     </>
   );
 }
