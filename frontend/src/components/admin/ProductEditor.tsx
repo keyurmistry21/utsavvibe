@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { api, toMajor, toMinor, uploadImage, type Market, type Product, type ProductImage } from "@/lib/api";
 import { decimal, int, money } from "@/lib/validators";
 import { barcodeError, makeEan13, makeSku } from "@/lib/codes";
@@ -103,7 +103,6 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
   const [saving, setSaving] = useState(false);
   const [pending, setPending] = useState<Pending[]>([]);
   const [unit, setUnit] = useState<Unit>("kg");
-  const [detail, setDetail] = useState<number | null>(null);
   const [codesFor, setCodesFor] = useState<number | null>(null);
   const selected = markets.filter((m) => f.marketIds.includes(m.id));
   const hasOptions = f.options.length > 0;
@@ -314,32 +313,55 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
                 ))}
                 {f.options.length < 3 && <button onClick={() => setOptions([...f.options, { name: "", values: [] }])}><Plus />Add another option</button>}
 
-                <div className="tablescroll" style={{ marginTop: 18 }}>
-                  <table className="vtable">
-                    <thead><tr><th>Variant</th>{selected.map((m) => <th key={m.id}>{m.code} price</th>)}{f.trackInventory && <th>Quantity</th>}<th>SKU <button className="link" type="button" onClick={() => generate("sku")}>Generate missing</button> <button className="link" type="button" onClick={() => generate("barcode")}>Barcodes</button></th><th /></tr></thead>
-                    <tbody>
-                      {f.variants.map((v, i) => (
-                        <Fragment key={v.title + i}>
-                          <tr>
-                            <td><b>{v.title}</b></td>
-                            {selected.map((m) => <td key={m.id}><input type="number" step="0.01" min={0} aria-label={`${v.title} ${m.code} price`} placeholder="0.00" value={v.prices[m.id]?.amount ?? ""} onChange={(e) => setPrice(i, m.id, "amount", e.target.value)} {...val.props(`price:${i}:${m.id}`)} /><FieldError small k={`price:${i}:${m.id}`} msg={val.err(`price:${i}:${m.id}`)} /></td>)}
-                            {f.trackInventory && <td><input type="number" min={0} aria-label={`${v.title} quantity`} value={v.inventory} onChange={(e) => setVariant(i, { inventory: e.target.value })} {...val.props(`qty:${i}`)} /><FieldError small k={`qty:${i}`} msg={val.err(`qty:${i}`)} /></td>}
-                            <td><input aria-label={`${v.title} SKU`} value={v.sku} onChange={(e) => setVariant(i, { sku: e.target.value })} {...val.props(`sku:${i}`)} /><FieldError small k={`sku:${i}`} msg={val.err(`sku:${i}`)} /></td>
-                            <td><button className="link" onClick={() => setDetail(detail === i ? null : i)}>{detail === i ? "Less" : "More"}</button></td>
-                          </tr>
-                          {detail === i && (
-                            <tr className="vdetail"><td colSpan={selected.length + 3 + (f.trackInventory ? 1 : 0)}>
-                              <div className="row">
-                                {selected.map((m) => <div key={m.id} className="field"><label>{m.code} compare-at price</label><input type="number" step="0.01" min={0} placeholder="Optional" value={v.prices[m.id]?.compareAt ?? ""} onChange={(e) => setPrice(i, m.id, "compareAt", e.target.value)} {...val.props(`compare:${i}:${m.id}`)} /><FieldError small k={`compare:${i}:${m.id}`} msg={val.err(`compare:${i}:${m.id}`)} /></div>)}
-                                <div className="field"><div className="genrow"><label htmlFor={`bc-${i}`}>Barcode</label><span className="acts"><button className="link" type="button" onClick={() => generate("barcode", [i])}>Generate</button><button className="link" type="button" disabled={!v.sku.trim() && !v.barcode.trim()} onClick={() => setCodesFor(i)}>Preview</button></span></div><input id={`bc-${i}`} value={v.barcode} onChange={(e) => setVariant(i, { barcode: e.target.value })} {...val.props(`barcode:${i}`)} /><FieldError small k={`barcode:${i}`} msg={val.err(`barcode:${i}`)} /></div>
-                                {f.physical && <div className="field"><label>Weight ({unit})</label><input type="number" min={0} step="0.001" value={v.weight} onChange={(e) => setVariant(i, { weight: e.target.value })} {...val.props(`weight:${i}`)} /><FieldError small k={`weight:${i}`} msg={val.err(`weight:${i}`)} /></div>}
-                              </div>
-                            </td></tr>
-                          )}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="vhead">
+                  <b>{f.variants.length} variant{f.variants.length === 1 ? "" : "s"}</b>
+                  <span className="acts"><button className="link" type="button" onClick={() => generate("sku")}>Generate missing SKUs</button><button className="link" type="button" onClick={() => generate("barcode")}>Generate missing barcodes</button></span>
+                </div>
+                <div className="vlist">
+                  {f.variants.map((v, i) => (
+                    <div key={v.title + i} className="vcard">
+                      <div className="vcard-h">
+                        <b>{v.title}</b>
+                        <button className="link" type="button" disabled={!v.sku.trim() && !v.barcode.trim()} onClick={() => setCodesFor(i)}>Preview barcode and QR</button>
+                      </div>
+                      <div className="vgrid">
+                        {selected.map((m) => (
+                          <div key={m.id} className="field"><label htmlFor={`pr-${i}-${m.id}`}>{m.code} price ({m.currency})</label>
+                            <input id={`pr-${i}-${m.id}`} type="number" step="0.01" min={0} placeholder="0.00" value={v.prices[m.id]?.amount ?? ""} onChange={(e) => setPrice(i, m.id, "amount", e.target.value)} {...val.props(`price:${i}:${m.id}`)} />
+                            <FieldError small k={`price:${i}:${m.id}`} msg={val.err(`price:${i}:${m.id}`)} />
+                          </div>
+                        ))}
+                        {selected.map((m) => (
+                          <div key={`c${m.id}`} className="field"><label htmlFor={`cp-${i}-${m.id}`} title="The original price, shown crossed out next to the real price. Must be higher than the price.">{m.code} compare-at (was price)</label>
+                            <input id={`cp-${i}-${m.id}`} type="number" step="0.01" min={0} placeholder="Crossed-out price, optional" value={v.prices[m.id]?.compareAt ?? ""} onChange={(e) => setPrice(i, m.id, "compareAt", e.target.value)} {...val.props(`compare:${i}:${m.id}`)} />
+                            <FieldError small k={`compare:${i}:${m.id}`} msg={val.err(`compare:${i}:${m.id}`)} />
+                          </div>
+                        ))}
+                        {f.trackInventory && (
+                          <div className="field"><label htmlFor={`qt-${i}`}>Quantity</label>
+                            <input id={`qt-${i}`} type="number" min={0} value={v.inventory} onChange={(e) => setVariant(i, { inventory: e.target.value })} {...val.props(`qty:${i}`)} />
+                            <FieldError small k={`qty:${i}`} msg={val.err(`qty:${i}`)} />
+                          </div>
+                        )}
+                        {f.physical && (
+                          <div className="field"><label htmlFor={`wt-${i}`}>Weight ({unit})</label>
+                            <input id={`wt-${i}`} type="number" min={0} step="0.001" value={v.weight} onChange={(e) => setVariant(i, { weight: e.target.value })} {...val.props(`weight:${i}`)} />
+                            <FieldError small k={`weight:${i}`} msg={val.err(`weight:${i}`)} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="vcodes">
+                        <div className="field"><div className="genrow"><label htmlFor={`sk-${i}`}>SKU</label><span className="acts"><button className="link" type="button" onClick={() => generate("sku", [i])}>Generate</button></span></div>
+                          <input id={`sk-${i}`} value={v.sku} onChange={(e) => setVariant(i, { sku: e.target.value })} {...val.props(`sku:${i}`)} />
+                          <FieldError small k={`sku:${i}`} msg={val.err(`sku:${i}`)} />
+                        </div>
+                        <div className="field"><div className="genrow"><label htmlFor={`bc-${i}`}>Barcode</label><span className="acts"><button className="link" type="button" onClick={() => generate("barcode", [i])}>Generate</button></span></div>
+                          <input id={`bc-${i}`} value={v.barcode} onChange={(e) => setVariant(i, { barcode: e.target.value })} {...val.props(`barcode:${i}`)} />
+                          <FieldError small k={`barcode:${i}`} msg={val.err(`barcode:${i}`)} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 <div className="toggleline" style={{ marginTop: 16 }}><Switch checked={f.trackInventory} onChange={(v) => set("trackInventory", v)} label="Inventory tracked" /><span>Inventory tracked</span></div>
                 {f.trackInventory && <label className="check"><input type="checkbox" checked={f.continueSelling} onChange={(e) => set("continueSelling", e.target.checked)} />Continue selling when out of stock</label>}

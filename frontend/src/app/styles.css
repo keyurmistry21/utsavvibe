@@ -1005,3 +1005,16 @@ body:has(.sf) { background: #fff9f1; }
 .admin .storepop .tick { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; opacity: .7; }
 .admin .storepop a, .admin .storepop button { font: inherit; }
 .sf .vhit { background: #fff3d6; border-radius: 10px; padding: 6px 8px; margin-left: -8px; margin-right: -8px; } .sf .vhit-tag { margin-left: 8px; font-size: 11px; font-style: normal; background: #f0b429; color: #3a2a00; border-radius: 6px; padding: 1px 6px; }
+
+/* variants: one card per variant, fields wrap to the available width (no sideways scrolling) */
+.admin .vhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 18px 0 8px; }
+.admin .vhead .acts { display: flex; gap: 14px; font-size: 13px; flex-wrap: wrap; }
+.admin .vlist { display: flex; flex-direction: column; gap: 12px; }
+.admin .vcard { border: 1px solid var(--border, #e3e3e3); border-radius: 12px; padding: 12px 14px 4px; background: #fff; }
+.admin .vcard-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.admin .vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 12px; }
+.admin .vgrid .field { min-width: 0; margin-bottom: 12px; }
+.admin .vcodes { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.admin .vcodes .field { min-width: 0; margin-bottom: 12px; }
+.admin .vgrid .genrow { margin-bottom: 0; }
+@media (max-width: 520px) { .admin .vgrid { grid-template-columns: 1fr 1fr; } .admin .vcodes { grid-template-columns: 1fr; } }

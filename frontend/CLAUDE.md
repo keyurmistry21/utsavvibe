@@ -29,6 +29,9 @@ Next.js 16 App Router + React 19 + TypeScript. Plain CSS in `src/app/styles.css`
 
 - Storefront data goes through `lib/store.ts`, which fills missing fields (`images`, `regions`, ...) because Next can serve a cached API response from an older shape; pages may rely on those fields. Icons next to labels (`components/Icons.tsx`: Plus, ArrowLeft, ArrowRight, External) are SVGs so buttons/links can space them with `gap`; don't type `+`/`→` glyphs into labels.
 
+## Variant editor
+Variants are cards (`.vcard`), not a table, so nothing scrolls sideways: per-market price and compare-at (the crossed-out "was" price, must be above the price, display only), quantity, weight, then SKU and barcode side by side with Generate, plus "Preview barcode and QR". Don't go back to a wide table.
+
 ## Product pages
 - List: `ProductList.tsx` (same pattern as Customers: views Active/Draft/Archived, stock chips, column picker via shared `ColumnsMenu`, bulk activate/draft/archive/delete, CSV export) against `GET /products/list`. Editor: `ProductEditor.tsx` (two columns like Shopify). Adding options (Size, Color) rebuilds variants with `syncVariants`: existing combinations keep their data, refinements inherit (first child takes the old variant, others copy prices only because SKUs are unique), so never replace it with a plain regenerate. Description is edited in `RichTextEditor` (execCommand) and sanitized by the API on save. Toggles use `Switch`.
 - "New customer" is a page rendered in the main panel in place of the page that opened it (`NewCustomerSheet`); callers `return` it early after all hooks so their state (e.g. the draft order being built) survives.
