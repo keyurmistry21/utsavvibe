@@ -84,6 +84,8 @@ export const prefs = z.object({
   tagline: z.string().trim().max(160).default("Festive & devotional gifts for every celebration."),
   metaTitle: z.string().trim().max(70).default(""),
   metaDescription: z.string().trim().max(320).default(""),
+  // public https address of the store, used inside QR codes so phones can open them (empty = the address you are browsing)
+  publicUrl: z.string().trim().max(200).refine((u) => !u || /^https?:\/\/[^\s/]+(:\d+)?$/.test(u.replace(/\/$/, "")), "Use a full address like https://utsavvibe.com").default(""),
   headerMenu: menu.default([{ label: "Shop", url: "/" }]),
   footerMenu: menu.default([]),
 });

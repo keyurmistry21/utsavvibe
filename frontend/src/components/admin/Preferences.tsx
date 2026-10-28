@@ -7,7 +7,7 @@ import { FieldError, useValidation } from "./validation";
 import { useApi } from "./hooks";
 import { MenuCard, urlErr, type Item } from "./Menus";
 
-type Prefs = { storeName: string; announcement: string; tagline: string; metaTitle: string; metaDescription: string; headerMenu: Item[]; footerMenu: Item[] };
+type Prefs = { storeName: string; announcement: string; tagline: string; metaTitle: string; metaDescription: string; publicUrl: string; headerMenu: Item[]; footerMenu: Item[] };
 
 export function Preferences() {
   const { data, error } = useApi<Prefs>("/online-store/preferences");
@@ -23,6 +23,7 @@ export function Preferences() {
   const val = useValidation({
     ...menuErrors,
     storeName: p ? required(p.storeName, "Enter a store name") || maxLen(p.storeName, 60, "The store name") : "",
+    publicUrl: p && p.publicUrl.trim() && !/^https?:\/\/[^\s/]+(:\d+)?\/?$/.test(p.publicUrl.trim()) ? "Use a full address like https://utsavvibe.com" : "",
     announcement: p ? maxLen(p.announcement, 200, "The announcement") : "",
     tagline: p ? maxLen(p.tagline, 160, "The tagline") : "",
     metaTitle: p ? maxLen(p.metaTitle, 70, "The title") : "",
@@ -38,7 +39,7 @@ export function Preferences() {
     setSaving(false);
   };
   const { data: pages } = useApi<{ handle: string; title: string; visible: boolean }[]>("/online-store/pages");
-  const f = (k: "storeName" | "announcement" | "tagline" | "metaTitle" | "metaDescription", label: string, hint?: string, area = false) => p && (
+  const f = (k: "storeName" | "publicUrl" | "announcement" | "tagline" | "metaTitle" | "metaDescription", label: string, hint?: string, area = false) => p && (
     <div className="field"><label htmlFor={`pf-${k}`}>{label}</label>
       {area
         ? <textarea id={`pf-${k}`} rows={3} value={p[k]} onChange={(e) => setP({ ...p, [k]: e.target.value })} {...val.props(k)} />
@@ -57,6 +58,7 @@ export function Preferences() {
             <h3>Storefront</h3>
             {f("storeName", "Store name", "Shown in the header, footer and browser tab.")}
             {f("tagline", "Footer tagline")}
+            {f("publicUrl", "Public store URL", "The address customers use, like https://utsavvibe.com. QR codes on labels open product pages here, so phones must be able to reach it. Leave empty to use the address you are browsing.")}
             {f("announcement", "Announcement bar", "Leave empty to show the free-shipping message for the customer's market.")}
           </div>
           <div className="card" style={{ maxWidth: 720 }}>

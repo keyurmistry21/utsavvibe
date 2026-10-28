@@ -2,7 +2,8 @@
 
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
-import { ean13Svg } from "@/lib/codes";
+import { ean13Svg, productQrUrl } from "@/lib/codes";
+import { useQrBase } from "@/lib/useQrBase";
 import { Modal } from "./Modal";
 
 const download = (name: string, href: string) => { const a = document.createElement("a"); a.href = href; a.download = name; a.click(); };
@@ -10,7 +11,9 @@ const download = (name: string, href: string) => { const a = document.createElem
 // Shows the barcode (EAN-13 / UPC-A) and a QR code for a variant so staff can check them, save them or print labels.
 export function CodePreview({ title, sku, barcode, onClose }: { title: string; sku: string; barcode: string; onClose: () => void }) {
   const bar = barcode.trim() ? ean13Svg(barcode) : null;
-  const qrText = sku.trim() || barcode.trim();
+  const { base, local } = useQrBase();
+  const code = sku.trim() || barcode.trim();
+  const qrText = code && base ? productQrUrl(base, code) : "";
   const [qr, setQr] = useState("");
   useEffect(() => {
     if (!qrText) return setQr("");
@@ -39,11 +42,13 @@ export function CodePreview({ title, sku, barcode, onClose }: { title: string; s
           ) : <p className="muted">{barcode.trim() ? "Only 12-digit (UPC-A) and 13-digit (EAN-13) barcodes can be drawn here. The QR code still works." : "No barcode yet. Use Generate to make one."}</p>}
         </div>
         <div>
-          <h4>QR code{sku.trim() ? " (SKU)" : barcode.trim() ? " (barcode)" : ""}</h4>
+          <h4>QR code (opens the product page)</h4>
           {qr ? (
             <>
-              <div className="codebox"><img src={qr} alt={`QR code for ${qrText}`} width={180} height={180} /></div>
-              <button className="link" onClick={() => download(`qr-${qrText}.png`, qr)}>Download PNG</button>
+              <div className="codebox"><img src={qr} alt={`QR code for ${code}`} width={180} height={180} /></div>
+              <div className="muted" style={{ fontSize: 12, wordBreak: "break-all" }}>Opens {qrText}</div>
+              {local && <div className="error" style={{ fontSize: 12 }}>This points at localhost, which a phone can't open. Set the Public store URL under Online Store → Preferences (or open the admin on your real domain).</div>}
+              <button className="link" onClick={() => download(`qr-${code}.png`, qr)}>Download PNG</button>
             </>
           ) : <p className="muted">Add a SKU or barcode to get a QR code.</p>}
         </div>

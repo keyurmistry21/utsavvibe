@@ -1004,3 +1004,4 @@ body:has(.sf) { background: #fff9f1; }
 .admin .storepop .avatar.sq { width: 30px; height: 30px; display: grid; place-items: center; font-size: 12px; flex: none; }
 .admin .storepop .tick { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; opacity: .7; }
 .admin .storepop a, .admin .storepop button { font: inherit; }
+.sf .vhit { background: #fff3d6; border-radius: 10px; padding: 6px 8px; margin-left: -8px; margin-right: -8px; } .sf .vhit-tag { margin-left: 8px; font-size: 11px; font-style: normal; background: #f0b429; color: #3a2a00; border-radius: 6px; padding: 1px 6px; }

@@ -26,6 +26,17 @@ storeRouter.get("/markets", async (_req, res) => {
 // Store name, announcement, menus: one call for the storefront layout.
 storeRouter.get("/site", async (_req, res) => res.json(await loadPrefs()));
 
+// QR / barcode landing: SKU or barcode -> the product page (variant highlighted) in the requested market, else the first market selling it.
+storeRouter.get("/lookup/:code", async (req, res) => {
+  const code = req.params.code.trim().slice(0, 64);
+  const v = code ? await prisma.variant.findFirst({ where: { OR: [{ sku: code }, { barcode: code }], product: { status: "active" } }, include: { product: { include: { markets: { include: { market: true } } } } } }) : null;
+  const markets = v?.product.markets.map((m) => m.market).filter((m) => m.active) ?? [];
+  const wanted = String(req.query.market ?? "").toUpperCase();
+  const m = markets.find((x) => x.code === wanted) ?? markets[0];
+  if (!v || !m) return void res.status(404).json({ error: "not found" });
+  res.json({ market: m.code, handle: v.product.handle, variantId: v.id });
+});
+
 storeRouter.get("/policies", async (_req, res) => res.json(await publishedPolicies()));
 storeRouter.get("/policies/:key", async (req, res) => {
   const p = await publicPolicy(req.params.key);

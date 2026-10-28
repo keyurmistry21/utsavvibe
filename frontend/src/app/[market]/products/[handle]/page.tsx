@@ -5,7 +5,7 @@ import { getMarkets, getProduct } from "@/lib/store";
 import { AddToCart } from "@/components/store/AddToCart";
 import { Gallery } from "@/components/store/Gallery";
 
-type Props = { params: Promise<{ market: string; handle: string }> };
+type Props = { params: Promise<{ market: string; handle: string }>; searchParams?: Promise<{ variant?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { market, handle } = await params;
@@ -13,8 +13,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return p ? { title: p.seoTitle || `${p.title} | UtsavVibe`, description: p.seoDescription || p.description.slice(0, 160) } : {};
 }
 
-export default async function ProductPage({ params }: Props) {
+export default async function ProductPage({ params, searchParams }: Props) {
   const { market, handle } = await params;
+  const { variant } = (await searchParams) ?? {};
   const [p, markets] = await Promise.all([getProduct(market.toUpperCase(), handle), getMarkets()]);
   const current = markets.find((m) => m.code.toLowerCase() === market.toLowerCase());
   if (!p || !current) notFound();
@@ -26,7 +27,7 @@ export default async function ProductPage({ params }: Props) {
         <Gallery images={p.images} title={p.title} />
         <div>
           <h1>{p.title}</h1>
-          <AddToCart product={p} market={market.toLowerCase()} />
+          <AddToCart product={p} market={market.toLowerCase()} highlight={variant} />
           {/* sanitized by the API when the product is saved */}
           <div className="desc" dangerouslySetInnerHTML={{ __html: p.descriptionHtml }} />
           <ul className="notes">

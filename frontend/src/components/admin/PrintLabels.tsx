@@ -4,7 +4,8 @@ import QRCode from "qrcode";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { api, money, type Market, type Product } from "@/lib/api";
-import { ean13Svg } from "@/lib/codes";
+import { ean13Svg, productQrUrl } from "@/lib/codes";
+import { useQrBase } from "@/lib/useQrBase";
 import { useApi } from "./hooks";
 import { ArrowLeft } from "../Icons";
 import { Select } from "../Select";
@@ -46,7 +47,9 @@ export function PrintLabels() {
 
   const chosen = rows.filter((r) => pick[r.key]);
   const labels = chosen.flatMap((r) => Array.from({ length: pick[r.key] }, () => r));
-  const qrText = (r: Row) => r.sku || r.barcode;
+  const { base: qrBase, local: qrLocal } = useQrBase();
+  const qrCode = (r: Row) => r.sku || r.barcode;
+  const qrText = (r: Row) => (qrCode(r) && qrBase ? productQrUrl(qrBase, qrCode(r)) : "");
   const qrKey = chosen.map(qrText).filter(Boolean).join("\n");
   useEffect(() => {
     if (!show.qr) return;
@@ -139,10 +142,11 @@ export function PrintLabels() {
             </div>
             {S.mode === "sheet" && <div className="field"><label htmlFor="lb-skip">Labels already used on the first sheet</label><input id="lb-skip" type="number" min={0} max={S.cols * 20} value={skip} onChange={(e) => setSkip(Math.max(0, +e.target.value || 0))} /></div>}
             {(["title", "variant", "sku", "barcode", "qr", "price"] as const).map((k) => (
-              <label key={k} className="check"><input type="checkbox" checked={show[k]} onChange={(e) => setShow({ ...show, [k]: e.target.checked })} />{{ title: "Product name", variant: "Variant (size, color…)", sku: "SKU", barcode: "Barcode", qr: "QR code (of the SKU)", price: "Price" }[k]}</label>
+              <label key={k} className="check"><input type="checkbox" checked={show[k]} onChange={(e) => setShow({ ...show, [k]: e.target.checked })} />{{ title: "Product name", variant: "Variant (size, color…)", sku: "SKU", barcode: "Barcode", qr: "QR code (opens the product page)", price: "Price" }[k]}</label>
             ))}
             {show.price && markets && <div className="field" style={{ marginTop: 8 }}><label>Price from market</label><Select value={marketId} onChange={(e) => setMarketId(e.target.value)}>{markets.map((m) => <option key={m.id} value={m.id}>{m.code} ({m.currency})</option>)}</Select></div>}
             {missing > 0 && <div className="error">{missing} selected variant{missing === 1 ? " has" : "s have"} no barcode/SKU for the chosen label. Add one in the product editor (Generate) or untick it.</div>}
+            {show.qr && qrLocal && <div className="error">QR codes point at localhost, which phones can't open. Set the Public store URL under Online Store → Preferences first.</div>}
             <p className="muted">In the print dialog choose "Margins: None" if the browser adds its own, and scale 100%.</p>
           </div>
         </aside>

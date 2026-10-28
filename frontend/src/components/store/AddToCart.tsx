@@ -7,15 +7,15 @@ import type { StoreProduct } from "@/lib/store";
 import { useCart } from "./cart";
 import { ArrowRight } from "../Icons";
 
-export function AddToCart({ product, market }: { product: StoreProduct; market: string }) {
+export function AddToCart({ product, market, highlight }: { product: StoreProduct; market: string; highlight?: string }) {
   const { add } = useCart();
   const [added, setAdded] = useState<string | null>(null);
 
   return (
     <div className="card">
       {product.variants.map((v) => (
-        <div key={v.id} className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-          <span>{product.variants.length > 1 ? v.title : "Price"}</span>
+        <div key={v.id} className={`row ${highlight === v.id && product.variants.length > 1 ? "vhit" : ""}`} style={{ justifyContent: "space-between", marginBottom: 8 }}>
+          <span>{product.variants.length > 1 ? v.title : "Price"}{highlight === v.id && product.variants.length > 1 && <em className="vhit-tag">Scanned</em>}</span>
           <span className="price">
             {v.price != null && money(v.price, product.currency)}
             {v.compareAt != null && <s>{money(v.compareAt, product.currency)}</s>}

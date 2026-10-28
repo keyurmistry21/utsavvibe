@@ -74,3 +74,6 @@ export const ean13Svg = (value: string, scale = 3) => {
   const txt = (x: number, s: string) => `<text x="${x * scale}" y="${ty}" font-family="monospace" font-size="${fs}" text-anchor="middle" letter-spacing="${scale * 1.5}">${s}</text>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${ty + 6}" width="${w}" height="${ty + 6}"><rect width="100%" height="100%" fill="#fff"/><g fill="#000">${bars.join("")}</g><g fill="#000">${txt(q - 4, d[0])}${txt(q + 3 + 21, d.slice(1, 7))}${txt(q + 50 + 21, d.slice(7))}</g></svg>`;
 };
+
+/** What a QR code on a label contains: a link phones open to the product page (SKU or barcode is looked up on the server). */
+export const productQrUrl = (base: string, code: string) => `${base.replace(/\/$/, "")}/p/${encodeURIComponent(code.trim())}`;
