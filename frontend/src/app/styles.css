@@ -885,3 +885,31 @@ body:has(.sf) { background: #fff9f1; }
 .admin .codebox svg { max-width: 100%; height: auto; }
 .admin .genrow { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .admin .genrow .acts { display: flex; gap: 12px; font-size: 13px; }
+
+/* print labels */
+.admin .lbltable { margin-top: 8px; }
+.admin .lblgroup { border-top: 1px solid var(--border, #e3e3e3); padding: 10px 0; }
+.admin .lblrow { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 1.4fr) 150px; gap: 10px; align-items: center; padding: 4px 0 4px 26px; }
+.admin .lblcodes { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin .lblcopies { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.admin .lblcopies input { width: 64px; }
+.admin .lblsheet { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+.admin .lblsheet.sheet { display: grid; grid-template-columns: repeat(var(--cols), var(--lw)); column-gap: var(--gx); row-gap: 0; justify-content: start; }
+.admin .lbl { width: var(--lw); height: var(--lh); background: #fff; color: #000; border: 1px dashed #bbb; padding: 1.5mm 2mm; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; gap: 1mm; break-inside: avoid; font-family: Arial, Helvetica, sans-serif; }
+.admin .lbl.blank { border-color: transparent; }
+.admin .lbl-text { flex: none; }
+.admin .lbl-title { font-weight: 700; font-size: 8.5pt; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.admin .lbl-var, .admin .lbl-sku { font-size: 6.5pt; line-height: 1.15; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin .lbl-price { font-weight: 700; font-size: 9pt; }
+.admin .lbl-codes { display: flex; align-items: flex-end; justify-content: space-between; gap: 2mm; min-height: 0; flex: 1 1 0; overflow: hidden; }
+.admin .lbl-bar { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
+.admin .lbl-bar svg { max-width: 100%; max-height: 100%; width: auto; height: auto; }
+.admin .lbl-qr { height: 100%; max-height: 16mm; width: auto; aspect-ratio: 1; image-rendering: pixelated; flex: none; }
+@media print {
+  .admin .lblsheet { margin: 0; gap: 0; display: block; }
+  .admin .lblsheet.sheet { display: grid; }
+  .admin .lblsheet.roll .lbl { border: 0; page-break-after: always; break-after: page; }
+  .admin .lblsheet.sheet .lbl { border: 0; }
+  .admin .lblsheet.roll .lbl:last-child { page-break-after: auto; break-after: auto; }
+}
+@media (max-width: 700px) { .admin .lblrow { grid-template-columns: 1fr; padding-left: 26px; } .admin .lblcopies { justify-content: flex-start; } }

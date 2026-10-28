@@ -316,7 +316,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
 
                 <div className="tablescroll" style={{ marginTop: 18 }}>
                   <table className="vtable">
-                    <thead><tr><th>Variant</th>{selected.map((m) => <th key={m.id}>{m.code} price</th>)}{f.trackInventory && <th>Quantity</th>}<th>SKU <button className="link" type="button" onClick={() => generate("sku")}>Generate missing</button></th><th /></tr></thead>
+                    <thead><tr><th>Variant</th>{selected.map((m) => <th key={m.id}>{m.code} price</th>)}{f.trackInventory && <th>Quantity</th>}<th>SKU <button className="link" type="button" onClick={() => generate("sku")}>Generate missing</button> <button className="link" type="button" onClick={() => generate("barcode")}>Barcodes</button></th><th /></tr></thead>
                     <tbody>
                       {f.variants.map((v, i) => (
                         <Fragment key={v.title + i}>

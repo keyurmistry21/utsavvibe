@@ -24,6 +24,7 @@ export const links = [
 export const actions = [
   ...links.map((l) => ({ label: l.label, href: l.href })),
   { label: "Add product", href: "/admin/products?new=1" },
+  { label: "Print product labels", href: "/admin/products/labels" },
   { label: "Add market", href: "/admin/markets?new=1" },
   { label: "Open orders to fulfil", href: "/admin/orders?status=open" },
   { label: "Settings / change password", href: "/admin/settings" },
