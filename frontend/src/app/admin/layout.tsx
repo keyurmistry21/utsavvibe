@@ -117,43 +117,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </header>
       {menu && <div className="scrim" onClick={() => setMenu(false)} />}
       <div className={`shell ${inSettings ? "withrail" : ""}`}>
-        {inSettings && (
-          <nav className="side rail" aria-label="Main">
-            <Link href="/admin" className="brand" title="Home"><span className="logo">U</span></Link>
-            {links.filter((l) => can(l.perm)).map((l) => (
-              <Link key={l.href} href={l.href} title={l.label} aria-label={l.label}><Icon d={l.icon} /></Link>
-            ))}
-            <div className="grow" />
-            <Link href="/admin/settings" className="active" title="Settings" aria-label="Settings"><Icon d={icons.settings} /></Link>
-            <StoreSwitcher
-              compact
-              name={name}
-              role={user.role}
-              onLogout={async () => { await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}
-            />
-          </nav>
-        )}
-        <nav className={`side ${inSettings ? "setpanel" : ""} ${menu ? "open" : ""}`}>
-          {inSettings ? (
-            <>
-          <Link href="/admin" className="setback"><Icon d={icons.back} />Settings</Link>
-          <div className="searchbox">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icons.search} /></svg>
-            <input placeholder="Search settings" value={sq} onChange={(e) => setSq(e.target.value)} aria-label="Search settings" />
-          </div>
-          {settingsLinks.filter((l) => can(l.perm) && l.label.toLowerCase().includes(sq.toLowerCase())).map((l) => (
-            <Link key={l.href} href={l.href} className={active(l.href) ? "active" : ""}><Icon d={l.icon} />{l.label}</Link>
-          ))}
-            </>
-          ) : (
-            <>
-          <div className="brand"><span className="logo">U</span></div>
+        {/* One main sidebar that collapses to an icon rail under /admin/settings; the settings menu slides in beside it. Pure CSS transitions on the grid columns. */}
+        <nav className={`side main ${inSettings ? "collapsed" : ""} ${menu ? "open" : ""}`} aria-label="Main">
+          <Link href="/admin" className="brand" title="Home"><span className="logo">U</span></Link>
           <div className="searchbox">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icons.search} /></svg>
             <input
               ref={searchRef}
               placeholder="Search"
               value={q}
+              tabIndex={inSettings ? -1 : 0}
               onChange={(e) => { setQ(e.target.value); setOpen(true); }}
               onFocus={() => setOpen(true)}
               onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -166,9 +139,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           {links.filter((l) => can(l.perm)).map((l) => (
             <div key={l.href} style={{ display: "contents" }}>
-              {l.label === "Online Store" && <div className="navhead">Sales channels</div>}
-              <Link href={l.href} className={active(l.href) && !(l.label === "Orders" && isDrafts) ? "active" : ""}>
-                <Icon d={l.icon} />{l.label}
+              {l.label === "Online Store" && <div className="navhead"><span>Sales channels</span></div>}
+              <Link href={l.href} title={l.label} aria-label={l.label} className={!inSettings && active(l.href) && !(l.label === "Orders" && isDrafts) ? "active" : ""}>
+                <Icon d={l.icon} /><span className="navlbl">{l.label}</span>
                 {l.label === "Orders" && toFulfil > 0 && <span className="count">{toFulfil}</span>}
               </Link>
               {l.label === "Online Store" && path.startsWith("/admin/online-store") && (
@@ -186,17 +159,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )}
             </div>
           ))}
-            </>
-          )}
           <div className="grow" />
-          {!inSettings && <Link href="/admin/settings" className="settingslink"><Icon d={icons.settings} />Settings</Link>}
-          {!inSettings && (
-            <StoreSwitcher
-              name={name}
-              role={user.role}
-              onLogout={async () => { await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}
-            />
-          )}
+          <Link href="/admin/settings" title="Settings" aria-label="Settings" className={`settingslink ${inSettings ? "active" : ""}`}><Icon d={icons.settings} /><span className="navlbl">Settings</span></Link>
+          <StoreSwitcher
+            compact={inSettings}
+            name={name}
+            role={user.role}
+            onLogout={async () => { await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}
+          />
+        </nav>
+        <nav className={`side setpanel ${inSettings ? "show" : ""} ${menu ? "open" : ""}`} aria-label="Settings" aria-hidden={!inSettings}>
+          <div className="setpanel-in">
+            <Link href="/admin" className="setback"><Icon d={icons.back} />Settings</Link>
+            <div className="searchbox">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icons.search} /></svg>
+              <input placeholder="Search settings" value={sq} tabIndex={inSettings ? 0 : -1} onChange={(e) => setSq(e.target.value)} aria-label="Search settings" />
+            </div>
+            {settingsLinks.filter((l) => can(l.perm) && l.label.toLowerCase().includes(sq.toLowerCase())).map((l) => (
+              <Link key={l.href} href={l.href} tabIndex={inSettings ? 0 : -1} className={active(l.href) ? "active" : ""}><Icon d={l.icon} />{l.label}</Link>
+            ))}
+          </div>
         </nav>
         <main className={`content ${path === "/admin" ? "is-home" : ""}`}><div className="inner">{needs && !can(needs) ? <NoAccess /> : children}</div></main>
       </div>

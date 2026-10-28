@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Modal } from "./Modal";
 import { Plus } from "../Icons";
@@ -12,6 +13,13 @@ export function StoreSwitcher({ name: me, role, onLogout, compact = false }: { n
   const [open, setOpen] = useState(false);
   const [create, setCreate] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; bottom: number; width: number } | null>(null);
+  // The menu is drawn in a floating layer (portal) above the page, positioned from the button, so the sidebar's overflow can't clip it and it never slides under the main panel.
+  const place = () => {
+    const r = box.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.max(8, r.left), bottom: window.innerHeight - r.top + 6, width: Math.min(Math.max(r.width, 250), window.innerWidth - 16) });
+  };
 
   useEffect(() => {
     setHost(location.host);
@@ -19,17 +27,20 @@ export function StoreSwitcher({ name: me, role, onLogout, compact = false }: { n
   }, []);
   useEffect(() => {
     if (!open) return;
-    const down = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    place();
+    const down = (e: MouseEvent) => { const t = e.target as Node; if (!box.current?.contains(t) && !pop.current?.contains(t)) setOpen(false); };
+    const close = () => setOpen(false);
+    window.addEventListener("resize", close);
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", down); document.addEventListener("keydown", key);
-    return () => { document.removeEventListener("mousedown", down); document.removeEventListener("keydown", key); };
+    return () => { document.removeEventListener("mousedown", down); document.removeEventListener("keydown", key); window.removeEventListener("resize", close); };
   }, [open]);
 
   const initials = name.trim().slice(0, 2).toUpperCase();
   return (
     <div className={`storesw ${compact ? "compact" : ""}`} ref={box}>
-      {open && (
-        <div className="storepop" role="menu">
+      {open && pos && document.querySelector(".admin") && createPortal(
+        <div className="storepop" role="menu" ref={pop} style={{ left: pos.left, bottom: pos.bottom, width: pos.width }}>
           <div className="storepop-h">Stores</div>
           <div className="storerow current" role="menuitem">
             <span className="avatar sq">{initials}</span>
@@ -46,7 +57,8 @@ export function StoreSwitcher({ name: me, role, onLogout, compact = false }: { n
           <button className="storerow" role="menuitem" onClick={() => { setOpen(false); onLogout(); }}>
             <span className="ico solid"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9" /></svg></span><span className="who"><b>Log out</b></span>
           </button>
-        </div>
+        </div>,
+        document.querySelector(".admin")!,
       )}
       <button className="storebtn" title={compact ? name : undefined} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span className="avatar sq">{initials}</span>
