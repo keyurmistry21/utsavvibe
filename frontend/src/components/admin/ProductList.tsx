@@ -6,6 +6,7 @@ import { api, download, money, type ProductRow } from "@/lib/api";
 import { ColumnsMenu, loadView, saveView, type ViewState } from "./ColumnsMenu";
 import { Badge, TagList } from "./hooks";
 import { Select } from "../Select";
+import { useAdminMarket } from "@/lib/adminMarket";
 
 const PAGE = 50;
 type ColKey = "status" | "inventory" | "markets" | "price" | "type" | "vendor" | "tags" | "variants" | "updated" | "created";
@@ -60,19 +61,21 @@ export function ProductList({ onAdd, onEdit }: { onAdd: () => void; onEdit: (id:
   useEffect(() => { setViewState(loadView(KEY, COLS.map((c) => c.key), DEFAULT_VISIBLE, SORTS.map(([k]) => k), "updated" as Sort)); setReady(true); }, []);
   const setView = (v: View) => { setViewState(v); setPage(0); saveView(KEY, v); };
 
+  const { market } = useAdminMarket();
   const loadStats = useCallback(() => { api<Stats>("/products/stats").then(setStats).catch(() => {}); }, []);
   const load = useCallback(() => {
     const my = ++seq.current;
-    const qs = new URLSearchParams({ q, status, filter: filter === "any" ? "all" : filter, sort: view.sort, dir: view.dir, limit: String(PAGE), offset: String(page * PAGE) });
+    const qs = new URLSearchParams({ q, status, filter: filter === "any" ? "all" : filter, sort: view.sort, dir: view.dir, limit: String(PAGE), offset: String(page * PAGE), ...(market ? { market } : {}) });
     api<{ items: ProductRow[]; total: number }>(`/products/list?${qs}`).then((r) => { if (my === seq.current) { setData(r); setError(""); } }).catch((e) => my === seq.current && setError(e.message));
-  }, [q, status, filter, view.sort, view.dir, page]);
+  }, [q, status, filter, view.sort, view.dir, page, market]);
 
   useEffect(() => { if (!ready) return; const t = setTimeout(load, q ? 250 : 0); return () => clearTimeout(t); }, [load, ready, q]);
   useEffect(() => { loadStats(); }, [loadStats]);
-  useEffect(() => { setPage(0); setSel(new Set()); }, [q, status, filter]);
+  useEffect(() => { setPage(0); setSel(new Set()); }, [q, status, filter, market]);
 
   const cols = view.order.filter((k) => view.visible.includes(k)).map((k) => COLS.find((c) => c.key === k)!);
-  const items = data?.items ?? [];
+  // with a working market selected only that market's price is shown
+  const items = (data?.items ?? []).map((p) => (market ? { ...p, prices: Object.fromEntries(Object.entries(p.prices).filter(([c]) => c === market)) } : p));
   const allSel = items.length > 0 && items.every((p) => sel.has(p.id));
   const from = data && data.total ? page * PAGE + 1 : 0;
   const to = data ? Math.min(data.total, page * PAGE + items.length) : 0;

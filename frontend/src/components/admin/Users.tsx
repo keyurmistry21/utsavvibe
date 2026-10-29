@@ -7,12 +7,13 @@ import { email as emailErr, maxLen, required } from "@/lib/validators";
 import { FieldError, useValidation } from "./validation";
 import { Modal } from "./Modal";
 import { Switch } from "./Switch";
+import { MarketAccess } from "./MarketAccess";
 import { Select } from "../Select";
 import { Plus } from "../Icons";
 import { useApi } from "./hooks";
 
 type Role = { id: string; name: string; description: string; isSystem: boolean; users: number; permissions: string[] };
-type Staff = { id: string; email: string; name: string; active: boolean; lastLoginAt: string | null; createdAt: string; role: { id: string; name: string } | null };
+type Staff = { id: string; email: string; name: string; active: boolean; lastLoginAt: string | null; createdAt: string; allowedMarkets: string[]; role: { id: string; name: string } | null };
 
 const generate = () => {
   const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -35,7 +36,7 @@ function PasswordField({ id, value, onChange, val, k }: { id: string; value: str
 }
 
 function AddUser({ roles, onClose, onDone }: { roles: Role[]; onClose: () => void; onDone: () => void }) {
-  const [f, setF] = useState({ name: "", email: "", roleId: "", password: "" });
+  const [f, setF] = useState({ name: "", email: "", roleId: "", password: "", allowedMarkets: [] as string[] });
   const [srv, setSrv] = useState<{ email?: string; role?: string }>({});
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -66,13 +67,14 @@ function AddUser({ roles, onClose, onDone }: { roles: Role[]; onClose: () => voi
         <FieldError k="roleId" msg={val.err("roleId")} />
         {roles.find((r) => r.id === f.roleId)?.description && <div className="muted">{roles.find((r) => r.id === f.roleId)!.description}</div>}
       </div>
+      <MarketAccess value={f.allowedMarkets} onChange={(allowedMarkets) => setF({ ...f, allowedMarkets })} />
       <PasswordField id="u-pw" value={f.password} onChange={(password) => setF({ ...f, password })} val={val} k="password" />
     </Modal>
   );
 }
 
 function EditUser({ u, roles, isMe, onClose, onDone }: { u: Staff; roles: Role[]; isMe: boolean; onClose: () => void; onDone: () => void }) {
-  const [f, setF] = useState({ name: u.name, roleId: u.role?.id ?? "", active: u.active });
+  const [f, setF] = useState({ name: u.name, roleId: u.role?.id ?? "", active: u.active, allowedMarkets: u.allowedMarkets ?? [] });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [pw, setPw] = useState<string | null>(null);
@@ -114,6 +116,7 @@ function EditUser({ u, roles, isMe, onClose, onDone }: { u: Staff; roles: Role[]
         <FieldError k="roleId" msg={val.err("roleId")} />
         {isMe && <div className="muted">You can't change your own role.</div>}
       </div>
+      <MarketAccess value={f.allowedMarkets} onChange={(allowedMarkets) => setF({ ...f, allowedMarkets })} disabled={isMe} note={isMe ? "You can't change your own markets. Ask another admin." : undefined} />
       <div className="cardhead" style={{ marginBottom: 12 }}>
         <span><b>Can sign in</b><div className="muted">Turn off to block access without deleting the user.</div></span>
         <Switch checked={f.active} onChange={(active) => setF({ ...f, active })} label="Can sign in" disabled={isMe} />

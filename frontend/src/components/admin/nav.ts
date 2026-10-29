@@ -21,6 +21,7 @@ export const icons = {
   key: "M14 10a4 4 0 11-3.5 6L3 16v-3l3-1 1-2 2-1 1.5 1.5A4 4 0 0114 10zM16 8h.01",
   shield: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4",
   cart: "M3 4h2l2 11h11l2-8H6M9 20h.01M17 20h.01",
+  receipt: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6",
   search: "M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.3-4.3",
 } as const;
 
@@ -29,9 +30,10 @@ export const links = [
   { href: "/admin/orders", label: "Orders", icon: icons.orders, perm: "orders.view" },
   { href: "/admin/products", label: "Products", icon: icons.products, perm: "products.view" },
   { href: "/admin/customers", label: "Customers", icon: icons.customers, perm: "customers.view" },
+  { href: "/admin/expenses", label: "Expenses", icon: icons.receipt, perm: "expenses.view" },
   { href: "/admin/markets", label: "Markets", icon: icons.markets, perm: "markets.manage" },
   { href: "/admin/marketing", label: "Marketing", icon: icons.megaphone, perm: "integrations.manage" },
-  { href: "/admin/analytics", label: "Analytics", icon: icons.analytics, perm: "analytics.view" },
+  { href: "/admin/analytics", label: "Earnings", icon: icons.analytics, perm: "analytics.view" },
   { href: "/admin/online-store", label: "Online Store", icon: icons.store, perm: "online_store.manage" },
 ] as const;
 
@@ -52,6 +54,8 @@ export const actions = [
   { label: "Open orders to fulfil", href: "/admin/orders?status=open" },
   { label: "Product feeds for Google and Meta", href: "/admin/marketing" },
   { label: "Abandoned checkout emails", href: "/admin/marketing" },
+  { label: "Add expense", href: "/admin/expenses" },
+  { label: "Earnings, profit and yearly revenue (filter by month, year, date range)", href: "/admin/analytics" },
   { label: "Settings", href: "/admin/settings/general" },
   { label: "Checkout and tax (automatic tax, fraud screening)", href: "/admin/settings/checkout" },
   { label: "Apps and API (API keys, webhooks)", href: "/admin/settings/apps" },

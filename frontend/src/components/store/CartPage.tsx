@@ -6,7 +6,6 @@ import { useCart } from "./cart";
 import { Select } from "../Select";
 import { email as emailErr, maxLen, phone as phoneErr, postcode as postcodeErr, required } from "@/lib/validators";
 import { FieldError, useValidation } from "../admin/validation";
-import { getMe } from "./account";
 
 type Quote = {
   currency: string; taxInclusive: boolean; region: string | null;
@@ -44,8 +43,6 @@ export function CartPage({ market, country, regions }: { market: string; country
       if (s?.region) setRegion(s.region);
     } catch {}
     setLoaded(true);
-    // signed-in shoppers don't retype their name and email
-    void getMe().then((me) => me && setF((cur) => ({ ...cur, email: cur.email || me.email || "", name: cur.name || me.name })));
     // cart reminder link: ?recover=<token> refills the cart and the email address
     const token = new URLSearchParams(location.search).get("recover");
     if (token) {

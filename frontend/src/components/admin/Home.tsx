@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { auth, money, type AdminUser } from "@/lib/api";
 import { ROUTE_PERMS, useCan } from "@/lib/perms";
 import { useApi } from "./hooks";
+import { useAdminMarket } from "@/lib/adminMarket";
 import { actions } from "./nav";
 
 type Summary = {
@@ -21,7 +22,8 @@ const greeting = () => {
 
 export function Home() {
   const router = useRouter();
-  const { data: summary } = useApi<Summary>("/analytics/summary?days=30");
+  const { market } = useAdminMarket();
+  const { data: summary } = useApi<Summary>(`/analytics/summary?days=30${market ? `&market=${market}` : ""}`);
   const { data: status } = useApi<Status>("/analytics/status");
   const [user, setUser] = useState<AdminUser | null>(null);
   const [q, setQ] = useState("");

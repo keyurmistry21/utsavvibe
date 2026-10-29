@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { addressFrom, api, blankAddress, hasAddress, money, toMajor, toMinor, type Address, type Customer, type CustHit, type Market, type Order, type Product } from "@/lib/api";
 import { countryName } from "@/lib/countries";
+import { useAdminMarket } from "@/lib/adminMarket";
 import { decimal, int, maxLen, money as moneyErr, required } from "@/lib/validators";
 import { FieldError, useValidation } from "./validation";
 import { AddressModal } from "./AddressModal";
@@ -28,6 +29,7 @@ export function DraftEditor({ id }: { id?: string }) {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [marketId, setMarketId] = useState("");
+  const { market: prefMarket, allowed: allowedMarkets } = useAdminMarket(); // new orders start in the staff member's working market
   const [customer, setCustomer] = useState<Picked_ | null>(null);
   const [addr, setAddr] = useState<Address>(blankAddress());
   const [addrOpen, setAddrOpen] = useState(false);
@@ -53,11 +55,11 @@ export function DraftEditor({ id }: { id?: string }) {
 
   useEffect(() => {
     Promise.all([api<Market[]>("/markets"), api<Product[]>("/products")]).then(([m, p]) => {
-      const active = m.filter((x) => x.active);
+      const active = m.filter((x) => x.active && (!allowedMarkets || allowedMarkets.includes(x.code))); // staff only get the markets an admin allowed
       setMarkets(active);
       setProducts(p);
       // new orders start in the first market so the currency shows straight away
-      if (!id) setMarketId((cur) => cur || active[0]?.id || "");
+      if (!id) setMarketId((cur) => cur || active.find((x) => x.code === prefMarket)?.id || active[0]?.id || "");
     }).catch((e) => setErr(e.message));
   }, [id]);
 

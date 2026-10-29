@@ -1067,4 +1067,98 @@ body:has(.sf) { background: #fff9f1; }
 
 .admin .codeblock { background: #f4f4f4; border-radius: 8px; padding: 10px 12px; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 8px 0; }
 .consent { font-weight: 400; }
-.acctlink { font-size: 14px; font-weight: 600; margin-right: 12px; }
+.mktpick { margin: 0 0 10px; padding: 0 4px; }
+.mktpick label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #b5b5b5; margin-bottom: 4px; }
+.side.collapsed .mktpick { display: none; }
+
+/* password reveal (selectors are specific so the global .admin button look doesn't turn the eye into a white box) */
+.admin .pwwrap { position: relative; display: block; }
+.admin .pwwrap input { display: block; width: 100%; padding-right: 44px; }
+.admin .pwwrap .pweye { position: absolute; right: 5px; top: 0; bottom: 0; margin: auto 0; width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; box-shadow: none; color: #5c5c5c; cursor: pointer; }
+.admin .pwwrap .pweye:hover { background: rgba(0, 0, 0, .07); color: #1a1a1a; }
+.admin .pwwrap .pweye:focus-visible { outline: 2px solid #005bd3; outline-offset: 0; }
+.admin .pwwrap .pweye svg { width: 20px; height: 20px; display: block; flex: none; }
+.admin .pwwrap .pweye, .admin .pwwrap .pweye:hover, .admin .pwwrap .pweye:active, .admin .pwwrap .pweye:focus { transform: none !important; box-shadow: none !important; transition: background-color .12s ease, color .12s ease !important; }
+.admin .pwwrap .pweye:active { background: rgba(0, 0, 0, .12); }
+.admin .readonly { padding: 7px 10px; border: 1px solid #e3e3e3; border-radius: 8px; background: #f3f3f3; color: #303030; font-weight: 600; min-height: 34px; display: flex; align-items: center; }
+.admin .notice { padding: 10px 14px; border-radius: 10px; background: #fff7e0; border: 1px solid #f0d98a; margin: 8px 0 12px; font-size: 14px; }
+
+/* A row of form fields lines up by its TOP edge, so an inline error under one box doesn't push the other boxes down.
+   (Rows that hold a button next to a field keep the bottom alignment so the button sits level with the box.) */
+.admin .row:not(:has(> button)):not(:has(> div > button)):not(:has(> .btn-link)), .store .row { align-items: flex-start; }
+
+/* Dialogs hang from a fixed spot near the top and grow downward, so an inline error line appearing inside one never
+   re-centres it and shifts the text boxes you're typing in. */
+.admin .modal-scrim { place-items: start center; padding-top: min(10vh, 90px); overflow-y: auto; }
+@media (max-width: 700px) { .admin .modal-scrim { padding-top: 12px; } }
+
+/* ---------- Earnings page ---------- */
+.ep { max-width: 1120px; }
+.ep-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.ep-top h2 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
+.ep-sub { margin: 4px 0 0; color: #616161; font-size: 14px; }
+.ep-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 22px; }
+.ep-seg { display: inline-flex; padding: 3px; gap: 2px; background: #ebebeb; border-radius: 10px; max-width: 100%; overflow-x: auto; }
+.admin .ep-seg button { box-shadow: none; background: transparent; border-radius: 8px; padding: 7px 14px; color: #4a4a4a; font-weight: 550; font-size: 14px; white-space: nowrap; transform: none; }
+.admin .ep-seg button:hover { background: rgba(255,255,255,.6); transform: none; box-shadow: none; }
+.admin .ep-seg button.on { background: #fff; color: #1a1a1a; box-shadow: 0 1px 2px rgba(0,0,0,.14), 0 0 0 1px rgba(0,0,0,.04); }
+.ep-dates { display: inline-flex; align-items: center; gap: 10px; background: #fff; border-radius: 10px; padding: 6px 12px 6px 10px; box-shadow: 0 0 0 1px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.05); }
+.ep-dates .ep-cal { width: 20px; height: 20px; fill: none; stroke: #6b6b6b; stroke-width: 1.7; stroke-linecap: round; flex: none; }
+.ep-dates label { display: grid; gap: 0; margin: 0; }
+.ep-dates label span { font-size: 11px; line-height: 1.2; color: #7a7a7a; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.admin .ep-dates input[type=date] { width: auto; min-width: 128px; padding: 2px 0; border: 0; border-radius: 4px; background: transparent; font-size: 14px; font-weight: 600; color: #1a1a1a; box-shadow: none; }
+.admin .ep-dates input[type=date]:focus { outline: 2px solid #005bd3; outline-offset: 2px; }
+.ep-dates i { font-style: normal; color: #9a9a9a; }
+.ep-period { color: #616161; font-size: 14px; margin-left: auto; }
+.ep-cur { margin-bottom: 26px; }
+.ep-curhead { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.ep-curhead h3 { margin: 0; font-size: 15px; letter-spacing: .04em; }
+.ep-kpis { display: grid; grid-template-columns: 1.5fr repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+.ep-kpi { background: #fff; border-radius: 14px; padding: 16px 18px; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.05); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ep-kpi.big { background: linear-gradient(160deg, #1f2a12, #3b5a14); color: #fff; box-shadow: 0 6px 18px rgba(59,90,20,.28); }
+.ep-kpi-label { font-size: 13px; font-weight: 600; color: #616161; display: flex; flex-direction: column; gap: 1px; }
+.ep-kpi-label span { font-weight: 400; font-size: 12px; opacity: .85; }
+.ep-kpi.big .ep-kpi-label { color: rgba(255,255,255,.8); }
+.ep-kpi-value { font-size: 24px; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; line-height: 1.15; overflow-wrap: anywhere; }
+.ep-kpi.big .ep-kpi-value { font-size: 34px; }
+.ep-kpi-value.pos { color: #14793a; } .ep-kpi-value.neg { color: #b42318; }
+.ep-delta { font-size: 12.5px; font-weight: 650; margin-top: auto; padding-top: 2px; }
+.ep-delta em { font-style: normal; font-weight: 450; opacity: .75; }
+.ep-delta.good { color: #14793a; } .ep-delta.bad { color: #b42318; } .ep-delta.flat { color: #8a8a8a; font-weight: 500; }
+.ep-kpi.big .ep-delta.good { color: #b9f08a; } .ep-kpi.big .ep-delta.bad { color: #ffb4a8; } .ep-kpi.big .ep-delta.flat { color: rgba(255,255,255,.65); }
+.ep-card { padding: 18px 20px; margin-bottom: 16px; }
+.ep-card h4 { margin: 0 0 12px; font-size: 15px; }
+.ep-chart-read { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; min-height: 28px; }
+.ep-chart-read b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.ep-chart-read span { color: #7a7a7a; font-size: 13px; }
+.ep-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.ep-grid { stroke: #e6e6e6; stroke-width: 1; } .ep-axis { fill: #8a8a8a; font-size: 11px; font-family: inherit; }
+.ep-bar { fill: #9dc654; transition: fill .12s; } .ep-bar.hot { fill: #4f7d12; }
+.ep-two { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; }
+.ep-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ep-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #7a7a7a; font-weight: 600; padding: 0 8px 8px; border-bottom: 1px solid #e6e6e6; }
+.ep-table td { padding: 11px 8px; border-bottom: 1px solid #f0f0f0; font-variant-numeric: tabular-nums; }
+.ep-table tr:last-child td { border-bottom: 0; }
+.ep-table .r { text-align: right; }
+.ep-table td.pos { color: #14793a; } .ep-table td.neg { color: #b42318; }
+.ep-none { color: #8a8a8a; text-align: center; padding: 18px 8px !important; list-style: none; }
+.ep-top-list { list-style: none; margin: 0; padding: 0; }
+.ep-top-list li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+.ep-top-list li:last-child { border-bottom: 0; }
+.ep-top-list .rank { width: 24px; height: 24px; border-radius: 50%; background: #eef5df; color: #4f7d12; font-weight: 700; font-size: 12px; display: grid; place-items: center; flex: none; }
+.ep-top-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ep-top-list .qty { color: #616161; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ep-empty { text-align: center; padding: 36px 20px; display: grid; gap: 6px; color: #616161; }
+.ep-empty.small { padding: 28px 8px; } .ep-empty b { color: #1a1a1a; font-size: 16px; }
+.ep-foot { color: #8a8a8a; font-size: 13px; margin: 4px 0 24px; }
+.ep-skel { display: grid; grid-template-columns: 1.5fr repeat(2, 1fr); gap: 12px; }
+.ep-skel i { height: 104px; border-radius: 14px; background: linear-gradient(90deg, #ececec, #f6f6f6, #ececec); background-size: 200% 100%; animation: epsk 1.2s linear infinite; }
+@keyframes epsk { to { background-position: -200% 0; } }
+@media (max-width: 1000px) { .ep-kpis { grid-template-columns: repeat(2, 1fr); } .ep-kpi.big { grid-column: 1 / -1; } .ep-two { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .ep-kpis { grid-template-columns: 1fr; } .ep-period { margin-left: 0; width: 100%; } .ep-dates { flex-wrap: wrap; } .ep-kpi-value, .ep-kpi.big .ep-kpi-value { font-size: 24px; } }
+
+.admin .readonly.locked { justify-content: space-between; gap: 8px; background: #2a2a2a; border-color: #3a3a3a; color: #e8e8e8; }
+.admin .readonly.locked svg { width: 16px; height: 16px; fill: none; stroke: #b5b5b5; stroke-width: 1.8; stroke-linecap: round; flex: none; }
+.admin .mktaccess .optrow { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-weight: 400; cursor: pointer; }
+.admin .mktaccess .optrow input { width: 18px; height: 18px; flex: none; }
+.admin .mktaccess .optlist { margin: 4px 0 0 28px; padding: 6px 12px; border-left: 3px solid #e3e3e3; }

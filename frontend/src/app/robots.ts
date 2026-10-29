@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const origin = siteOrigin((await getSite()).publicUrl);
   return {
-    rules: [{ userAgent: "*", allow: "/", disallow: ["/admin", "/api/", "/*/cart", "/*/account", "/*/order/", "/p/", "/*?variant="] }],
+    rules: [{ userAgent: "*", allow: "/", disallow: ["/admin", "/api/", "/*/cart", "/*/order/", "/p/", "/*?variant="] }],
     sitemap: `${origin}/sitemap.xml`,
     host: origin,
   };

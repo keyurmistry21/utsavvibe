@@ -1,5 +1,6 @@
 "use client";
 
+import { PasswordInput } from "@/components/admin/PasswordInput";
 import Link from "next/link";
 import { email as emailErr, required } from "@/lib/validators";
 import { FieldError, useValidation } from "@/components/admin/validation";
@@ -10,6 +11,8 @@ import { actions, icons, links, settingsLinks } from "@/components/admin/nav";
 import { StoreSwitcher } from "@/components/admin/StoreSwitcher";
 import { NoAccess } from "@/components/admin/NoAccess";
 import { PermsProvider, ROUTE_PERMS } from "@/lib/perms";
+import { AdminMarketProvider } from "@/lib/adminMarket";
+import { MarketPicker } from "@/components/admin/MarketPicker";
 
 const Icon = ({ d }: { d: string }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
@@ -38,7 +41,7 @@ function Login({ onDone }: { onDone: (u: AdminUser) => void }) {
   };
   return (
     <div className="admin">
-      <form className="card login" noValidate onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      <form className="card login" method="post" action="/admin" noValidate autoComplete="on" onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <div className="brand" style={{ marginBottom: 16, color: "#303030" }}>
           <span className="logo" style={{ width: 28, height: 28, borderRadius: 8, background: "#95bf47", display: "grid", placeItems: "center", fontWeight: 800 }}>U</span>
           UtsavVibe
@@ -46,12 +49,12 @@ function Login({ onDone }: { onDone: (u: AdminUser) => void }) {
         <h2 style={{ marginBottom: 16 }}>Log in</h2>
         <div className="field">
           <label htmlFor="lg-email">Email</label>
-          <input id="lg-email" type="email" autoComplete="username" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} {...val.props("email")} />
+          <input id="lg-email" name="email" type="email" autoComplete="username" inputMode="email" autoCapitalize="none" spellCheck={false} autoFocus value={email} onChange={(e) => setEmail(e.target.value)} {...val.props("email")} />
           <FieldError k="email" msg={val.err("email")} />
         </div>
         <div className="field">
           <label htmlFor="lg-pw">Password</label>
-          <input id="lg-pw" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} {...val.props("password")} />
+          <PasswordInput id="lg-pw" name="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} {...val.props("password")} />
           <FieldError k="password" msg={val.err("password")} />
         </div>
         {needCode && (
@@ -120,6 +123,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <PermsProvider value={user}>
+    <AdminMarketProvider user={user}>
     <div className="admin">
       <header className="mbar">
         <button className="burger" aria-label="Open menu" aria-expanded={menu} onClick={() => setMenu(true)}>
@@ -149,6 +153,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <ul className="results">{matches.map((m) => <li key={m.href}><button onMouseDown={() => go(m.href)}>{m.label}</button></li>)}</ul>
             )}
           </div>
+          {!inSettings && <MarketPicker />}
           {links.filter((l) => can(l.perm)).map((l) => (
             <div key={l.href} style={{ display: "contents" }}>
               {l.label === "Online Store" && <div className="navhead"><span>Sales channels</span></div>}
@@ -204,6 +209,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <main className={`content ${path === "/admin" ? "is-home" : ""}`}><div className="inner">{needs && !can(needs) ? <NoAccess /> : children}</div></main>
       </div>
     </div>
+    </AdminMarketProvider>
     </PermsProvider>
   );
 }

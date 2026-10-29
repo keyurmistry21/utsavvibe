@@ -22,6 +22,7 @@ export const ROUTE_PERMS: [string, string][] = [
   ["/admin/gift-cards", "gift_cards.view"],
   ["/admin/customers", "customers.view"],
   ["/admin/markets", "markets.manage"],
+  ["/admin/expenses", "expenses.view"],
   ["/admin/analytics", "analytics.view"],
   ["/admin/online-store", "online_store.manage"],
   ["/admin/marketing", "integrations.manage"],

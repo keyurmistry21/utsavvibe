@@ -1,5 +1,6 @@
 "use client";
 
+import { PasswordInput } from "./PasswordInput";
 import { useEffect, useState } from "react";
 import { api, auth } from "@/lib/api";
 import { FIELD_STYLES, getFieldStyle, setFieldStyle, type FieldStyleId } from "@/lib/fieldStyle";
@@ -127,8 +128,8 @@ export function PasswordCard() {
   return (
     <div className="card" style={{ maxWidth: 480 }}>
       <h3>Change password</h3>
-      <div className="field"><label htmlFor="pw-cur">Current password</label><input id="pw-cur" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} {...pv.props("current")} /><FieldError k="current" msg={pv.err("current")} /></div>
-      <div className="field"><label htmlFor="pw-new">New password (10+ characters)</label><input id="pw-new" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} {...pv.props("next")} /><FieldError k="next" msg={pv.err("next")} /></div>
+      <div className="field"><label htmlFor="pw-cur">Current password</label><PasswordInput id="pw-cur" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} {...pv.props("current")} /><FieldError k="current" msg={pv.err("current")} /></div>
+      <div className="field"><label htmlFor="pw-new">New password (10+ characters)</label><PasswordInput id="pw-new" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} {...pv.props("next")} /><FieldError k="next" msg={pv.err("next")} /></div>
       {msg && <div className={msg.ok ? "muted" : "error"}>{msg.text}</div>}
       <button className="primary" onClick={save}>Update password</button>
     </div>

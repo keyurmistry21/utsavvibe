@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { money, type Order } from "@/lib/api";
 import { Badge, TagList, useApi } from "./hooks";
+import { useAdminMarket } from "@/lib/adminMarket";
 
 const tabs = [
   ["", "All"],
@@ -15,7 +16,8 @@ const tabs = [
 
 export function Orders() {
   const [tab, setTab] = useState(() => (typeof window === "undefined" ? "" : new URLSearchParams(location.search).get("status") ?? ""));
-  const { data, error } = useApi<Order[]>(`/orders${tab ? `?status=${tab}` : ""}`);
+  const { market } = useAdminMarket();
+  const { data, error } = useApi<Order[]>(`/orders?${new URLSearchParams({ ...(tab ? { status: tab } : {}), ...(market ? { market } : {}) })}`);
 
   return (
     <>

@@ -1,5 +1,6 @@
 "use client";
 
+import { PasswordInput } from "./PasswordInput";
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { auth, type AdminUser } from "@/lib/api";
@@ -53,7 +54,7 @@ function TwoFactor() {
       {on && disabling && (
         <>
           <div className="row">
-            <div className="field"><label htmlFor="tf-pw">Your password</label><input id="tf-pw" type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} /></div>
+            <div className="field"><label htmlFor="tf-pw">Your password</label><PasswordInput id="tf-pw" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} /></div>
             <div className="field"><label htmlFor="tf-dcode">Current 6-digit code</label><input id="tf-dcode" inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} /></div>
           </div>
           <button className="danger" disabled={busy || !pw || !code.trim()} onClick={disable}>Turn off</button> <button onClick={() => { setDisabling(false); setPw(""); setCode(""); }}>Cancel</button>
