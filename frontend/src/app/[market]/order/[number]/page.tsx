@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ClearCart } from "@/components/store/ClearCart";
 
-export const metadata = { title: "Order confirmed | UtsavVibe" };
+export const metadata = { title: "Order confirmed | UtsavVibe", robots: { index: false, follow: false } };
 
 export default async function OrderDone({ params }: { params: Promise<{ market: string; number: string }> }) {
   const { market, number } = await params;

@@ -12,7 +12,7 @@ export function ProductGrid({ market, products }: { market: string; products: St
         return (
           <Link key={p.id} href={`/${market}/products/${p.handle}`} className="pcard">
             <div className="pimg">
-              {p.images[0] ? <img src={p.images[0].thumbUrl} alt={p.images[0].alt || p.title} loading="lazy" /> : <ProductArt title={p.title} />}
+              {p.images[0] ? <img src={p.images[0].thumbUrl} alt={p.images[0].alt || p.title} width={600} height={600} loading="lazy" /> : <ProductArt title={p.title} />}
               {sold && <span className="tag-sold">Sold out</span>}
             </div>
             <div className="pinfo">

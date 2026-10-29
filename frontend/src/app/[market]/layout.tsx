@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { getMarkets, getPolicyLinks, getSite, menuHref } from "@/lib/store";
 import { CartProvider } from "@/components/store/cart";
 import { CartLink } from "@/components/store/CartLink";
+import { MarketSwitcher } from "@/components/store/MarketSwitcher";
+import { AccountLink } from "@/components/store/AccountLink";
 
 export default async function MarketLayout({ children, params }: { children: React.ReactNode; params: Promise<{ market: string }> }) {
   const { market } = await params;
@@ -21,14 +23,8 @@ export default async function MarketLayout({ children, params }: { children: Rea
             {site.headerMenu.map((m, i) => <Link key={i} href={menuHref(code, m.url)}>{m.label}</Link>)}
           </nav>
           <div className="sf-right">
-            <details className="mkt">
-              <summary>{current.code} · {current.currency}</summary>
-              <ul>
-                {markets.map((m) => (
-                  <li key={m.code}><Link href={`/${m.code.toLowerCase()}`} className={m.id === current.id ? "on" : ""}>{m.name} ({m.currency})</Link></li>
-                ))}
-              </ul>
-            </details>
+            <MarketSwitcher current={{ code: current.code, currency: current.currency }} markets={markets.map((m) => ({ id: m.id, code: m.code, name: m.name, currency: m.currency, on: m.id === current.id }))} />
+            <AccountLink market={code} />
             <CartLink market={code} />
           </div>
         </header>

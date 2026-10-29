@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getMarkets, getProduct } from "@/lib/store";
+import { getMarkets, getProduct, getSite } from "@/lib/store";
+import { absUrl, marketAlternates, priceStr, siteOrigin } from "@/lib/seo";
+import { htmlToText } from "@/lib/text";
+import { JsonLd } from "@/components/store/JsonLd";
 import { AddToCart } from "@/components/store/AddToCart";
 import { Gallery } from "@/components/store/Gallery";
 
@@ -9,19 +12,67 @@ type Props = { params: Promise<{ market: string; handle: string }>; searchParams
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { market, handle } = await params;
-  const p = await getProduct(market.toUpperCase(), handle);
-  return p ? { title: p.seoTitle || `${p.title} | UtsavVibe`, description: p.seoDescription || p.description.slice(0, 160) } : {};
+  const [p, markets, site] = await Promise.all([getProduct(market.toUpperCase(), handle), getMarkets(), getSite()]);
+  if (!p) return {};
+  // hreflang only between markets that actually sell this product
+  const sold = (await Promise.all(markets.map(async (m) => ((await getProduct(m.code, handle)) ? m : null)))).filter((m) => !!m);
+  const origin = siteOrigin(site.publicUrl);
+  const title = p.seoTitle || `${p.title} | ${site.storeName}`;
+  const description = p.seoDescription || htmlToText(p.descriptionHtml || p.description).slice(0, 160);
+  return {
+    title,
+    description,
+    alternates: marketAlternates(origin, market, sold, `/products/${handle}`),
+    openGraph: { type: "website", title, description, siteName: site.storeName, url: `${origin}/${market.toLowerCase()}/products/${handle}`, images: p.images.slice(0, 4).map((i) => ({ url: i.url, alt: i.alt || p.title })) },
+    twitter: { card: "summary_large_image", title, description, images: p.images[0] ? [p.images[0].url] : undefined },
+  };
 }
 
 export default async function ProductPage({ params, searchParams }: Props) {
   const { market, handle } = await params;
   const { variant } = (await searchParams) ?? {};
-  const [p, markets] = await Promise.all([getProduct(market.toUpperCase(), handle), getMarkets()]);
+  const [p, markets, site] = await Promise.all([getProduct(market.toUpperCase(), handle), getMarkets(), getSite()]);
   const current = markets.find((m) => m.code.toLowerCase() === market.toLowerCase());
   if (!p || !current) notFound();
+  const origin = siteOrigin(site.publicUrl);
+  const pageUrl = `${origin}/${market.toLowerCase()}/products/${handle}`;
+  const offers = p.variants.filter((v) => v.price != null).map((v) => ({
+    "@type": "Offer",
+    url: p.variants.length > 1 ? `${pageUrl}?variant=${v.id}` : pageUrl,
+    price: priceStr(v.price!),
+    priceCurrency: p.currency,
+    availability: `https://schema.org/${v.inStock ? "InStock" : "OutOfStock"}`,
+    itemCondition: "https://schema.org/NewCondition",
+    ...(p.variants.length > 1 ? { name: v.title } : {}),
+    ...(v.sku ? { sku: v.sku } : {}),
+    ...(v.barcode ? { gtin: v.barcode } : {}),
+  }));
+  const first = p.variants[0];
 
   return (
     <>
+      <JsonLd data={[
+        {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: p.title,
+          description: htmlToText(p.descriptionHtml || p.description).slice(0, 5000) || p.title,
+          url: pageUrl,
+          ...(p.images.length ? { image: p.images.map((i) => absUrl(origin, i.url)) } : {}),
+          brand: { "@type": "Brand", name: site.storeName },
+          ...(first?.sku ? { sku: first.sku } : {}),
+          ...(first?.barcode ? { gtin: first.barcode } : {}),
+          offers,
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Shop", item: `${origin}/${market.toLowerCase()}` },
+            { "@type": "ListItem", position: 2, name: p.title, item: pageUrl },
+          ],
+        },
+      ]} />
       <p className="crumbs"><Link href={`/${market}`}>Shop</Link> / {p.title}</p>
       <div className="pdp">
         <Gallery images={p.images} title={p.title} />

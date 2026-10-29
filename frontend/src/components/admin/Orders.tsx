@@ -37,7 +37,7 @@ export function Orders() {
               <tr key={o.id}>
                 <td><Link className="lnk" href={`/admin/orders/${o.id}`}>#{o.number}</Link></td>
                 <td>{new Date(o.createdAt).toLocaleDateString()}</td>
-                <td>{o.customer?.name || o.customer?.email}</td>
+                <td>{o.customer?.name || o.customer?.email}{(o.riskLevel === "high" || o.riskLevel === "medium") && <span className={`badge ${o.riskLevel === "high" ? "bad" : "warn"}`} style={{ marginLeft: 6 }} title={o.riskNote ?? ""}>{o.riskLevel === "high" ? "High risk" : "Review"}</span>}</td>
                 <td>{o.market.code}</td>
                 <td>{money(o.total, o.currency)}</td>
                 <td><Badge value={o.paymentStatus} /></td>

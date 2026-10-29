@@ -6,11 +6,12 @@ import { useCart } from "./cart";
 import { Select } from "../Select";
 import { email as emailErr, maxLen, phone as phoneErr, postcode as postcodeErr, required } from "@/lib/validators";
 import { FieldError, useValidation } from "../admin/validation";
+import { getMe } from "./account";
 
 type Quote = {
   currency: string; taxInclusive: boolean; region: string | null;
   lines: { variantId: string; title: string; quantity: number; unitPrice: number }[];
-  subtotal: number; tax: number; shipping: number; total: number;
+  subtotal: number; tax: number; shipping: number; total: number; taxSource?: "stripe" | "market"; freeShippingRemaining?: number | null;
   giftCardApplied: number; amountDue: number; giftCardBalance: number | null;
 };
 
@@ -22,7 +23,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 export function CartPage({ market, country, regions }: { market: string; country: string; regions: { code: string; name: string; taxRateBps: number }[] }) {
-  const { lines, setQty, count } = useCart();
+  const { lines, setQty, count, replace } = useCart();
   const [quote, setQuote] = useState<Quote | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -31,15 +32,54 @@ export function CartPage({ market, country, regions }: { market: string; country
   const [giftCode, setGiftCode] = useState(""); // applied code; the server re-checks it on every quote and at checkout
   const [giftErr, setGiftErr] = useState("");
   const [f, setF] = useState({ name: "", email: "", phone: "", line1: "", line2: "", city: "", region: "", postcode: "" });
+  const [marketing, setMarketing] = useState(false);
+  const [debounced, setDebounced] = useState<{ line1: string; city: string; postcode: string } | null>(null);
+  const [loaded, setLoaded] = useState(false); // set in the same batch as the restored details, so saving never writes the empty form
+
+  // Returning shopper: details are kept on this device only (never card numbers: those are typed on Stripe's page).
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem(`checkout:${market}`) ?? "null");
+      if (s?.f) setF((cur) => ({ ...cur, ...s.f }));
+      if (s?.region) setRegion(s.region);
+    } catch {}
+    setLoaded(true);
+    // signed-in shoppers don't retype their name and email
+    void getMe().then((me) => me && setF((cur) => ({ ...cur, email: cur.email || me.email || "", name: cur.name || me.name })));
+    // cart reminder link: ?recover=<token> refills the cart and the email address
+    const token = new URLSearchParams(location.search).get("recover");
+    if (token) {
+      fetch(`/api/store/recover/${encodeURIComponent(token)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((c: { marketCode: string; email: string; name: string; items: { variantId: string; title: string; quantity: number }[] } | null) => {
+          if (c && c.marketCode.toLowerCase() === market.toLowerCase() && c.items.length) {
+            replace(c.items);
+            setF((cur) => ({ ...cur, email: cur.email || c.email, name: cur.name || c.name }));
+          }
+          history.replaceState(null, "", location.pathname);
+        })
+        .catch(() => {});
+    }
+  }, [market, replace]);
+  useEffect(() => {
+    if (!loaded) return;
+    try { localStorage.setItem(`checkout:${market}`, JSON.stringify({ f, region })); } catch {}
+  }, [f, region, market, loaded]);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced({ line1: f.line1, city: f.city, postcode: f.postcode }), 600);
+    return () => clearTimeout(t);
+  }, [f.line1, f.city, f.postcode]);
+  // with a full address the server can ask Stripe Tax (if switched on) for the exact tax
+  const taxAddress = debounced && debounced.line1 && debounced.city && !postcodeErr(debounced.postcode, country) && debounced.postcode ? { country, postcode: debounced.postcode, line1: debounced.line1, city: debounced.city, region: region || f.region || undefined } : undefined;
 
   // Prices always come from the server; the client only sends variant ids + quantities.
   useEffect(() => {
     if (!lines.length) return setQuote(null);
     setErr("");
-    post<Quote>("/quote", { marketCode: market.toUpperCase(), region: region || undefined, giftCardCode: giftCode || undefined, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) })
+    post<Quote>("/quote", { marketCode: market.toUpperCase(), region: region || undefined, giftCardCode: giftCode || undefined, address: taxAddress, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) })
       .then(setQuote)
       .catch((e) => { setErr(e.message); if (giftCode) { setGiftCode(""); setGiftErr(e.message); } });
-  }, [lines, market, region, giftCode]);
+  }, [lines, market, region, giftCode, taxAddress?.postcode, taxAddress?.line1, taxAddress?.city]);
 
   const applyGift = async () => {
     setGiftErr("");
@@ -72,7 +112,7 @@ export function CartPage({ market, country, regions }: { market: string; country
         marketCode: market.toUpperCase(),
         giftCardCode: giftCode || undefined,
         items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
-        name: f.name, email: f.email, phone: f.phone || undefined,
+        name: f.name, email: f.email, phone: f.phone || undefined, marketing,
         address: { line1: f.line1, line2: f.line2 || undefined, city: f.city, region: region || f.region || undefined, postcode: f.postcode, country },
       });
       location.href = url; // Stripe-hosted checkout; cart is cleared on the order page
@@ -103,11 +143,18 @@ export function CartPage({ market, country, regions }: { market: string; country
             })}
           </tbody>
         </table>
+        {quote?.freeShippingRemaining != null && quote.freeShippingRemaining > 0 && (
+          <div className="shipbar" role="status">
+            <span>Add <b>{money(quote.freeShippingRemaining, quote.currency)}</b> more for free shipping</span>
+            <div className="shipbar-track"><div style={{ width: `${Math.max(6, Math.round((quote.subtotal / (quote.subtotal + quote.freeShippingRemaining)) * 100))}%` }} /></div>
+          </div>
+        )}
+        {quote && quote.freeShippingRemaining == null && quote.shipping === 0 && <div className="shipbar done" role="status">You've got free shipping</div>}
         {quote && (
           <div className="carttotals">
             <div><span>Subtotal</span><span>{money(quote.subtotal, quote.currency)}</span></div>
             <div><span>Shipping</span><span>{quote.shipping ? money(quote.shipping, quote.currency) : "Free"}</span></div>
-            <div className="taxrow"><span>{quote.taxInclusive ? "Includes tax" : "Tax"}{quote.region ? ` (${regions.find((r) => r.code === quote.region)?.name})` : ""}</span><span>{money(quote.tax, quote.currency)}</span></div>
+            <div className="taxrow"><span>{quote.taxInclusive ? "Includes tax" : "Tax"}{quote.region ? ` (${regions.find((r) => r.code === quote.region)?.name})` : ""}{quote.taxSource === "stripe" ? " for your address" : ""}</span><span>{money(quote.tax, quote.currency)}</span></div>
             {!!regions.length && !quote.region && <div className="muted">Select your province to see exact tax.</div>}
             <div className="grand"><span>Total</span><b>{money(quote.total, quote.currency)}</b></div>
             {quote.giftCardApplied > 0 && <>
@@ -157,8 +204,10 @@ export function CartPage({ market, country, regions }: { market: string; country
           )}
           <div className="field"><label htmlFor="co-post">Postcode</label><input id="co-post" value={f.postcode} onChange={set("postcode")} autoComplete="postal-code" {...val.props("postcode")} /><FieldError k="postcode" msg={val.err("postcode")} /></div>
         </div>
+        <label className="consent"><input type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} /> Email me a reminder if I don't finish checking out. Unsubscribe any time.</label>
         {err && <div className="error">{err}</div>}
         <button className="primary" disabled={!quote || busy} onClick={checkout}>{busy ? "Please wait…" : quote && quote.giftCardApplied > 0 && quote.amountDue === 0 ? "Place order" : "Pay with Stripe"}</button>
+        <p className="trust muted">🔒 Secure payment on Stripe's page. Cards, Apple Pay, Google Pay and Link where available. We never see your card number.</p>
       </div>
     </>
   );

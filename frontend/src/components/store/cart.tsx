@@ -9,6 +9,7 @@ type CartCtx = {
   add: (l: Omit<CartLine, "quantity">, qty?: number) => void;
   setQty: (variantId: string, qty: number) => void;
   clear: () => void;
+  replace: (l: CartLine[]) => void; // used by cart-reminder links
 };
 
 const Ctx = createContext<CartCtx | null>(null);
@@ -43,8 +44,9 @@ export function CartProvider({ market, children }: { market: string; children: R
     setLines((cur) => (qty <= 0 ? cur.filter((x) => x.variantId !== variantId) : cur.map((x) => (x.variantId === variantId ? { ...x, quantity: Math.min(99, qty) } : x))));
   }, []);
   const clear = useCallback(() => setLines([]), []);
+  const replace = useCallback((l: CartLine[]) => setLines(l.map((x) => ({ ...x, quantity: Math.max(1, Math.min(99, x.quantity)) }))), []);
 
-  return <Ctx.Provider value={{ lines, count: lines.reduce((s, l) => s + l.quantity, 0), add, setQty, clear }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ lines, count: lines.reduce((s, l) => s + l.quantity, 0), add, setQty, clear, replace }}>{children}</Ctx.Provider>;
 }
 
 export const useCart = () => {

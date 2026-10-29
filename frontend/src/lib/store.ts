@@ -8,7 +8,7 @@ export type StoreMarket = {
   shippingRates: { id: string; name: string; amount: number; freeOverAmount: number | null }[];
 };
 export type StoreVariant = {
-  id: string; title: string; options: Record<string, string>; inStock: boolean; price: number | null; compareAt: number | null;
+  id: string; title: string; options: Record<string, string>; inStock: boolean; stockLeft?: number | null; price: number | null; compareAt: number | null; sku?: string | null; barcode?: string | null;
 };
 export type StoreProduct = {
   id: string; handle: string; title: string; description: string; descriptionHtml: string; seoTitle: string; seoDescription: string; tags: string[]; currency: string; regions: string[]; images: { url: string; thumbUrl: string; alt: string }[]; variants: StoreVariant[];
@@ -38,7 +38,7 @@ export const fromPrice = (p: StoreProduct) => {
   return prices.length ? Math.min(...prices) : null;
 };
 
-export type Site = { storeName: string; announcement: string; tagline: string; metaTitle: string; metaDescription: string; headerMenu: { label: string; url: string }[]; footerMenu: { label: string; url: string }[] };
+export type Site = { publicUrl?: string; storeName: string; announcement: string; tagline: string; metaTitle: string; metaDescription: string; headerMenu: { label: string; url: string }[]; footerMenu: { label: string; url: string }[] };
 const defaultSite: Site = { storeName: "UtsavVibe", announcement: "", tagline: "Festive & devotional gifts for every celebration.", metaTitle: "", metaDescription: "", headerMenu: [{ label: "Shop", url: "/" }], footerMenu: [] };
 // never let a CMS hiccup take the whole storefront down: fall back to the defaults
 export const getSite = async (): Promise<Site> => {

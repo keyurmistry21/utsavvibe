@@ -23,7 +23,7 @@ export type Order = {
   shippingAddress: Record<string, string>; items: { id: string; variantId: string | null; title: string; quantity: number; unitPrice: number; taxable: boolean; physical: boolean; weightG: number }[];
   customer: { id: string; email: string | null; name: string; phone?: string | null; taxExempt?: boolean } | null; market: Market;
   discount: number; discountNote: string | null; paymentMethod: string | null; paymentLinkUrl: string | null;
-  giftCardAmount?: number; carrier: string | null; trackingNumber: string | null; trackingUrl: string | null; packageWeightG: number | null; shippedAt: string | null;
+  giftCardAmount?: number; riskLevel?: "low" | "medium" | "high" | null; riskNote?: string | null; carrier: string | null; trackingNumber: string | null; trackingUrl: string | null; packageWeightG: number | null; shippedAt: string | null;
 };
 export type Address = {
   country: string; firstName: string; lastName: string; company: string; line1: string; line2: string;
@@ -75,7 +75,7 @@ export async function uploadImage(productId: string, file: File, alt = ""): Prom
 
 export const api = <T>(path: string, init?: RequestInit & { json?: unknown }) => request<T>(`/api/admin${path}`, init);
 export const auth = <T>(path: string, init?: RequestInit & { json?: unknown }) => request<T>(`/api/auth${path}`, init);
-export type AdminUser = { id: string; email: string; name: string; role: string | null; owner: boolean; permissions: string[] };
+export type AdminUser = { id: string; email: string; name: string; role: string | null; owner: boolean; permissions: string[]; twoFactor?: boolean };
 
 // minor units <-> display
 export const money = (minor: number, currency: string) =>

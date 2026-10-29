@@ -87,3 +87,20 @@ Never use a native `<select>` (the browser draws its list and it can't be styled
 
 ## Commands
 - `npm -w frontend run dev:web` (port 5173), `build`, `typecheck`
+
+## SEO and security headers
+- `next.config.mjs` sets headers on every route: CSP (script-src needs `'unsafe-inline'` for Next's bootstrap; `'unsafe-eval'` and `ws:` only in dev), HSTS (production only), nosniff, X-Frame-Options DENY, Referrer-Policy, Permissions-Policy (camera/mic/geo off; nothing in the app uses them), COOP same-origin. `/admin/*` and `/api/*` get `X-Robots-Tag: noindex`. `poweredByHeader` is off. Forms may post only to self or `checkout.stripe.com`; if you add a third-party script, image host (`img-src` allows https) or iframe, extend the CSP there.
+- `NEXT_DIST_DIR=.next-x npx next build|dev -p <port>` runs a second build/server beside the main one (gitignored `.next-*`).
+- `lib/seo.ts`: `siteOrigin()` (Online Store `publicUrl` preference, else `NEXT_PUBLIC_SITE_URL`, else `STOREFRONT_URL`, else localhost:5173), `marketAlternates()` (canonical + hreflang `en-GB/en-US/en-CA` + `x-default`), `priceStr()`. `components/store/JsonLd.tsx` renders JSON-LD with `<` escaped.
+- Pages: product (Product + Offer per variant + BreadcrumbList, hreflang only between markets that sell it), collection (CollectionPage + ItemList + BreadcrumbList), home (Organization + WebSite), blog post (BlogPosting + BreadcrumbList). Blog, CMS pages and policies read the same in every market, so their canonical is the default (first) market. Titles/descriptions use the SEO fields, falling back to content. Cart, order and `/p/*` are `noindex`. `app/not-found.tsx` is the 404 (noindex).
+- `app/sitemap.ts` and `app/robots.ts` are built on request from the public API (hreflang alternates for multi-market pages; CMS pages come from the header/footer menu links because the API has no page list). One `<h1>` per page; product images carry `alt`, width/height, and lazy loading except the gallery main image.
+- Optional `sku`/`barcode` on store variants add `sku`/`gtin` to the Product JSON-LD once the API returns them (it does not yet).
+
+## Marketing, apps, security and checkout admin screens
+- `/admin/marketing` (`Marketing.tsx`, perm `integrations.manage`): Google XML / Meta CSV feed URLs per market (copy boxes), abandoned-checkout email toggle + delay, stats and the list of unpaid checkouts with a per-row "Send reminder" (only customers who ticked the cart-reminder box).
+- `/admin/settings/apps` (`Apps.tsx`, `integrations.manage`): API keys (role dropdown hides Owner and roles that manage staff/integrations; secret shown once in a modal) and outbound webhooks (events from the API, signing secret shown once, "Send test", last deliveries) plus signature-verification notes. This is the replacement for Shopify apps.
+- `/admin/settings/security` (`Security.tsx`, any staff): own two-factor sign-in (start, QR via `qrcode`, confirm code; disabling needs password + code) and the security log (only with `users.manage`). Users modal has "Reset two-factor".
+- `/admin/settings/checkout` (`CheckoutSettings.tsx`, `settings.manage`): automatic tax (Stripe Tax) toggle, high-value first-order threshold, fraud screening explainer.
+- Login (`app/admin/layout.tsx`): a 401 containing "6-digit" or "code is not right" reveals the code field (`autocomplete="one-time-code"`) and resubmits with `code`.
+- Orders: `Order.riskLevel/riskNote` drive a banner on `OrderDetail` (medium amber, high red, confirm before fulfilling a high-risk order) and a "Review" / "High risk" badge in the orders list.
+- Shared: `CopyBox.tsx` (read-only text + Copy). The role `Select` is the custom dropdown (not a native `<select>`), so UI tests click the trigger then `[role=option]`.

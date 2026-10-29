@@ -58,6 +58,12 @@ export function OrderDetail({ id }: { id: string }) {
       </div>
       {err && <div className="error">{err}</div>}
       {msg && <div className="okmsg">{msg}</div>}
+      {!isDraft && (o.riskLevel === "high" || o.riskLevel === "medium") && (
+        <div className={o.riskLevel === "high" ? "error" : "warnmsg"} role="alert" style={o.riskLevel === "medium" ? { background: "#fff8e6", border: "1px solid #f3d99a", color: "#6b4a00", borderRadius: 8, padding: "8px 12px", margin: "8px 0" } : undefined}>
+          <b>{o.riskLevel === "high" ? "High fraud risk" : "Possible fraud risk"}.</b> Hold shipping until you've checked this order.
+          {o.riskNote && <div style={{ marginTop: 4 }}>{o.riskNote}</div>}
+        </div>
+      )}
 
       <div className="cols">
         <div>
@@ -130,7 +136,7 @@ export function OrderDetail({ id }: { id: string }) {
                 <button onClick={() => patch(shipBody(), "Tracking saved")}>Save tracking</button>
                 <Link className="btn-link" href={`/admin/orders/${id}/label`} target="_blank">Print shipping label</Link>
                 <Link className="btn-link" href={`/admin/orders/${id}/label?type=slip`} target="_blank">Print packing slip</Link>
-                {o.status === "open" && <button className="primary" disabled={!paid} title={paid ? "" : "Order is not paid"} onClick={() => patch({ ...shipBody(), status: "fulfilled" }, "Marked as fulfilled")}>Mark as fulfilled</button>}
+                {o.status === "open" && <button className="primary" disabled={!paid} title={paid ? "" : "Order is not paid"} onClick={() => { if (o.riskLevel === "high" && !confirm("This order is flagged HIGH fraud risk. Ship it anyway?")) return; patch({ ...shipBody(), status: "fulfilled" }, "Marked as fulfilled"); }}>Mark as fulfilled</button>}
                 {o.status === "fulfilled" && <button onClick={() => patch({ status: "open" }, "Marked as unfulfilled")}>Mark unfulfilled</button>}
                 {o.status === "open" && <button onClick={() => confirm("Cancel this order? Refunds are done in Stripe.") && patch({ status: "cancelled" })}>Cancel order</button>}
               </div>

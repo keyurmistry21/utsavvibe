@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { CartPage } from "@/components/store/CartPage";
 import { getMarkets } from "@/lib/store";
 
-export const metadata = { title: "Cart | UtsavVibe" };
+export const metadata = { title: "Cart | UtsavVibe", robots: { index: false, follow: false } };
 
 export default async function Cart({ params }: { params: Promise<{ market: string }> }) {
   const { market } = await params;

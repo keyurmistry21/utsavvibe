@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+export const metadata = { title: "Find a product", robots: { index: false, follow: false } };
+
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:4000";
 
 // Target of QR codes on labels: /p/<SKU or barcode> -> the product page with that variant highlighted.

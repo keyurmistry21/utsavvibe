@@ -1054,3 +1054,17 @@ body:has(.sf) { background: #fff9f1; }
 /* admin: radios sized like checkboxes; file pickers styled as buttons */
 .admin input[type=radio] { width: 16px; height: 16px; accent-color: #303030; flex: none; margin: 0; }
 .admin label.btn-link { height: 34px; padding: 0 14px; font-size: 13px; cursor: pointer; }
+
+/* cart: free-shipping progress, consent line, trust note */
+.shipbar { margin: 14px 0 4px; font-size: 14px; }
+.shipbar-track { height: 8px; border-radius: 999px; background: var(--line, #eadfd3); margin-top: 6px; overflow: hidden; }
+.shipbar-track > div { height: 100%; background: var(--accent, #b4491f); border-radius: 999px; transition: width .3s; }
+.shipbar.done { color: #1b6b3a; font-weight: 600; }
+.consent { display: flex; gap: 8px; align-items: flex-start; margin: 14px 0 6px; font-size: 14px; line-height: 1.4; }
+.consent input { width: 18px; height: 18px; margin-top: 1px; flex: none; }
+.trust { font-size: 13px; margin: 12px 0 0; }
+.lowstock { display: block; font-style: normal; font-size: 12px; font-weight: 600; color: #b4491f; margin-top: 2px; }
+
+.admin .codeblock { background: #f4f4f4; border-radius: 8px; padding: 10px 12px; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 8px 0; }
+.consent { font-weight: 400; }
+.acctlink { font-size: 14px; font-weight: 600; margin-right: 12px; }

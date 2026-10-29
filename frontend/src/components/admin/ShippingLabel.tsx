@@ -83,6 +83,7 @@ export function ShippingLabel({ orderId, weightG, tick, onChanged }: { orderId: 
                   </label>
                 ))}
               </div>
+              <p className="muted" style={{ marginTop: 0 }}>These are the rates Shippo returns for the carriers you've connected. Discounted rates: Shippo includes discounted commercial USPS/UPS/DHL rates when you enable Shippo-managed carrier accounts in your Shippo dashboard.</p>
               <button className="primary" disabled={!pick || busy === "buy"} onClick={buy}>{busy === "buy" ? "Buying…" : "Buy label"}</button>
             </>
           )}

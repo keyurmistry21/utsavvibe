@@ -92,6 +92,11 @@ function EditUser({ u, roles, isMe, onClose, onDone }: { u: Staff; roles: Role[]
     catch (e) { setErr((e as Error).message); }
     setPwBusy(false);
   };
+  const reset2fa = async () => {
+    if (!confirm(`Turn off two-factor sign-in for ${u.name || u.email}? They will be signed out and can set it up again.`)) return;
+    setErr(""); setOk("");
+    try { await api(`/users/${u.id}/reset-2fa`, { method: "POST" }); setOk(`Two-factor sign-in reset. ${u.name || u.email} was signed out everywhere.`); } catch (e) { setErr((e as Error).message); }
+  };
   const remove = async () => {
     if (!confirm(`Delete ${u.name || u.email}? They lose access immediately. Orders they handled are not affected.`)) return;
     try { await api(`/users/${u.id}`, { method: "DELETE" }); onDone(); } catch (e) { setErr((e as Error).message); }
@@ -113,6 +118,9 @@ function EditUser({ u, roles, isMe, onClose, onDone }: { u: Staff; roles: Role[]
         <span><b>Can sign in</b><div className="muted">Turn off to block access without deleting the user.</div></span>
         <Switch checked={f.active} onChange={(active) => setF({ ...f, active })} label="Can sign in" disabled={isMe} />
       </div>
+      <h4>Two-factor sign-in</h4>
+      <p className="muted" style={{ marginTop: 0 }}>Lost phone? Reset it so they can sign in with their password and set up a new authenticator.</p>
+      <button onClick={reset2fa}>Reset two-factor</button>
       <h4>Reset password</h4>
       {pw === null ? <button onClick={() => { setPw(""); setOk(""); }}>Set a new password</button> : (
         <>

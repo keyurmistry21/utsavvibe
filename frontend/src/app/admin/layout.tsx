@@ -18,17 +18,21 @@ const Icon = ({ d }: { d: string }) => (
 function Login({ onDone }: { onDone: (u: AdminUser) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [needCode, setNeedCode] = useState(false); // the account has two-factor sign-in on
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const val = useValidation({ email: emailErr(email, true), password: required(password, "Enter your password") });
+  const val = useValidation({ email: emailErr(email, true), password: required(password, "Enter your password"), code: needCode ? required(code, "Enter the 6-digit code") : "" });
   const submit = async () => {
     if (!val.submit()) return;
     setBusy(true);
     setErr("");
     try {
-      onDone(await auth<AdminUser>("/login", { method: "POST", json: { email, password } }));
+      onDone(await auth<AdminUser>("/login", { method: "POST", json: { email, password, ...(needCode ? { code: code.trim() } : {}) } }));
     } catch (e) {
-      setErr((e as Error).message);
+      const m = (e as Error).message;
+      if (/6-digit|code is not right/i.test(m)) { setNeedCode(true); if (needCode) setCode(""); }
+      setErr(m);
       setBusy(false);
     }
   };
@@ -50,6 +54,14 @@ function Login({ onDone }: { onDone: (u: AdminUser) => void }) {
           <input id="lg-pw" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} {...val.props("password")} />
           <FieldError k="password" msg={val.err("password")} />
         </div>
+        {needCode && (
+          <div className="field">
+            <label htmlFor="lg-code">Authentication code</label>
+            <input id="lg-code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]*" maxLength={7} autoFocus placeholder="123456" value={code} onChange={(e) => setCode(e.target.value)} {...val.props("code")} />
+            <FieldError k="code" msg={val.err("code")} />
+            <div className="muted">Open your authenticator app and type the 6-digit code for UtsavVibe.</div>
+          </div>
+        )}
         {err && <div className="error">{err}</div>}
         <button className="primary" type="submit" style={{ width: "100%" }} disabled={busy}>{busy ? "Logging in…" : "Log in"}</button>
       </form>
