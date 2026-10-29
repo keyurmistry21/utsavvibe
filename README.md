@@ -9,6 +9,7 @@ Custom ecommerce platform (replaces Shopify). Markets: UK/GBP, US/USD, CA/CAD. P
 - **Storefront** per market: catalog, collections, cart with gift card codes, Stripe Checkout, blog, CMS pages, store policies, menus.
 - **Admin**: orders and draft orders (payment links, tracking, labels, emails), products (variants, per-market prices, images, SKU/barcode/QR generation, bulk label printing, Shopify CSV import), collections, gift cards (issue, sell online, redeem), carrier postage on orders (Shippo), customers, markets (tax, shipping), analytics, Online Store (pages, blog, menus, preferences), and Settings (General, Payments, Users, Roles and permissions, Locations, Notifications, Policies, Appearance, My account).
 - **Staff access**: users with roles (Owner, Administrator, Fulfilment, Catalog manager, Content editor, Support, or your own). Permissions are enforced by the API.
+- **Growth and safety**: Google Merchant and Meta catalog feeds, abandoned-checkout emails (opt-in), free-shipping bar and low-stock notes, fraud flags on orders (Stripe Radar plus store checks), optional Stripe Tax, API keys and signed webhooks for outside tools, two-factor sign-in, security log, SEO (sitemap, structured data, hreflang).
 - Not built yet: themes, multi-store, per-location stock. Carrier postage needs a free Shippo account and `SHIPPO_API_KEY` in `backend/.env`; Stripe keys are also still to be added.
 - Seasonal store tip: Stripe has no monthly fee, so an off-season site costs only hosting. Back up the database before you scale the server down.
 
