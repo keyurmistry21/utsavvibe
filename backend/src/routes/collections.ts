@@ -85,6 +85,13 @@ collectionsRouter.get("/", async (req, res) => {
   res.json(await Promise.all(rows.map(async (c) => ({ id: c.id, title: c.title, handle: c.handle, kind: c.kind, visible: c.visible, updatedAt: c.updatedAt, productCount: (await collectionProductIds(c)).length }))));
 });
 
+// Live preview for the rule builder: which products would match, without saving.
+collectionsRouter.post("/preview", async (req, res) => {
+  const d = z.object({ rules: ruleSet }).parse(req.body);
+  const ids = await collectionProductIds({ id: "", kind: "smart", rules: JSON.stringify(d.rules) });
+  res.json({ count: ids.length, products: await productRows(ids.slice(0, 12)) });
+});
+
 collectionsRouter.get("/:id", async (req, res) => {
   const c = await prisma.collection.findUnique({ where: { id: req.params.id } });
   if (!c) return void res.status(404).json({ error: "collection not found" });

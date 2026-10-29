@@ -10,7 +10,7 @@ export const toEditorHtml = (v: string) => (v && !/<[a-z][\s\S]*>/i.test(v) ? v.
 type Cmd = { label: string; title: string; run: () => void; active?: string };
 
 // Small WYSIWYG box with an HTML source view (</>). The server sanitizes on save; `cleanHtml` strips anything active before pasted code is shown here.
-export function RichTextEditor({ value, onChange, resetKey, invalid, onBlur }: { value: string; onChange: (html: string) => void; resetKey: string; invalid?: boolean; onBlur?: () => void }) {
+export function RichTextEditor({ value, onChange, resetKey, invalid, onBlur, placeholder }: { value: string; onChange: (html: string) => void; resetKey: string; invalid?: boolean; onBlur?: () => void; placeholder?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [src, setSrc] = useState<string | null>(null); // non-null = showing the HTML source
   // load the initial HTML once per product (re-setting innerHTML on every keystroke would move the cursor)
@@ -69,6 +69,7 @@ export function RichTextEditor({ value, onChange, resetKey, invalid, onBlur }: {
       <div
         ref={ref}
         className="rte-body"
+        data-placeholder={placeholder}
         style={inSource ? { display: "none" } : undefined}
         contentEditable
         suppressContentEditableWarning

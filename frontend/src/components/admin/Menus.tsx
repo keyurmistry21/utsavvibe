@@ -8,7 +8,7 @@ type Item = { label: string; url: string };
 export const urlErr = (u: string) => (!u.trim() ? "Enter a link" : /^\/[^\s]*$/.test(u.trim()) || /^https?:\/\/[^\s]+$/.test(u.trim()) || /^mailto:[^\s@]+@[^\s@]+$/.test(u.trim()) ? "" : "Use a path like /pages/about, or a full https:// link");
 
 export type { Item };
-export function MenuCard({ title, hint, items, onChange, val, id, pages }: { title: string; hint: string; items: Item[]; onChange: (i: Item[]) => void; val: ReturnType<typeof useValidation>; id: string; pages: { handle: string; title: string }[] }) {
+export function MenuCard({ title, hint, items, onChange, val, id, quick }: { title: string; hint: string; items: Item[]; onChange: (i: Item[]) => void; val: ReturnType<typeof useValidation>; id: string; quick: { label: string; url: string }[] }) {
   const move = (i: number, d: number) => { const n = [...items]; const j = i + d; if (j < 0 || j >= n.length) return; [n[i], n[j]] = [n[j], n[i]]; onChange(n); };
   const set = (i: number, p: Partial<Item>) => onChange(items.map((x, j) => (j === i ? { ...x, ...p } : x)));
   return (
@@ -27,9 +27,9 @@ export function MenuCard({ title, hint, items, onChange, val, id, pages }: { tit
         </div>
       ))}
       <button onClick={() => onChange([...items, { label: "", url: "" }])}><Plus />Add menu item</button>
-      {!!pages.length && (
-        <p className="muted" style={{ marginBottom: 0 }}>Quick add a page:{" "}
-          {pages.map((p) => <button key={p.handle} className="link" style={{ marginRight: 10 }} onClick={() => onChange([...items, { label: p.title, url: `/pages/${p.handle}` }])}>{p.title}</button>)}
+      {!!quick.length && (
+        <p className="muted" style={{ marginBottom: 0 }}>Quick add:{" "}
+          {quick.map((p) => <button key={p.url} className="link" style={{ marginRight: 10 }} onClick={() => onChange([...items, { label: p.label, url: p.url }])}>{p.label}</button>)}
         </p>
       )}
     </div>

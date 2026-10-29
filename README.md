@@ -6,10 +6,11 @@ Custom ecommerce platform (replaces Shopify). Markets: UK/GBP, US/USD, CA/CAD. P
 - `frontend/` Next.js (App Router): SSR storefront at `/[market]`, admin at `/admin`
 
 ## What you get
-- **Storefront** per market: catalog, cart, Stripe Checkout, CMS pages, store policies, menus.
-- **Admin**: orders and draft orders (payment links, tracking, labels, emails), products (variants, per-market prices, images, SKU/barcode/QR generation, bulk label printing), customers, markets (tax, shipping), analytics, Online Store (pages, menus, preferences), and Settings (General, Payments, Users, Roles and permissions, Locations, Notifications, Policies, Appearance, My account).
+- **Storefront** per market: catalog, collections, cart with gift card codes, Stripe Checkout, blog, CMS pages, store policies, menus.
+- **Admin**: orders and draft orders (payment links, tracking, labels, emails), products (variants, per-market prices, images, SKU/barcode/QR generation, bulk label printing, Shopify CSV import), collections, gift cards (issue, sell online, redeem), carrier postage on orders (Shippo), customers, markets (tax, shipping), analytics, Online Store (pages, blog, menus, preferences), and Settings (General, Payments, Users, Roles and permissions, Locations, Notifications, Policies, Appearance, My account).
 - **Staff access**: users with roles (Owner, Administrator, Fulfilment, Catalog manager, Content editor, Support, or your own). Permissions are enforced by the API.
-- Not built yet: themes, blog, multi-store, per-location stock, gift cards, carrier postage.
+- Not built yet: themes, multi-store, per-location stock. Carrier postage needs a free Shippo account and `SHIPPO_API_KEY` in `backend/.env`; Stripe keys are also still to be added.
+- Seasonal store tip: Stripe has no monthly fee, so an off-season site costs only hosting. Back up the database before you scale the server down.
 
 ## Run
 ```

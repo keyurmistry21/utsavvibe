@@ -11,6 +11,7 @@ type Quote = {
   currency: string; taxInclusive: boolean; region: string | null;
   lines: { variantId: string; title: string; quantity: number; unitPrice: number }[];
   subtotal: number; tax: number; shipping: number; total: number;
+  giftCardApplied: number; amountDue: number; giftCardBalance: number | null;
 };
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -26,16 +27,29 @@ export function CartPage({ market, country, regions }: { market: string; country
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [region, setRegion] = useState("");
+  const [giftInput, setGiftInput] = useState("");
+  const [giftCode, setGiftCode] = useState(""); // applied code; the server re-checks it on every quote and at checkout
+  const [giftErr, setGiftErr] = useState("");
   const [f, setF] = useState({ name: "", email: "", phone: "", line1: "", line2: "", city: "", region: "", postcode: "" });
 
   // Prices always come from the server; the client only sends variant ids + quantities.
   useEffect(() => {
     if (!lines.length) return setQuote(null);
     setErr("");
-    post<Quote>("/quote", { marketCode: market.toUpperCase(), region: region || undefined, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) })
+    post<Quote>("/quote", { marketCode: market.toUpperCase(), region: region || undefined, giftCardCode: giftCode || undefined, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) })
       .then(setQuote)
-      .catch((e) => setErr(e.message));
-  }, [lines, market, region]);
+      .catch((e) => { setErr(e.message); if (giftCode) { setGiftCode(""); setGiftErr(e.message); } });
+  }, [lines, market, region, giftCode]);
+
+  const applyGift = async () => {
+    setGiftErr("");
+    const code = giftInput.trim();
+    if (!code) return setGiftErr("Enter your gift card code");
+    try {
+      await post<Quote>("/quote", { marketCode: market.toUpperCase(), region: region || undefined, giftCardCode: code, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) });
+      setGiftCode(code); setGiftInput("");
+    } catch (e) { setGiftErr((e as Error).message); }
+  };
 
   const E: Record<string, string> = {
     name: required(f.name, "Enter your full name") || maxLen(f.name, 100, "Name"),
@@ -56,6 +70,7 @@ export function CartPage({ market, country, regions }: { market: string; country
     try {
       const { url } = await post<{ url: string }>("/checkout", {
         marketCode: market.toUpperCase(),
+        giftCardCode: giftCode || undefined,
         items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
         name: f.name, email: f.email, phone: f.phone || undefined,
         address: { line1: f.line1, line2: f.line2 || undefined, city: f.city, region: region || f.region || undefined, postcode: f.postcode, country },
@@ -95,8 +110,25 @@ export function CartPage({ market, country, regions }: { market: string; country
             <div className="taxrow"><span>{quote.taxInclusive ? "Includes tax" : "Tax"}{quote.region ? ` (${regions.find((r) => r.code === quote.region)?.name})` : ""}</span><span>{money(quote.tax, quote.currency)}</span></div>
             {!!regions.length && !quote.region && <div className="muted">Select your province to see exact tax.</div>}
             <div className="grand"><span>Total</span><b>{money(quote.total, quote.currency)}</b></div>
+            {quote.giftCardApplied > 0 && <>
+              <div><span>Gift card</span><span>−{money(quote.giftCardApplied, quote.currency)}</span></div>
+              <div className="grand"><span>To pay</span><b>{money(quote.amountDue, quote.currency)}</b></div>
+            </>}
           </div>
         )}
+        <div className="giftbox">
+          {giftCode ? (
+            <p className="giftok">Gift card applied{quote?.giftCardBalance != null ? ` (balance ${money(quote.giftCardBalance, quote.currency)})` : ""}. <button className="link" onClick={() => { setGiftCode(""); setGiftErr(""); }}>Remove</button></p>
+          ) : (
+            <>
+              <div className="giftrow">
+                <input aria-label="Gift card code" placeholder="Gift card code" value={giftInput} onChange={(e) => setGiftInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") applyGift(); }} autoComplete="off" />
+                <button onClick={applyGift}>Apply</button>
+              </div>
+              {giftErr && <div className="error" style={{ marginTop: 8 }}>{giftErr}</div>}
+            </>
+          )}
+        </div>
       </div>
 
       <div className="card">
@@ -126,7 +158,7 @@ export function CartPage({ market, country, regions }: { market: string; country
           <div className="field"><label htmlFor="co-post">Postcode</label><input id="co-post" value={f.postcode} onChange={set("postcode")} autoComplete="postal-code" {...val.props("postcode")} /><FieldError k="postcode" msg={val.err("postcode")} /></div>
         </div>
         {err && <div className="error">{err}</div>}
-        <button className="primary" disabled={!quote || busy} onClick={checkout}>{busy ? "Redirecting to Stripe…" : "Pay with Stripe"}</button>
+        <button className="primary" disabled={!quote || busy} onClick={checkout}>{busy ? "Please wait…" : quote && quote.giftCardApplied > 0 && quote.amountDue === 0 ? "Place order" : "Pay with Stripe"}</button>
       </div>
     </>
   );

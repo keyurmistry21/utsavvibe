@@ -52,3 +52,16 @@ export const menuHref = (code: string, url: string) => (url.startsWith("/") ? `/
 export type PolicyLink = { key: string; title: string };
 export const getPolicyLinks = async (): Promise<PolicyLink[]> => { try { return (await get<PolicyLink[]>("/policies", true)) ?? []; } catch { return []; } };
 export const getPolicy = (key: string) => get<{ key: string; title: string; content: string }>(`/policies/${encodeURIComponent(key)}`, true);
+
+export type CollectionLink = { handle: string; title: string };
+export const getCollections = async (): Promise<CollectionLink[]> => { try { return (await get<CollectionLink[]>("/collections", true)) ?? []; } catch { return []; } };
+export type Collection = { handle: string; title: string; descriptionHtml: string; seoTitle: string; seoDescription: string; products: StoreProduct[] };
+export const getCollection = async (code: string, handle: string) => {
+  const c = await get<Collection>(`/markets/${code}/collections/${encodeURIComponent(handle)}`, true);
+  return c ? { ...c, products: c.products.map(normProduct) } : null;
+};
+
+export type BlogSummary = { handle: string; title: string; excerpt: string; author: string; coverImage: string; publishedAt: string; tags: string[] };
+export type BlogPost = BlogSummary & { contentHtml: string; seoTitle: string; seoDescription: string };
+export const getPosts = async (): Promise<BlogSummary[]> => { try { return (await get<BlogSummary[]>("/blog", true)) ?? []; } catch { return []; } };
+export const getPost = (handle: string) => get<BlogPost>(`/blog/${encodeURIComponent(handle)}`, true);

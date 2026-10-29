@@ -18,7 +18,7 @@ export type VForm = { id?: string; options: Record<string, string>; title: strin
 export type Form = {
   id?: string; title: string; description: string; status: Product["status"]; vendor: string; productType: string; tagsText: string; notes: string;
   marketIds: string[]; regions: Record<string, string[]>; images: ProductImage[];
-  trackInventory: boolean; continueSelling: boolean; physical: boolean; chargeTax: boolean;
+  trackInventory: boolean; continueSelling: boolean; physical: boolean; chargeTax: boolean; isGiftCard: boolean;
   seoTitle: string; seoDescription: string; handle: string; handleTouched: boolean;
   options: OptionDef[]; variants: VForm[];
 };
@@ -31,7 +31,7 @@ const blankVariant = (): VForm => ({ options: {}, title: "Default", sku: "", bar
 
 export const blank = (): Form => ({
   title: "", description: "", status: "draft", vendor: "", productType: "", tagsText: "", notes: "", marketIds: [], regions: {}, images: [],
-  trackInventory: true, continueSelling: false, physical: true, chargeTax: true, seoTitle: "", seoDescription: "", handle: "", handleTouched: false,
+  trackInventory: true, continueSelling: false, physical: true, chargeTax: true, isGiftCard: false, seoTitle: "", seoDescription: "", handle: "", handleTouched: false,
   options: [], variants: [blankVariant()],
 });
 
@@ -44,7 +44,7 @@ export function fromProduct(p: Product): Form {
   return {
     id: p.id, title: p.title, description: p.description, status: p.status, vendor: p.vendor ?? "", productType: p.productType ?? "",
     tagsText: p.tags.join(", "), notes: p.notes, marketIds: p.marketIds, regions: p.regions ?? {}, images: p.images ?? [],
-    trackInventory: p.trackInventory ?? true, continueSelling: p.continueSelling ?? false, physical: p.physical ?? true, chargeTax: p.chargeTax ?? true,
+    trackInventory: p.trackInventory ?? true, continueSelling: p.continueSelling ?? false, physical: p.physical ?? true, chargeTax: p.chargeTax ?? true, isGiftCard: p.isGiftCard ?? false,
     seoTitle: p.seoTitle ?? "", seoDescription: p.seoDescription ?? "", handle: p.handle, handleTouched: true,
     options,
     variants: p.variants.map((v) => ({
@@ -190,7 +190,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
       title: f.title.trim(), description: f.description, status: f.status, vendor: f.vendor, productType: f.productType, notes: f.notes,
       marketIds: f.marketIds, regions: Object.fromEntries(f.marketIds.map((m) => [m, f.regions[m] ?? []])),
       tags: f.tagsText.split(",").map((t) => t.trim()).filter(Boolean),
-      trackInventory: f.trackInventory, continueSelling: f.continueSelling, physical: f.physical, chargeTax: f.chargeTax,
+      trackInventory: f.trackInventory, continueSelling: f.continueSelling, physical: f.physical, chargeTax: f.chargeTax, isGiftCard: f.isGiftCard,
       seoTitle: f.seoTitle, seoDescription: f.seoDescription, ...(handle ? { handle } : {}),
       variants: f.variants.map((v) => ({
         id: v.id, title: v.title || "Default", options: v.options, sku: v.sku.trim() || null, barcode: v.barcode.trim() || null,
@@ -285,6 +285,11 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
               </div>
             </>
           )}
+
+          <div className="card">
+            <div className="cardhead"><h3>Gift card</h3><span className="toggleline"><span className="muted">This product is a gift card</span><Switch checked={f.isGiftCard} onChange={(v) => setF((c) => ({ ...c, isGiftCard: v, ...(v ? { physical: false, chargeTax: false, trackInventory: false } : {}) }))} label="This product is a gift card" /></span></div>
+            <p className="muted" style={{ margin: 0 }}>{f.isGiftCard ? "Each variant is a gift card amount (for example £25, £50). When an order is paid, the buyer is emailed a code worth that amount. Nothing is shipped or taxed when it is sold." : "Turn this on to sell gift cards. Each variant becomes an amount customers can buy."}</p>
+          </div>
 
           <div className="card">
             <div className="cardhead"><h3>Shipping</h3><span className="toggleline"><span className="muted">Physical product</span><Switch checked={f.physical} onChange={(v) => set("physical", v)} label="Physical product" /></span></div>

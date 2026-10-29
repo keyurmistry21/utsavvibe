@@ -59,7 +59,7 @@ function PageEditor({ initial, onDone }: { initial: Form; onDone: () => void }) 
           <div className="card">
             <div className="field"><label htmlFor="pg-title">Title</label><input id="pg-title" autoFocus value={f.title} onChange={(e) => set("title", e.target.value)} placeholder="e.g. About us, Shipping policy" {...val.props("title")} /><FieldError k="title" msg={val.err("title")} /></div>
             <div className="field" style={{ marginBottom: 0 }}><label>Content</label>
-              <RichTextEditor value={f.content} onChange={(h) => set("content", h)} resetKey={f.id ?? "new"} />
+              <RichTextEditor value={f.content} onChange={(h) => set("content", h)} resetKey={f.id ?? "new"} placeholder="Write the page content…" />
             </div>
           </div>
           <div className="card">

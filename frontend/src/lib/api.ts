@@ -14,7 +14,7 @@ export type ProductImage = { id: string; url: string; thumbUrl: string; alt: str
 export type Product = {
   images: ProductImage[];
   id: string; title: string; handle: string; description: string; status: "draft" | "active" | "archived"; vendor: string; productType: string;
-  trackInventory: boolean; continueSelling: boolean; physical: boolean; chargeTax: boolean; seoTitle: string; seoDescription: string;
+  trackInventory: boolean; continueSelling: boolean; physical: boolean; chargeTax: boolean; isGiftCard?: boolean; seoTitle: string; seoDescription: string;
   tags: string[]; notes: string; marketIds: string[]; regions: Record<string, string[]>; variants: Variant[];
 };
 export type Order = {
@@ -23,7 +23,7 @@ export type Order = {
   shippingAddress: Record<string, string>; items: { id: string; variantId: string | null; title: string; quantity: number; unitPrice: number; taxable: boolean; physical: boolean; weightG: number }[];
   customer: { id: string; email: string | null; name: string; phone?: string | null; taxExempt?: boolean } | null; market: Market;
   discount: number; discountNote: string | null; paymentMethod: string | null; paymentLinkUrl: string | null;
-  carrier: string | null; trackingNumber: string | null; trackingUrl: string | null; packageWeightG: number | null; shippedAt: string | null;
+  giftCardAmount?: number; carrier: string | null; trackingNumber: string | null; trackingUrl: string | null; packageWeightG: number | null; shippedAt: string | null;
 };
 export type Address = {
   country: string; firstName: string; lastName: string; company: string; line1: string; line2: string;

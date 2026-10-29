@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fromPrice, getMarkets, getProducts, getSite } from "@/lib/store";
+import { getCollections, getMarkets, getProducts, getSite } from "@/lib/store";
 import { money } from "@/lib/api";
-import { ProductArt } from "@/components/store/ProductArt";
+import { ProductGrid } from "@/components/store/ProductGrid";
 
 export async function generateMetadata({ params }: { params: Promise<{ market: string }> }) {
   const { market } = await params;
@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: { params: Promise<{ market: s
 
 export default async function MarketHome({ params }: { params: Promise<{ market: string }> }) {
   const { market } = await params;
-  const [products, markets] = await Promise.all([getProducts(market.toUpperCase()), getMarkets()]);
+  const [products, markets, collections] = await Promise.all([getProducts(market.toUpperCase()), getMarkets(), getCollections()]);
   const current = markets.find((m) => m.code.toLowerCase() === market.toLowerCase());
   if (!products || !current) notFound();
   const free = current.shippingRates[0]?.freeOverAmount;
@@ -35,27 +35,17 @@ export default async function MarketHome({ params }: { params: Promise<{ market:
         <div><b>Secure checkout</b><span>Powered by Stripe</span></div>
       </section>
 
+      {!!collections.length && (
+        <section>
+          <h2 className="sec">Shop by collection</h2>
+          <div className="collrow">{collections.map((c) => <Link key={c.handle} href={`/${market}/collections/${c.handle}`} className="collchip">{c.title}</Link>)}</div>
+        </section>
+      )}
+
       <section id="shop">
         <h2 className="sec">Shop all</h2>
         {products.length ? (
-          <div className="pgrid">
-            {products.map((p) => {
-              const from = fromPrice(p);
-              const sold = p.variants.every((v) => !v.inStock);
-              return (
-                <Link key={p.id} href={`/${market}/products/${p.handle}`} className="pcard">
-                  <div className="pimg">
-                    {p.images[0] ? <img src={p.images[0].thumbUrl} alt={p.images[0].alt || p.title} loading="lazy" /> : <ProductArt title={p.title} />}
-                    {sold && <span className="tag-sold">Sold out</span>}
-                  </div>
-                  <div className="pinfo">
-                    <span className="ptitle">{p.title}</span>
-                    <span className="pprice">{from != null && `${p.variants.length > 1 ? "From " : ""}${money(from, p.currency)}`}</span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+          <ProductGrid market={market} products={products} />
         ) : (
           <div className="sf-empty">
             <h3>Nothing here yet</h3>

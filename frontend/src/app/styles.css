@@ -756,7 +756,8 @@ body:has(.sf) { background: #fff9f1; }
 .admin .rtebtn:hover { background: #e5e5e5; }
 .admin .rtebtn.b { font-weight: 800; } .admin .rtebtn.i { font-style: italic; } .admin .rtebtn.u { text-decoration: underline; }
 .admin .rte-body { min-height: 150px; max-height: 420px; overflow-y: auto; padding: 12px 14px; outline: none; line-height: 1.6; }
-.admin .rte-body:empty::before { content: "Describe the product…"; color: #9a9a9a; }
+.admin .rte-body:empty::before { content: attr(data-placeholder); color: #9a9a9a; }
+.admin .rte-body:not([data-placeholder]):empty::before { content: "Describe the product…"; }
 .admin .rte-body h2 { font-size: 18px; margin: 12px 0 6px; } .admin .rte-body h3 { font-size: 15px; margin: 10px 0 6px; }
 .admin .rte-body p { margin: 0 0 10px; } .admin .rte-body ul, .admin .rte-body ol { margin: 0 0 10px; padding-left: 22px; }
 .admin .rte-body a { color: var(--link); }
@@ -1033,3 +1034,23 @@ body:has(.sf) { background: #fff9f1; }
 .sf .desc iframe { width: 100%; aspect-ratio: 16 / 9; height: auto; border: 0; border-radius: 10px; }
 .sf .desc h4 { font-size: 15px; margin: 14px 0 6px; }
 .sf .desc hr { border: 0; border-top: 1px solid #e6dccb; margin: 18px 0; }
+
+/* storefront: collections, blog */
+.sf .collrow { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 28px; }
+.sf .collchip { padding: 9px 18px; border: 1px solid var(--line); border-radius: 999px; background: #fff; font-weight: 600; font-size: 14px; }
+.sf .collchip:hover { border-color: var(--accent); color: var(--accent); }
+.sf .postlist { display: grid; gap: 22px; margin-top: 18px; }
+.sf .postcard { display: grid; grid-template-columns: 200px 1fr; gap: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.sf .postcard:not(:has(img)) { grid-template-columns: 1fr; }
+.sf .postcard img { width: 200px; height: 140px; object-fit: cover; border-radius: 10px; }
+.sf .postcard h2 { font-family: Georgia, serif; font-size: 20px; margin: 0 0 4px; }
+.sf .postcard p { margin: 8px 0 0; color: var(--muted); }
+.sf .postcover { width: 100%; max-height: 380px; object-fit: cover; border-radius: 14px; margin: 8px 0 18px; }
+@media (max-width: 600px) { .sf .postcard { grid-template-columns: 1fr; } .sf .postcard img { width: 100%; height: 180px; } }
+.sf .giftrow { display: flex; gap: 8px; margin-top: 12px; }
+.sf .giftrow input { flex: 1; text-transform: uppercase; letter-spacing: .06em; }
+.sf .giftok { color: var(--ok, #1a7f4b); font-size: 14px; margin-top: 6px; }
+
+/* admin: radios sized like checkboxes; file pickers styled as buttons */
+.admin input[type=radio] { width: 16px; height: 16px; accent-color: #303030; flex: none; margin: 0; }
+.admin label.btn-link { height: 34px; padding: 0 14px; font-size: 13px; cursor: pointer; }

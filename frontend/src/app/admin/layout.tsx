@@ -147,8 +147,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {l.label === "Online Store" && path.startsWith("/admin/online-store") && (
                 <div className="sub">
                   <Link href="/admin/online-store/pages" className={path.startsWith("/admin/online-store/pages") ? "active" : ""}>Pages</Link>
+                  <Link href="/admin/online-store/blog" className={path.startsWith("/admin/online-store/blog") ? "active" : ""}>Blog posts</Link>
                   <Link href="/admin/online-store/preferences" className={path.startsWith("/admin/online-store/preferences") ? "active" : ""}>Preferences</Link>
                   <a href="/uk" target="_blank" rel="noreferrer">View your store ↗</a>
+                </div>
+              )}
+              {l.label === "Products" && (path.startsWith("/admin/products") || path.startsWith("/admin/collections") || path.startsWith("/admin/gift-cards")) && (
+                <div className="sub">
+                  <Link href="/admin/products" className={path === "/admin/products" || path.startsWith("/admin/products/labels") ? "active" : ""}>All products</Link>
+                  {can("products.view") && <Link href="/admin/collections" className={path.startsWith("/admin/collections") ? "active" : ""}>Collections</Link>}
+                  {can("gift_cards.view") && <Link href="/admin/gift-cards" className={path.startsWith("/admin/gift-cards") ? "active" : ""}>Gift cards</Link>}
+                  {can("products.manage") && <Link href="/admin/products/import" className={path.startsWith("/admin/products/import") ? "active" : ""}>Import from Shopify</Link>}
                 </div>
               )}
               {l.label === "Orders" && path.startsWith("/admin/orders") && (

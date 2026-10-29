@@ -104,6 +104,7 @@ export function ProductList({ onAdd, onEdit }: { onAdd: () => void; onEdit: (id:
         </h2>
         <div className="headtools">
           <button onClick={exportCsv}>{sel.size ? `Export ${sel.size} selected` : "Export"}</button>
+          <Link className="btn-link" href="/admin/products/import">Import</Link>
           <Link className="btn-link" href={sel.size ? `/admin/products/labels?ids=${[...sel].join(",")}` : "/admin/products/labels"}>{sel.size ? `Print labels (${sel.size})` : "Print labels"}</Link>
           <button className="primary" onClick={onAdd}>Add product</button>
         </div>

@@ -7,6 +7,7 @@ import { api, money, type Order } from "@/lib/api";
 import { carriers, trackingUrl } from "@/lib/carriers";
 import { Badge } from "./hooks";
 import { OrderEmails } from "./OrderEmails";
+import { ShippingLabel } from "./ShippingLabel";
 import { External } from "../Icons";
 import { Select } from "../Select";
 
@@ -73,6 +74,7 @@ export function OrderDetail({ id }: { id: string }) {
               <div><span>Shipping</span><span>{o.shipping ? money(o.shipping, o.currency) : "Free"}</span></div>
               <div><span>{o.market.taxInclusive ? "Tax (included)" : "Tax"}{region ? ` · ${region}` : ""}</span><span>{money(o.tax, o.currency)}</span></div>
               <div className="grand"><span>Total</span><span>{money(o.total, o.currency)}</span></div>
+              {!!o.giftCardAmount && <div><span>Paid by gift card</span><span>{money(o.giftCardAmount, o.currency)}</span></div>}
             </div>
           </div>
 
@@ -135,6 +137,8 @@ export function OrderDetail({ id }: { id: string }) {
               {o.shippedAt && <p className="muted">Fulfilled {new Date(o.shippedAt).toLocaleString()}</p>}
             </div>
           )}
+
+          {!isDraft && paid && o.status !== "cancelled" && o.items.some((i) => i.physical) && <ShippingLabel orderId={id} weightG={ship.weight} tick={emailTick} onChanged={(m) => run(async () => {}, m)} />}
 
           <OrderEmails orderId={id} paid={paid} hasEmail={!!o.customer?.email} tick={emailTick} onChanged={() => setEmailTick((t) => t + 1)} />
         </div>

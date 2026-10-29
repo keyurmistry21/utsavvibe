@@ -39,6 +39,13 @@ export function Preferences() {
     setSaving(false);
   };
   const { data: pages } = useApi<{ handle: string; title: string; visible: boolean }[]>("/online-store/pages");
+  const { data: colls } = useApi<{ handle: string; title: string; visible: boolean }[]>("/collections");
+  const quick = [
+    { label: "Blog", url: "/blog" },
+    { label: "All collections", url: "/collections" },
+    ...(colls ?? []).filter((x) => x.visible).map((x) => ({ label: x.title, url: `/collections/${x.handle}` })),
+    ...(pages ?? []).filter((x) => x.visible).map((x) => ({ label: x.title, url: `/pages/${x.handle}` })),
+  ];
   const f = (k: "storeName" | "publicUrl" | "announcement" | "tagline" | "metaTitle" | "metaDescription", label: string, hint?: string, area = false) => p && (
     <div className="field"><label htmlFor={`pf-${k}`}>{label}</label>
       {area
@@ -68,8 +75,8 @@ export function Preferences() {
             {f("metaDescription", "Meta description", `${p.metaDescription.length} of 320 characters used`, true)}
           </div>
           <div style={{ maxWidth: 720 }}>
-            <MenuCard id="header" title="Header menu" hint="Links across the top of every storefront page. A link of / is the shop home." items={p.headerMenu} onChange={(headerMenu) => setP({ ...p, headerMenu })} val={val} pages={(pages ?? []).filter((x) => x.visible)} />
-            <MenuCard id="footer" title="Footer menu" hint="Links at the bottom of every page. Good for policies and contact." items={p.footerMenu} onChange={(footerMenu) => setP({ ...p, footerMenu })} val={val} pages={(pages ?? []).filter((x) => x.visible)} />
+            <MenuCard id="header" title="Header menu" hint="Links across the top of every storefront page. A link of / is the shop home." items={p.headerMenu} onChange={(headerMenu) => setP({ ...p, headerMenu })} val={val} quick={quick} />
+            <MenuCard id="footer" title="Footer menu" hint="Links at the bottom of every page. Good for policies and contact." items={p.footerMenu} onChange={(footerMenu) => setP({ ...p, footerMenu })} val={val} quick={quick} />
           </div>
           {msg && <div className={msg.ok ? "okmsg" : "error"} style={{ maxWidth: 720 }}>{msg.text}</div>}
           <div className="savebar" style={{ maxWidth: 720 }}><span style={{ flex: 1 }} /><button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button></div>

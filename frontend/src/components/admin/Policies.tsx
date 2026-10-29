@@ -40,7 +40,7 @@ function PolicyEditor({ row, onDone }: { row: Row; onDone: () => void }) {
       <div className="pagehead"><h2>{row.title}</h2><div className="headtools"><button onClick={useTemplate}>Use starter template</button></div></div>
       {err && <div className="error">{err}</div>}
       <div className="card" style={{ maxWidth: 820 }}>
-        {data ? <RichTextEditor value={value} onChange={setContent} resetKey={`${row.key}-${reset}-${data ? "1" : "0"}`} /> : <p className="muted">Loading…</p>}
+        {data ? <RichTextEditor value={value} onChange={setContent} resetKey={`${row.key}-${reset}-${data ? "1" : "0"}`} placeholder="Write the policy…" /> : <p className="muted">Loading…</p>}
         <p className="muted" style={{ marginBottom: 0 }}>Leave it empty to unpublish. Published policies are linked in the footer of your online store. Templates contain [brackets] you must fill in, and aren't legal advice.</p>
       </div>
       <div className="savebar"><span style={{ flex: 1 }} /><button onClick={onDone}>Discard</button><button className="primary" disabled={busy || !data} onClick={save}>{busy ? "Saving…" : "Save"}</button></div>
