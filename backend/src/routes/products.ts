@@ -1,9 +1,12 @@
-import { Router, raw } from "express";
+import { Router, raw, text } from "express";
+import type { Request } from "express";
+import { actor } from "../auth.js";
 import { z } from "zod";
 import { prisma, parseJson } from "../db.js";
 import { processImage } from "../images.js";
 import { csvCell } from "../csv.js";
 import { normalizeHandle, sanitizeDescription } from "../html.js";
+import { importProduct, keepParsed, parseShopify, takeParsed } from "../shopifyImport.js";
 import { imageFiles, imageUrls, removeFiles, saveFile } from "../storage.js";
 
 export const productsRouter = Router();
@@ -21,6 +24,7 @@ const productInput = z.object({
   continueSelling: z.boolean().default(false),
   physical: z.boolean().default(true),
   chargeTax: z.boolean().default(true),
+  isGiftCard: z.boolean().default(false), // variants are denominations; paying issues a gift card code
   seoTitle: z.string().trim().max(70).default(""),
   seoDescription: z.string().trim().max(320).default(""),
   tags: z.array(z.string()).default([]),
@@ -46,8 +50,10 @@ const productInput = z.object({
     .min(1),
 });
 
+// a gift card is a voucher: nothing to ship, nothing to count, and gift cards are not taxed when sold (tax applies when the balance is spent)
 const flags = (d: z.infer<typeof productInput>) => ({
-  trackInventory: d.trackInventory, continueSelling: d.continueSelling, physical: d.physical, chargeTax: d.chargeTax,
+  isGiftCard: d.isGiftCard,
+  trackInventory: d.isGiftCard ? false : d.trackInventory, continueSelling: d.continueSelling, physical: d.isGiftCard ? false : d.physical, chargeTax: d.isGiftCard ? false : d.chargeTax,
   seoTitle: d.seoTitle, seoDescription: d.seoDescription || null,
 });
 
@@ -232,6 +238,55 @@ productsRouter.get("/export", async (req, res) => {
   res.setHeader("content-type", "text/csv; charset=utf-8");
   res.setHeader("content-disposition", `attachment; filename="products-${new Date().toISOString().slice(0, 10)}.csv"`);
   res.send([header.map(csvCell).join(","), ...lines].join("\r\n"));
+});
+
+// ---- Shopify CSV import ----
+// Step 1: upload the CSV text (preview, nothing is written). Step 2: import in small batches of handles so big catalogs and image downloads don't time out.
+const csvBody = text({ type: () => true, limit: "20mb" });
+const uid = (req: Request) => String(actor(req)?.id ?? "admin");
+
+productsRouter.post("/import/preview", csvBody, async (req, res) => {
+  if (typeof req.body !== "string" || !req.body.trim()) throw Object.assign(new Error("Choose a CSV file first"), { status: 400 });
+  const parsed = parseShopify(req.body);
+  const [markets, existing] = await Promise.all([
+    prisma.market.findMany({ orderBy: { code: "asc" }, select: { id: true, code: true, name: true, currency: true, countries: true } }),
+    prisma.product.findMany({ where: { handle: { in: parsed.products.map((p) => p.handle) } }, select: { handle: true } }),
+  ]);
+  const have = new Set(existing.map((e) => e.handle));
+  const regionName = new Intl.DisplayNames(["en"], { type: "region" });
+  res.json({
+    token: keepParsed(parsed, uid(req)),
+    skippedRows: parsed.skipped,
+    priceColumns: parsed.priceColumns,
+    markets: markets.map((m) => ({
+      id: m.id, code: m.code, name: m.name, currency: m.currency,
+      // "Price / United Kingdom" style columns Shopify adds when a store sells in several markets
+      suggested: parsed.priceColumns.find((c) => parseJsonArr(m.countries).some((cc) => c.toLowerCase().endsWith(` / ${regionName.of(cc)?.toLowerCase()}`))) ?? null,
+    })),
+    products: parsed.products.map((p) => ({ handle: p.handle, title: p.title, status: p.status, variants: p.variants.length, images: p.images.length, exists: have.has(p.handle), samplePrice: p.variants[0]?.price ?? "" })),
+  });
+});
+
+const parseJsonArr = (s: string) => parseJson<string[]>(s, []);
+
+productsRouter.post("/import", async (req, res) => {
+  const d = z.object({
+    token: z.string().min(10).max(80),
+    handles: z.array(z.string()).min(1).max(15),
+    markets: z.array(z.object({ marketId: z.string(), source: z.string().max(200) })).min(1, "Choose at least one market to sell in"),
+    images: z.boolean().default(true),
+  }).parse(req.body);
+  const parsed = takeParsed(d.token, uid(req));
+  const real = new Set((await prisma.market.findMany({ where: { id: { in: d.markets.map((m) => m.marketId) } }, select: { id: true } })).map((m) => m.id));
+  if (d.markets.some((m) => !real.has(m.marketId))) throw Object.assign(new Error("unknown market"), { status: 400 });
+  for (const m of d.markets) if (m.source !== "base" && !parsed.priceColumns.includes(m.source)) throw Object.assign(new Error("unknown price column"), { status: 400 });
+  const wanted = new Set(d.handles);
+  const out = [];
+  for (const p of parsed.products.filter((x) => wanted.has(x.handle))) {
+    try { out.push(await importProduct(p, { markets: d.markets, images: d.images })); }
+    catch (e) { out.push({ handle: p.handle, status: "failed" as const, message: (e as Error).message.slice(0, 200), warnings: [] }); }
+  }
+  res.json({ results: out });
 });
 
 // Which of these SKUs / barcodes are already used by another product? Powers the Generate buttons in the editor.

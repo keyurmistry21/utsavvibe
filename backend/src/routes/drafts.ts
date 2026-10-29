@@ -67,6 +67,7 @@ async function build(d: DraftInput) {
       continue;
     }
     const v = await prisma.variant.findUnique({ where: { id: it.variantId }, include: { product: true, prices: { where: { marketId: market.id } } } });
+    if (v?.product.isGiftCard) throw Object.assign(new Error("Gift cards can't be added to draft orders. Create one under Gift cards instead."), { status: 400 });
     if (!v) throw bad("item not found");
     const unitPrice = it.unitPrice ?? v.prices[0]?.amount;
     if (unitPrice == null) throw bad(`"${v.product.title}" has no price in ${market.name}. Set a custom price.`);

@@ -130,3 +130,12 @@ export function testEmail() {
     text: "This is a test email from your store admin. Email sending works.",
   };
 }
+
+export function giftCardEmail(g: { code: string; amount: number; currency: string; expiresAt?: Date | null }) {
+  const amount = fmt(g.amount, g.currency);
+  const site = process.env.STOREFRONT_URL ?? "";
+  const body = `<div style="margin:18px 0;padding:18px;border:2px dashed ${COLORS.accent};border-radius:12px;text-align:center"><div style="color:${COLORS.muted};font-size:12px;text-transform:uppercase;letter-spacing:.08em">Gift card code</div><div style="font-family:Menlo,Consolas,monospace;font-size:24px;font-weight:700;letter-spacing:.08em;margin-top:6px">${esc(g.code)}</div></div><p style="color:${COLORS.muted};font-size:13px;line-height:1.6">Enter this code at checkout to pay. Any balance left stays on the card.${g.expiresAt ? ` Valid until ${esc(g.expiresAt.toLocaleDateString("en", { dateStyle: "long" }))}.` : ""}</p>`;
+  const html = layout({ preheader: `Your ${amount} gift card`, heading: `Your ${amount} gift card`, intro: "Here is your gift card. Keep this email safe: anyone with the code can spend the balance.", body, cta: site ? { label: "Start shopping", url: site } : undefined });
+  const text = `Your ${amount} gift card\n\nCode: ${g.code}\n\nEnter this code at checkout to pay. Anyone with the code can spend the balance, so keep it safe.${site ? `\n\n${site}` : ""}`;
+  return { subject: `Your ${amount} gift card from ${storeName()}`, html, text };
+}

@@ -5,6 +5,7 @@ export const PERMISSION_GROUPS = [
   { group: "Orders", items: [["orders.view", "View orders and draft orders"], ["orders.manage", "Create drafts, take payment, fulfil, cancel, edit tracking"]] },
   { group: "Products", items: [["products.view", "View products and stock"], ["products.manage", "Create, edit, delete products, prices, images, barcodes"]] },
   { group: "Customers", items: [["customers.view", "View customers"], ["customers.manage", "Create, edit, import, export customers"]] },
+  { group: "Gift cards", items: [["gift_cards.view", "View gift cards and balances"], ["gift_cards.manage", "Issue, adjust and disable gift cards"]] },
   { group: "Analytics", items: [["analytics.view", "View sales reports and the dashboard"]] },
   { group: "Markets", items: [["markets.manage", "Manage markets, tax rates and shipping rates"]] },
   { group: "Online store", items: [["online_store.manage", "Manage pages, menus and storefront preferences"]] },

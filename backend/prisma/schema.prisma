@@ -68,6 +68,8 @@ model Product {
   variants    Variant[]
   markets     ProductMarket[]
   images      ProductImage[]
+  collections CollectionProduct[]
+  isGiftCard  Boolean         @default(false) // selling this product issues a gift card code (variants = denominations)
 }
 
 // Which markets a product is sold in.
@@ -153,6 +155,12 @@ model Order {
   trackingUrl     String?     @db.Text
   packageWeightG  Int?
   shippedAt       DateTime?
+  giftCardCode    String?     // gift card applied at checkout
+  giftCardAmount  Int         @default(0) // minor units of `total` paid by gift card
+  labelUrl        String?     @db.Text // purchased carrier label (PDF)
+  labelId         String?     // carrier transaction id (needed to void)
+  labelCost       Int?        // minor units, in labelCurrency
+  labelCurrency   String?
   tags            String @db.Text
   notes           String @db.Text
   createdAt       DateTime    @default(now())
@@ -171,6 +179,7 @@ model OrderItem {
   taxable   Boolean @default(true)
   physical  Boolean @default(true) // false = digital/service: no shipping needed
   weightG   Int     @default(0)
+  giftCard  Boolean @default(false) // this line sells gift card(s); issued when the order is paid
 }
 
 // Single-row-per-name counters (order numbers).
@@ -282,4 +291,83 @@ model EmailLog {
   createdAt DateTime @default(now())
 
   @@index([orderId, kind])
+}
+
+// ---- collections ----
+// manual: hand-picked products (CollectionProduct). smart: `rules` JSON {match:"all"|"any", conditions:[{field,value}]} evaluated at read time.
+model Collection {
+  id             String   @id @default(cuid())
+  title          String
+  handle         String   @unique
+  description    String   @db.Text
+  kind           String   @default("manual") // manual | smart
+  rules          String   @db.Text // JSON, smart collections only
+  visible        Boolean  @default(true)
+  seoTitle       String   @default("")
+  seoDescription String   @default("") @db.VarChar(500)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  products       CollectionProduct[]
+}
+
+model CollectionProduct {
+  collectionId String
+  productId    String
+  position     Int        @default(0)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, productId])
+}
+
+// ---- blog ----
+model BlogPost {
+  id             String    @id @default(cuid())
+  title          String
+  handle         String    @unique
+  excerpt        String    @default("") @db.VarChar(500)
+  content        String    @db.Text
+  author         String    @default("")
+  tags           String    @db.Text // JSON array
+  coverImage     String    @default("") @db.VarChar(500) // image URL (from the upload dir or any https image)
+  published      Boolean   @default(false)
+  publishedAt    DateTime? // shown date; future date = scheduled
+  seoTitle       String    @default("")
+  seoDescription String    @default("") @db.VarChar(500)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// ---- gift cards ----
+// code is random, never derived from anything guessable. balance is minor units in `currency`; cards only work in markets with that currency.
+model GiftCard {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  currency       String
+  initialAmount  Int
+  balance        Int
+  active         Boolean  @default(true)
+  expiresAt      DateTime?
+  recipientEmail String?
+  note           String   @db.Text
+  orderId        String?  // order that sold it (customer purchase)
+  orderItemId    String?
+  createdAt      DateTime @default(now())
+  txs            GiftCardTx[]
+
+  @@index([orderItemId])
+}
+
+// Ledger: amount < 0 spends, > 0 adds. A redeem is reserved when checkout starts and given back (kind "release") if the order never gets paid.
+model GiftCardTx {
+  id         String   @id @default(cuid())
+  giftCardId String
+  giftCard   GiftCard @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
+  orderId    String?
+  amount     Int
+  kind       String   // issue | redeem | release | adjust
+  note       String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
 }

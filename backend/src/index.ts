@@ -17,6 +17,10 @@ import { policiesRouter } from "./routes/policies.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { ensureRoles } from "./permissions.js";
 import { onlineStoreRouter } from "./routes/onlineStore.js";
+import { collectionsRouter } from "./routes/collections.js";
+import { blogRouter } from "./routes/blog.js";
+import { giftCardsRouter } from "./routes/giftCards.js";
+import { shippingLabelsRouter } from "./routes/shippingLabels.js";
 import { analyticsRouter } from "./routes/analytics.js";
 import { storeRouter, stripeWebhook, webhookBody } from "./routes/store.js";
 
@@ -43,6 +47,10 @@ app.use("/api/admin/analytics", guard({ write: ["analytics.view"] }), analyticsR
 app.use("/api/admin/drafts", guard({ read: ["orders.view"], write: ["orders.manage"] }), draftsRouter);
 app.use("/api/admin/settings", guard({ readOpen: true, write: ["settings.manage"] }), settingsRouter);
 app.use("/api/admin/online-store", guard({ write: ["online_store.manage"] }), onlineStoreRouter);
+app.use("/api/admin/collections", guard({ read: ["products.view"], write: ["products.manage"] }), collectionsRouter);
+app.use("/api/admin/blog", guard({ write: ["online_store.manage"] }), blogRouter);
+app.use("/api/admin/gift-cards", guard({ read: ["gift_cards.view"], write: ["gift_cards.manage"] }), giftCardsRouter);
+app.use("/api/admin/orders", guard({ read: ["orders.view"], write: ["orders.manage"] }), shippingLabelsRouter);
 app.use("/api/admin/locations", guard({ write: ["settings.manage"] }), locationsRouter);
 app.use("/api/admin/policies", guard({ write: ["settings.manage"] }), policiesRouter);
 app.use("/api/admin/payments", guard({ write: ["settings.manage"] }), paymentsRouter);

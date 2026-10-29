@@ -12,6 +12,9 @@ import { imageUrls } from "../storage.js";
 import { sendOrderConfirmation } from "../orderEmails.js";
 import { loadPrefs } from "./onlineStore.js";
 import { publicPolicy, publishedPolicies } from "./policies.js";
+import { publicCollection, publicCollections } from "./collections.js";
+import { publicPost, publicPosts } from "./blog.js";
+import { issueForPaidOrder, releaseForOrder, reserve, splitPayment, usableCard } from "../giftCards.js";
 
 // Public storefront API: catalog, quote, checkout. Plus Stripe webhook.
 export const storeRouter = Router();
@@ -50,6 +53,14 @@ storeRouter.get("/pages", async (_req, res) => {
 
 storeRouter.get("/pages/:handle", async (req, res) => {
   const p = await prisma.page.findFirst({ where: { handle: req.params.handle, visible: true }, select: { handle: true, title: true, content: true, seoTitle: true, seoDescription: true, updatedAt: true } });
+  if (!p) return void res.status(404).json({ error: "not found" });
+  res.json(p);
+});
+
+storeRouter.get("/collections", async (_req, res) => res.json(await publicCollections()));
+storeRouter.get("/blog", async (_req, res) => res.json(await publicPosts()));
+storeRouter.get("/blog/:handle", async (req, res) => {
+  const p = await publicPost(req.params.handle);
   if (!p) return void res.status(404).json({ error: "not found" });
   res.json(p);
 });
@@ -96,6 +107,20 @@ storeRouter.get("/markets/:code/products", async (req, res) => {
   res.json(products.map((p) => publicProduct(p, market.currency)));
 });
 
+// A collection's products as the market sees them (active and sold there), in the collection's order.
+storeRouter.get("/markets/:code/collections/:handle", async (req, res) => {
+  const market = await prisma.market.findFirst({ where: { code: req.params.code, active: true } });
+  const c = market && (await publicCollection(req.params.handle));
+  if (!market || !c) return void res.status(404).json({ error: "not found" });
+  const products = await prisma.product.findMany({
+    where: { ...catalogQuery(market.id), id: { in: c.productIds } },
+    include: { images: { orderBy: { position: "asc" } }, markets: { where: { marketId: market.id } }, variants: { include: { prices: { where: { marketId: market.id } } } } },
+  });
+  const order = new Map(c.productIds.map((id, i) => [id, i]));
+  products.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+  res.json({ ...c.collection, products: products.map((p) => publicProduct(p, market.currency)) });
+});
+
 storeRouter.get("/markets/:code/products/:handle", async (req, res) => {
   const market = await prisma.market.findFirst({ where: { code: req.params.code, active: true } });
   const product =
@@ -113,6 +138,7 @@ const cartInput = z.object({
   items: z.array(z.object({ variantId: z.string(), quantity: z.number().int().min(1).max(99) })).min(1),
   shippingRateId: z.string().optional(),
   region: z.string().max(8).optional(), // province/state code, drives tax
+  giftCardCode: z.string().trim().max(40).optional(),
 });
 
 // Server-side pricing: never trust client prices.
@@ -140,6 +166,7 @@ async function priceCart(d: z.infer<typeof cartInput>) {
       weightG: v.weightG,
       taxable: v.product.chargeTax,
       physical: v.product.physical,
+      giftCard: v.product.isGiftCard,
     });
   }
   const subtotal = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
@@ -152,9 +179,19 @@ async function priceCart(d: z.infer<typeof cartInput>) {
   return { market, region, taxRateBps, lines, subtotal, tax, shipping, shippingRate: ship.rate, total };
 }
 
+// Gift card for this cart, or null. Gift cards can't pay for gift cards (keeps card-to-card laundering and fee dodging out).
+async function giftCardFor(q: Awaited<ReturnType<typeof priceCart>>, code?: string) {
+  if (!code) return null;
+  if (q.lines.some((l) => l.giftCard)) throw bad("Gift cards can't be used to buy gift cards");
+  const card = await usableCard(code, q.market.currency);
+  return { card, ...splitPayment(card.balance, q.total, q.subtotal + (q.market.taxInclusive ? 0 : q.tax)) };
+}
+
 storeRouter.post("/quote", async (req, res) => {
-  const q = await priceCart(cartInput.parse(req.body));
-  res.json({ currency: q.market.currency, taxInclusive: q.market.taxInclusive, taxRateBps: q.taxRateBps, region: q.region ?? null, lines: q.lines, subtotal: q.subtotal, tax: q.tax, shipping: q.shipping, total: q.total });
+  const d = cartInput.parse(req.body);
+  const q = await priceCart(d);
+  const gc = await giftCardFor(q, d.giftCardCode);
+  res.json({ currency: q.market.currency, taxInclusive: q.market.taxInclusive, taxRateBps: q.taxRateBps, region: q.region ?? null, lines: q.lines, subtotal: q.subtotal, tax: q.tax, shipping: q.shipping, total: q.total, giftCardApplied: gc?.applied ?? 0, amountDue: q.total - (gc?.applied ?? 0), giftCardBalance: gc?.card.balance ?? null });
 });
 
 storeRouter.post("/checkout", async (req, res) => {
@@ -169,14 +206,17 @@ storeRouter.post("/checkout", async (req, res) => {
   const q = await priceCart({ ...d, region: d.address.region });
   if (q.market.regions.length && !q.region) throw bad("select your province/state");
   if (!JSON.parse(q.market.countries).includes(d.address.country)) throw bad(`${q.market.name} market does not ship to ${d.address.country}`);
-  
+  const gc = await giftCardFor(q, d.giftCardCode);
+  const applied = gc?.applied ?? 0;
+  const covered = !!gc && applied === q.total; // (can only happen when shipping is free or the cart is items only) // the gift card pays everything: no Stripe session needed
+
   const order = await prisma.$transaction(async (tx) => {
     const customer = await tx.customer.upsert({
       where: { email: d.email },
       create: { email: d.email, name: d.name, phone: d.phone, tags: "[]", notes: "" },
       update: { name: d.name, phone: d.phone ?? undefined },
     });
-    return tx.order.create({
+    const o = await tx.order.create({
       data: {
         number: await nextOrderNumber(tx),
         customerId: customer.id,
@@ -191,9 +231,23 @@ storeRouter.post("/checkout", async (req, res) => {
         tags: "[]",
         notes: "",
         items: { create: q.lines },
+        ...(applied > 0 ? { giftCardCode: gc!.card.code, giftCardAmount: applied } : {}),
+        ...(covered ? { paymentStatus: "paid", paymentMethod: "gift_card" } : {}),
       },
     });
+    if (applied > 0) await reserve(tx, gc!.card.id, applied, o.id);
+    if (covered) {
+      for (const i of q.lines) {
+        const v = await tx.variant.findUnique({ where: { id: i.variantId }, include: { product: { select: { trackInventory: true } } } });
+        if (v && shouldDecrement(v.product)) await tx.variant.update({ where: { id: i.variantId }, data: { inventory: { decrement: i.quantity } } });
+      }
+    }
+    return o;
   });
+  if (covered) {
+    void sendOrderConfirmation(order.id);
+    return void res.json({ url: `${process.env.STOREFRONT_URL}/${q.market.code.toLowerCase()}/order/${order.number}`, orderNumber: order.number });
+  }
 
   let session: Stripe.Checkout.Session;
   try {
@@ -206,14 +260,16 @@ storeRouter.post("/checkout", async (req, res) => {
       taxRateBps: q.taxRateBps,
       lines: q.lines,
       tax: q.tax,
-      discount: 0,
+      discount: applied,
+      discountNote: applied ? "Gift card" : undefined,
       shipping: q.shipping,
       shippingName: q.shippingRate?.name ?? "Shipping",
       email: d.email,
     });
   } catch (e) {
-    // don't leave a pending order behind if Stripe rejects the session
+    // don't leave a pending order behind if Stripe rejects the session, and give the gift card its money back
     await prisma.order.update({ where: { id: order.id }, data: { paymentStatus: "failed", status: "cancelled" } });
+    await releaseForOrder(order.id);
     throw e;
   }
   await prisma.order.update({ where: { id: order.id }, data: { stripeSessionId: session.id } });
@@ -236,7 +292,8 @@ export async function stripeWebhook(req: Request, res: Response) {
       if (event.type === "checkout.session.expired") {
         // an expired payment link on a draft just clears the link; the draft stays editable
         await prisma.order.updateMany({ where: { id: orderId, status: "draft" }, data: { paymentLinkUrl: null, stripeSessionId: null } });
-        await prisma.order.updateMany({ where: { id: orderId, paymentStatus: "pending", status: { not: "draft" } }, data: { paymentStatus: "failed", status: "cancelled" } });
+        const expired = await prisma.order.updateMany({ where: { id: orderId, paymentStatus: "pending", status: { not: "draft" } }, data: { paymentStatus: "failed", status: "cancelled" } });
+        if (expired.count) await releaseForOrder(orderId);
       } else {
         // idempotent: only the first delivery flips pending -> paid and decrements stock
         const newlyPaid = await prisma.$transaction(async (tx) => {
@@ -255,7 +312,10 @@ export async function stripeWebhook(req: Request, res: Response) {
           return true;
         });
         // after the commit, and never allowed to fail the webhook (Stripe would retry and we'd double-process)
-        if (newlyPaid) void sendOrderConfirmation(orderId);
+        if (newlyPaid) {
+          void sendOrderConfirmation(orderId);
+          void issueForPaidOrder(orderId);
+        }
       }
     }
   }
