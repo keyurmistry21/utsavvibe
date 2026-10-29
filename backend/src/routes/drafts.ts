@@ -1,4 +1,6 @@
 import { Router } from "express";
+import type { Request } from "express";
+import { assertMarketAllowed, orderScopeParam } from "../auth.js";
 import { z } from "zod";
 import { prisma, nextOrderNumber } from "../db.js";
 import { priceTotals, pickShipping, taxRateFor } from "../money.js";
@@ -57,9 +59,10 @@ const draftInput = z.object({
 type DraftInput = z.infer<typeof draftInput>;
 
 // Same pricing rules as the storefront, except staff may override unit prices, shipping and discount.
-async function build(d: DraftInput) {
+async function build(d: DraftInput, req: Request) {
   const market = await prisma.market.findUnique({ where: { id: d.marketId }, include: { shippingRates: true, regions: true } });
   if (!market) throw bad("unknown market");
+  await assertMarketAllowed(req, market.id); // staff may only create orders in markets an admin allowed
   const lines = [];
   for (const it of d.items) {
     if (!it.variantId) {
@@ -98,16 +101,17 @@ async function build(d: DraftInput) {
 const shipName = (d: DraftInput, customerName?: string | null) => `${d.address.firstName ?? ""} ${d.address.lastName ?? ""}`.trim() || customerName || "";
 
 const include = { items: true, customer: true, market: { include: { regions: true } } } as const;
+draftsRouter.param("id", orderScopeParam);
 
 draftsRouter.post("/quote", async (req, res) => {
   const d = draftInput.parse(req.body);
-  const b = await build(d);
+  const b = await build(d, req);
   res.json({ region: d.address.region || null, currency: b.market.currency, taxInclusive: b.market.taxInclusive, taxRateBps: b.taxRateBps, lines: b.lines, subtotal: b.subtotal, discount: b.discount, tax: b.tax, shipping: b.shipping, total: b.total });
 });
 
 draftsRouter.post("/", async (req, res) => {
   const d = draftInput.parse(req.body);
-  const b = await build(d);
+  const b = await build(d, req);
   const order = await prisma.$transaction(async (tx) => {
     return tx.order.create({
       data: {
@@ -144,7 +148,7 @@ async function getDraft(id: string) {
 draftsRouter.put("/:id", async (req, res) => {
   await getDraft(req.params.id);
   const d = draftInput.parse(req.body);
-  const b = await build(d);
+  const b = await build(d, req);
   const order = await prisma.$transaction(async (tx) => {
     await tx.orderItem.deleteMany({ where: { orderId: req.params.id } });
     return tx.order.update({

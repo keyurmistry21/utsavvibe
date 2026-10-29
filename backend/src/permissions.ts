@@ -6,6 +6,7 @@ export const PERMISSION_GROUPS = [
   { group: "Products", items: [["products.view", "View products and stock"], ["products.manage", "Create, edit, delete products, prices, images, barcodes"]] },
   { group: "Customers", items: [["customers.view", "View customers"], ["customers.manage", "Create, edit, import, export customers"]] },
   { group: "Gift cards", items: [["gift_cards.view", "View gift cards and balances"], ["gift_cards.manage", "Issue, adjust and disable gift cards"]] },
+  { group: "Expenses", items: [["expenses.view", "View expenses"], ["expenses.manage", "Add, edit and delete expenses"]] },
   { group: "Analytics", items: [["analytics.view", "View sales reports and the dashboard"]] },
   { group: "Markets", items: [["markets.manage", "Manage markets, tax rates and shipping rates"]] },
   { group: "Online store", items: [["online_store.manage", "Manage pages, menus and storefront preferences"]] },
@@ -22,7 +23,7 @@ export const OWNER = "Owner";
 
 const DEFAULT_ROLES: { name: string; description: string; permissions: string[] }[] = [
   { name: "Administrator", description: "Everything except managing staff and roles.", permissions: ALL_PERMISSIONS.filter((p) => p !== "users.manage") },
-  { name: "Fulfilment", description: "Pick, pack and ship orders.", permissions: ["orders.view", "orders.manage", "customers.view", "products.view"] },
+  { name: "Fulfilment", description: "Pick, pack and ship orders.", permissions: ["orders.view", "orders.manage", "customers.view", "products.view", "expenses.manage"] },
   { name: "Catalog manager", description: "Products, prices, stock and barcodes.", permissions: ["products.view", "products.manage"] },
   { name: "Content editor", description: "Online store pages and menus only.", permissions: ["online_store.manage"] },
   { name: "Support", description: "Look up orders and look after customers.", permissions: ["orders.view", "customers.view", "customers.manage", "products.view"] },

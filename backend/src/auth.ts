@@ -54,7 +54,7 @@ export function readCookie(req: Request, name: string): string | undefined {
 export async function currentUser(req: Request) {
   const token = sessionToken(req, COOKIE);
   const claims = token ? verifyJwt(token) : null;
-  if (!token || !claims || claims.aud) return null; // customer tokens carry an `aud` and must never act as staff
+  if (!token || !claims) return null;
   const s = await prisma.session.findUnique({ where: { tokenHash: sha(token) }, include: { user: { include: { role: true } } } });
   if (!s || s.id !== claims.sid || s.userId !== claims.sub) return null;
   if (s.expiresAt < new Date()) {
@@ -99,6 +99,37 @@ export const requireAdmin: RequestHandler = async (req, res, next) => {
   next();
 };
 
+// Markets (= currencies) an admin has allowed this staff member to transact in. null = unrestricted (owners, and anyone the admin left on "all").
+export function marketScope(u: { allowedMarkets?: string | null; role?: { name: string; isSystem: boolean; permissions: string } | null }): string[] | null {
+  if (permsOf(u.role).owner) return null;
+  try {
+    const a = JSON.parse(u.allowedMarkets ?? "[]");
+    return Array.isArray(a) && a.length ? a.map(String) : null;
+  } catch { return null; }
+}
+export const scopeCodes = (req: Request) => marketScope((req as Request & { user: Parameters<typeof marketScope>[0] }).user);
+/** The market they work in: their pick if allowed, else their first allowed one. null = all markets. */
+export function workingMarket(u: { preferredMarket?: string | null; allowedMarkets?: string | null; role?: Parameters<typeof marketScope>[0]["role"] }): string | null {
+  const s = marketScope(u);
+  if (!s) return u.preferredMarket ?? null;
+  return u.preferredMarket && s.includes(u.preferredMarket) ? u.preferredMarket : s[0];
+}
+/** 403 unless the market is one this staff member may transact in. */
+export async function assertMarketAllowed(req: Request, marketId: string) {
+  const s = scopeCodes(req);
+  if (!s) return;
+  const m = await prisma.market.findUnique({ where: { id: marketId }, select: { code: true } });
+  if (!m || !s.includes(m.code)) throw Object.assign(new Error("An admin hasn't given you access to that market."), { status: 403 });
+}
+/** router.param("id") guard: an order in a market this staff member can't work in doesn't exist for them. */
+export const orderScopeParam = async (req: Request, res: Response, next: () => void, id: string) => {
+  const s = scopeCodes(req);
+  if (s) {
+    const o = await prisma.order.findUnique({ where: { id }, select: { market: { select: { code: true } } } });
+    if (o && !s.includes(o.market.code)) return void res.status(404).json({ error: "not found" });
+  }
+  next();
+};
 export type AdminReq = Request & { user: NonNullable<Awaited<ReturnType<typeof currentUser>>> };
 export const actor = (req: Request) => (req as AdminReq).user;
 export const actorPerms = (req: Request): Perms => permsOf(actor(req).role);

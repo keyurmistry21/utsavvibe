@@ -140,12 +140,14 @@ const listQuery = z.object({
   dir: z.enum(["asc", "desc"]).default("desc"),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
+  market: z.string().max(8).default(""), // market code: only products sold there
 });
 const LOW_STOCK = 5;
 
 function productWhere(q: z.infer<typeof listQuery>) {
   const text = q.q;
   return {
+    ...(q.market ? { markets: { some: { market: { code: q.market.toUpperCase() } } } } : {}),
     ...(q.status !== "all" ? { status: q.status } : {}),
     ...(text ? { OR: [{ title: { contains: text } }, { vendor: { contains: text } }, { productType: { contains: text } }, { tags: { contains: text } }, { variants: { some: { sku: { contains: text } } } }] } : {}),
     ...(q.filter === "out_of_stock" ? { variants: { none: { inventory: { gt: 0 } } } } : {}),

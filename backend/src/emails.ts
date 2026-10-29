@@ -155,11 +155,3 @@ export function abandonedEmail(o: EmailOrder, url: string, unsubscribeUrl: strin
     text: `You left something in your cart\n\n${o.items.map((i) => `- ${i.title} × ${i.quantity}`).join("\n")}\n\nReturn to your cart: ${url}\n\nUnsubscribe: ${unsubscribeUrl}\n${storeName()}`,
   };
 }
-
-export function passwordResetEmail(url: string) {
-  return {
-    subject: "Reset your password",
-    html: layout({ preheader: "Choose a new password.", heading: "Reset your password", intro: "Use the button below to choose a new password. The link works once and expires in 1 hour. If you didn't ask for this, ignore this email: your password stays the same.", cta: { label: "Choose a new password", url }, body: "" }),
-    text: `Reset your password (link works once and expires in 1 hour):\n${url}\n\nIf you didn't ask for this, ignore this email.\n${storeName()}`,
-  };
-}

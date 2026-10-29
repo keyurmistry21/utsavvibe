@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { orderScopeParam } from "../auth.js";
 import { z } from "zod";
 import { prisma, parseJson } from "../db.js";
 import { buyLabel, getRates, shippoConfigured, voidLabel, type Addr, type Customs } from "../shippo.js";
@@ -7,6 +8,7 @@ import { shipFromAddress } from "./locations.js";
 // Buy / void carrier postage for an order (mounted under /api/admin/orders, needs orders.manage).
 // Buying costs real money, so it only happens on an explicit POST /buy for a rate staff just saw, never automatically.
 export const shippingLabelsRouter = Router();
+shippingLabelsRouter.param("id", orderScopeParam);
 
 const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
 

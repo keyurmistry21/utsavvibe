@@ -3,10 +3,12 @@ import { z } from "zod";
 import { prisma, parseJson } from "../db.js";
 import { previewEmail, sendOrderConfirmation } from "../orderEmails.js";
 import { releaseForOrder } from "../giftCards.js";
+import { orderScopeParam, scopeCodes } from "../auth.js";
 import { emitOrder } from "../webhooks.js";
 import { audit } from "../audit.js";
 
 export const ordersRouter = Router();
+ordersRouter.param("id", orderScopeParam);
 
 const include = { items: true, customer: true, market: { include: { regions: true } } } as const;
 const shape = (o: any) => ({
@@ -17,10 +19,11 @@ const shape = (o: any) => ({
 });
 
 ordersRouter.get("/", async (req, res) => {
-  const { status, paymentStatus, marketId } = req.query as Record<string, string | undefined>;
+  const { status, paymentStatus, marketId, market } = req.query as Record<string, string | undefined>;
+  const scope = scopeCodes(req); // staff limited to some markets only ever see those
   const orders = await prisma.order.findMany({
     // drafts live under /drafts or ?status=draft; they are not orders yet
-    where: { status: status ? status : { not: "draft" }, ...(paymentStatus && { paymentStatus }), ...(marketId && { marketId }) },
+    where: { status: status ? status : { not: "draft" }, ...(paymentStatus && { paymentStatus }), ...(marketId && { marketId }), ...(market ? { market: { code: scope && !scope.includes(market.toUpperCase()) ? "-" : market.toUpperCase() } } : scope ? { market: { code: { in: scope } } } : {}) },
     include,
     orderBy: { createdAt: "desc" },
     take: 200,

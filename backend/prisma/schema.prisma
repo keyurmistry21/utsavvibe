@@ -120,9 +120,6 @@ model Customer {
   acceptsSms      Boolean  @default(false)
   acceptsWhatsapp Boolean  @default(false)
   taxExempt       Boolean  @default(false) // "Don't collect tax"
-  passwordHash    String?  // storefront account (scrypt); null = guest customer
-  preferredMarket String?  @db.VarChar(8) // market code the shopper last chose; opened after sign-in
-  sessions        CustomerSession[]
   address         String?  @db.Text // JSON default address
   tags            String   @db.Text
   notes           String   @db.Text
@@ -210,6 +207,8 @@ model AdminUser {
   createdAt    DateTime  @default(now())
   totpSecret   String?   @db.Text // AES-GCM encrypted (see src/secrets.ts); set while enrolling
   totpEnabled  Boolean   @default(false)
+  preferredMarket String? @db.VarChar(8) // market code this staff member works in; null = all markets
+  allowedMarkets  String? @db.Text // JSON array of market codes an admin lets them work in (sell, create orders, record expenses); null/empty = all
   sessions     Session[]
 }
 
@@ -434,12 +433,18 @@ model WebhookDelivery {
   @@index([endpointId, at])
 }
 
-// Storefront sign-in sessions (JWT cookie `uv_customer`, sha256 of the token stored).
-model CustomerSession {
-  id         String   @id
-  tokenHash  String   @unique
-  customerId String
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+// ---- expenses ----
+// Money the business spent (stock, packaging, ads...), described by vendor and note. Amounts in minor units of `currency`; reports never add across currencies.
+model Expense {
+  id             String   @id @default(cuid())
+  date           DateTime // the day it was bought (UTC midnight)
+  amount         Int
+  currency       String   @db.VarChar(3)
+  vendor         String   @default("") @db.VarChar(120)
+  note           String   @default("") @db.VarChar(500)
+  createdById    String?
+  createdByEmail String   @default("")
+  createdAt      DateTime @default(now())
+
+  @@index([date])
 }

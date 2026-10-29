@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { permsOf } from "../permissions.js";
-import { createSession, currentUser, destroySession, hashPassword, requireAdmin, usesApiKey, verifyPassword } from "../auth.js";
+import { createSession, currentUser, destroySession, hashPassword, marketScope, requireAdmin, usesApiKey, verifyPassword, workingMarket } from "../auth.js";
 import { audit } from "../audit.js";
 import { decrypt, encrypt } from "../secrets.js";
 import { newSecret, otpauthUri, verifyTotp } from "../totp.js";
@@ -26,8 +26,8 @@ const fail = (k: string) => {
 // Hash for a dummy password so unknown emails cost the same time as wrong passwords.
 const dummy = hashPassword("not-a-real-password");
 
-type U = { id: string; email: string; name: string; totpEnabled?: boolean; role?: { id: string; name: string; isSystem: boolean; permissions: string } | null };
-const publicUser = (u: U) => ({ id: u.id, email: u.email, name: u.name, role: u.role?.name ?? null, owner: permsOf(u.role).owner, permissions: [...permsOf(u.role).set], twoFactor: !!u.totpEnabled });
+type U = { id: string; email: string; name: string; totpEnabled?: boolean; preferredMarket?: string | null; allowedMarkets?: string | null; role?: { id: string; name: string; isSystem: boolean; permissions: string } | null };
+const publicUser = (u: U) => ({ id: u.id, email: u.email, name: u.name, role: u.role?.name ?? null, owner: permsOf(u.role).owner, permissions: [...permsOf(u.role).set], twoFactor: !!u.totpEnabled, preferredMarket: workingMarket(u), allowedMarkets: marketScope(u) });
 
 authRouter.post("/login", async (req, res) => {
   const { email, password, code } = z.object({ email: z.string().email(), password: z.string().min(1).max(200), code: z.string().max(10).optional() }).parse(req.body);
@@ -73,6 +73,23 @@ authRouter.put("/profile", requireAdmin, async (req, res) => {
   const { name } = z.object({ name: z.string().trim().min(1, "Enter your name").max(100) }).parse(req.body);
   const user = (await currentUser(req))!;
   const u = await prisma.adminUser.update({ where: { id: user.id }, data: { name }, include: { role: true } });
+  res.json(publicUser(u));
+});
+
+// The market (currency, products, prices) this staff member works in; it follows them to every device. null = all markets.
+authRouter.put("/preferences", requireAdmin, async (req, res) => {
+  const { preferredMarket } = z.object({ preferredMarket: z.string().max(8).nullable() }).parse(req.body);
+  const user = (await currentUser(req))!;
+  if (user.id.startsWith("key:")) return void res.status(403).json({ error: "Not available with an API key" });
+  const scope = marketScope(user);
+  if (scope && (!preferredMarket || !scope.includes(preferredMarket.toUpperCase()))) return void res.status(403).json({ error: "An admin decides which markets you can work in. Ask an admin to change it." });
+  let code: string | null = null;
+  if (preferredMarket) {
+    const m = await prisma.market.findFirst({ where: { code: preferredMarket.toUpperCase(), active: true } });
+    if (!m) return void res.status(400).json({ error: "Unknown market" });
+    code = m.code;
+  }
+  const u = await prisma.adminUser.update({ where: { id: user.id }, data: { preferredMarket: code }, include: { role: true } });
   res.json(publicUser(u));
 });
 
