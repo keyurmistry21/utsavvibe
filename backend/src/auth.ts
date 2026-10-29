@@ -2,6 +2,7 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import type { Request, RequestHandler, Response } from "express";
 import { prisma } from "./db.js";
 import { has, permsOf, type Perms } from "./permissions.js";
+import { signJwt, verifyJwt } from "./secrets.js";
 
 export const COOKIE = "uv_session";
 const SESSION_MS = 7 * 24 * 3600 * 1000;
@@ -26,11 +27,20 @@ const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const secure = () => process.env.NODE_ENV === "production";
 
 export async function createSession(res: Response, userId: string) {
-  const token = randomBytes(32).toString("base64url");
+  // JWT in an httpOnly cookie (JS can't read it). Its `sid` points at a session row we can delete to revoke it.
+  const sid = randomBytes(16).toString("hex");
+  const token = signJwt({ sub: userId, sid }, SESSION_MS / 1000);
   const expiresAt = new Date(Date.now() + SESSION_MS);
-  await prisma.session.create({ data: { tokenHash: sha(token), userId, expiresAt } });
+  await prisma.session.create({ data: { id: sid, tokenHash: sha(token), userId, expiresAt } });
   res.cookie(COOKIE, token, { httpOnly: true, sameSite: "lax", secure: secure(), expires: expiresAt, path: "/" });
 }
+
+/** A staff/customer JWT sent as `Authorization: Bearer <jwt>` (the web proxy adds it from the cookie), else the cookie itself. API keys (`uvk_`) are separate. */
+export function sessionToken(req: Request, cookieName: string): string | undefined {
+  const m = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/.exec(req.header("authorization") ?? "");
+  return m?.[1] ?? readCookie(req, cookieName);
+}
+export const usesApiKey = (req: Request) => /^Bearer uvk_/.test(req.header("authorization") ?? "");
 
 export function readCookie(req: Request, name: string): string | undefined {
   const raw = req.header("cookie");
@@ -42,10 +52,11 @@ export function readCookie(req: Request, name: string): string | undefined {
 }
 
 export async function currentUser(req: Request) {
-  const token = readCookie(req, COOKIE);
-  if (!token) return null;
+  const token = sessionToken(req, COOKIE);
+  const claims = token ? verifyJwt(token) : null;
+  if (!token || !claims || claims.aud) return null; // customer tokens carry an `aud` and must never act as staff
   const s = await prisma.session.findUnique({ where: { tokenHash: sha(token) }, include: { user: { include: { role: true } } } });
-  if (!s) return null;
+  if (!s || s.id !== claims.sid || s.userId !== claims.sub) return null;
   if (s.expiresAt < new Date()) {
     await prisma.session.delete({ where: { id: s.id } }).catch(() => {});
     return null;
@@ -63,12 +74,26 @@ export async function destroySession(req: Request, res: Response) {
 // CSRF defence on top of SameSite=Lax: state-changing requests must come from our own origin.
 const allowedOrigin = () => new URL(process.env.STOREFRONT_URL ?? "http://localhost:5173").origin;
 
+// API keys: `Authorization: Bearer uvk_...`. They carry no cookie, so CSRF doesn't apply; the role limits what they can do.
+async function keyUser(req: Request) {
+  const m = /^Bearer (uvk_[A-Za-z0-9_-]{20,})$/.exec(req.header("authorization") ?? "");
+  if (!m) return null;
+  const k = await prisma.apiKey.findUnique({ where: { keyHash: sha(m[1]) } });
+  if (!k || k.revokedAt) return null;
+  const role = await prisma.role.findUnique({ where: { id: k.roleId } });
+  if (!role || permsOf(role).owner) return null;
+  if (!k.lastUsedAt || Date.now() - k.lastUsedAt.getTime() > 60_000) await prisma.apiKey.update({ where: { id: k.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
+  return { id: `key:${k.id}`, email: `api-key:${k.name}`, name: k.name, roleId: role.id, role, active: true, apiKey: true } as unknown as NonNullable<Awaited<ReturnType<typeof currentUser>>>;
+}
+
 export const requireAdmin: RequestHandler = async (req, res, next) => {
-  if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+  const viaKey = usesApiKey(req); // JWT requests keep the CSRF checks below even when a proxy attached the header
+  if (!viaKey && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     const origin = req.header("origin");
     if (origin && origin !== allowedOrigin()) return void res.status(403).json({ error: "bad origin" });
+    if (req.header("sec-fetch-site") === "cross-site") return void res.status(403).json({ error: "bad origin" });
   }
-  const user = await currentUser(req);
+  const user = viaKey ? await keyUser(req) : await currentUser(req);
   if (!user) return void res.status(401).json({ error: "unauthorized" });
   (req as Request & { user?: typeof user }).user = user;
   next();

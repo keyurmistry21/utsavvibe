@@ -9,6 +9,7 @@ export const PERMISSION_GROUPS = [
   { group: "Analytics", items: [["analytics.view", "View sales reports and the dashboard"]] },
   { group: "Markets", items: [["markets.manage", "Manage markets, tax rates and shipping rates"]] },
   { group: "Online store", items: [["online_store.manage", "Manage pages, menus and storefront preferences"]] },
+  { group: "Integrations", items: [["integrations.manage", "Product feeds, abandoned-checkout emails, API keys and webhooks"]] },
   { group: "Settings", items: [["settings.manage", "Ship-from address, email and store settings"]] },
   { group: "Staff", items: [["users.manage", "Add and remove staff, reset passwords, manage roles"]] },
 ] as const;

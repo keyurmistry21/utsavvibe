@@ -14,6 +14,10 @@ import { loadPrefs } from "./onlineStore.js";
 import { publicPolicy, publishedPolicies } from "./policies.js";
 import { publicCollection, publicCollections } from "./collections.js";
 import { publicPost, publicPosts } from "./blog.js";
+import { stripeTax, recordTax } from "../tax.js";
+import { screenOrder, flag } from "../fraud.js";
+import { emitOrder } from "../webhooks.js";
+import { recoverCart, validUnsubscribe } from "../abandoned.js";
 import { issueForPaidOrder, releaseForOrder, reserve, splitPayment, usableCard } from "../giftCards.js";
 
 // Public storefront API: catalog, quote, checkout. Plus Stripe webhook.
@@ -66,7 +70,7 @@ storeRouter.get("/blog/:handle", async (req, res) => {
 });
 
 const publicProduct = (
-  p: { trackInventory?: boolean; continueSelling?: boolean; seoTitle?: string; seoDescription?: string | null; images?: { id: string; alt: string }[]; markets?: { regions: string | null }[]; id: string; handle: string; title: string; description: string; tags: string; variants: { id: string; title: string; options: string; inventory: number; prices: { amount: number; compareAt: number | null }[] }[] },
+  p: { trackInventory?: boolean; continueSelling?: boolean; seoTitle?: string; seoDescription?: string | null; images?: { id: string; alt: string }[]; markets?: { regions: string | null }[]; id: string; handle: string; title: string; description: string; tags: string; variants: { id: string; title: string; options: string; sku?: string | null; barcode?: string | null; inventory: number; prices: { amount: number; compareAt: number | null }[] }[] },
   currency: string,
 ) => ({
   id: p.id,
@@ -85,6 +89,10 @@ const publicProduct = (
     id: v.id,
     title: v.title,
     options: parseJson(v.options, {}),
+    sku: (v as { sku?: string | null }).sku ?? null,
+    barcode: (v as { barcode?: string | null }).barcode ?? null,
+    // scarcity note only when it's true and small
+    stockLeft: (p.trackInventory ?? true) && !p.continueSelling && v.inventory > 0 && v.inventory <= 5 ? v.inventory : null,
     inStock: canSell({ trackInventory: p.trackInventory ?? true, continueSelling: p.continueSelling ?? false }, v.inventory),
     price: v.prices[0]?.amount ?? null,
     compareAt: v.prices[0]?.compareAt ?? null,
@@ -139,6 +147,8 @@ const cartInput = z.object({
   shippingRateId: z.string().optional(),
   region: z.string().max(8).optional(), // province/state code, drives tax
   giftCardCode: z.string().trim().max(40).optional(),
+  // when known, lets Stripe Tax (if switched on) work out the tax for the destination
+  address: z.object({ country: z.string().length(2), postcode: z.string().max(20), line1: z.string().max(200).optional(), city: z.string().max(100).optional(), region: z.string().max(8).optional() }).optional(),
 });
 
 // Server-side pricing: never trust client prices.
@@ -175,23 +185,41 @@ async function priceCart(d: z.infer<typeof cartInput>) {
   const ship = pickShipping(market.shippingRates, subtotal, d.shippingRateId);
   // nothing physical in the cart (digital/service only) means nothing to ship
   const shipping = lines.some((l) => l.physical) ? ship.amount : 0;
-  const { tax, total } = priceTotals({ subtotal, taxableSubtotal, taxRateBps, inclusive: market.taxInclusive, shipping });
-  return { market, region, taxRateBps, lines, subtotal, tax, shipping, shippingRate: ship.rate, total };
+  let { tax, total } = priceTotals({ subtotal, taxableSubtotal, taxRateBps, inclusive: market.taxInclusive, shipping });
+  let taxCalcId: string | null = null;
+  if (d.address && JSON.parse(market.countries).includes(d.address.country.toUpperCase())) {
+    const st = await stripeTax({ currency: market.currency, inclusive: market.taxInclusive, lines, shipping, address: { ...d.address, country: d.address.country.toUpperCase(), region: d.address.region ?? region } });
+    if (st) {
+      tax = st.tax;
+      taxCalcId = st.id;
+      total = subtotal + shipping + (market.taxInclusive ? 0 : tax);
+    }
+  }
+  const freeOver = ship.rate?.freeOverAmount ?? null;
+  const freeShippingRemaining = freeOver != null && lines.some((l) => l.physical) && subtotal < freeOver ? freeOver - subtotal : null;
+  return { market, region, taxRateBps, lines, subtotal, tax, shipping, shippingRate: ship.rate, total, taxCalcId, freeShippingRemaining };
 }
 
 // Gift card for this cart, or null. Gift cards can't pay for gift cards (keeps card-to-card laundering and fee dodging out).
-async function giftCardFor(q: Awaited<ReturnType<typeof priceCart>>, code?: string) {
+const codeMisses = new Map<string, { n: number; until: number }>();
+async function giftCardFor(q: Awaited<ReturnType<typeof priceCart>>, code?: string, ip = "?") {
   if (!code) return null;
+  const m = codeMisses.get(ip);
+  if (m && m.until > Date.now() && m.n >= 8) throw Object.assign(new Error("Too many wrong gift card codes. Try again in 15 minutes."), { status: 429 });
   if (q.lines.some((l) => l.giftCard)) throw bad("Gift cards can't be used to buy gift cards");
-  const card = await usableCard(code, q.market.currency);
+  const card = await usableCard(code, q.market.currency).catch((e) => {
+    const cur = codeMisses.get(ip);
+    codeMisses.set(ip, { n: (cur && cur.until > Date.now() ? cur.n : 0) + 1, until: cur && cur.until > Date.now() ? cur.until : Date.now() + 15 * 60_000 });
+    throw e;
+  });
   return { card, ...splitPayment(card.balance, q.total, q.subtotal + (q.market.taxInclusive ? 0 : q.tax)) };
 }
 
 storeRouter.post("/quote", async (req, res) => {
   const d = cartInput.parse(req.body);
   const q = await priceCart(d);
-  const gc = await giftCardFor(q, d.giftCardCode);
-  res.json({ currency: q.market.currency, taxInclusive: q.market.taxInclusive, taxRateBps: q.taxRateBps, region: q.region ?? null, lines: q.lines, subtotal: q.subtotal, tax: q.tax, shipping: q.shipping, total: q.total, giftCardApplied: gc?.applied ?? 0, amountDue: q.total - (gc?.applied ?? 0), giftCardBalance: gc?.card.balance ?? null });
+  const gc = await giftCardFor(q, d.giftCardCode, req.ip);
+  res.json({ currency: q.market.currency, taxInclusive: q.market.taxInclusive, taxRateBps: q.taxRateBps, region: q.region ?? null, taxSource: q.taxCalcId ? "stripe" : "market", freeShippingRemaining: q.freeShippingRemaining, lines: q.lines, subtotal: q.subtotal, tax: q.tax, shipping: q.shipping, total: q.total, giftCardApplied: gc?.applied ?? 0, amountDue: q.total - (gc?.applied ?? 0), giftCardBalance: gc?.card.balance ?? null });
 });
 
 storeRouter.post("/checkout", async (req, res) => {
@@ -200,21 +228,25 @@ storeRouter.post("/checkout", async (req, res) => {
       email: z.string().email(),
       name: z.string().min(1),
       phone: z.string().optional(),
+      marketing: z.boolean().optional(), // ticked "email me reminders"
       address: z.object({ line1: z.string(), line2: z.string().optional(), city: z.string(), region: z.string().optional(), postcode: z.string(), country: z.string().length(2) }),
     })
     .parse(req.body);
   const q = await priceCart({ ...d, region: d.address.region });
   if (q.market.regions.length && !q.region) throw bad("select your province/state");
   if (!JSON.parse(q.market.countries).includes(d.address.country)) throw bad(`${q.market.name} market does not ship to ${d.address.country}`);
-  const gc = await giftCardFor(q, d.giftCardCode);
+  // card-testing / spam guard: a few unpaid checkouts per email per hour is plenty
+  const stuck = await prisma.order.count({ where: { customer: { email: d.email }, paymentStatus: "pending", status: "open", createdAt: { gt: new Date(Date.now() - 3600_000) } } });
+  if (stuck >= 5) throw Object.assign(new Error("Too many unfinished checkouts for this email. Please finish one, or try again later."), { status: 429 });
+  const gc = await giftCardFor(q, d.giftCardCode, req.ip);
   const applied = gc?.applied ?? 0;
   const covered = !!gc && applied === q.total; // (can only happen when shipping is free or the cart is items only) // the gift card pays everything: no Stripe session needed
 
   const order = await prisma.$transaction(async (tx) => {
     const customer = await tx.customer.upsert({
       where: { email: d.email },
-      create: { email: d.email, name: d.name, phone: d.phone, tags: "[]", notes: "" },
-      update: { name: d.name, phone: d.phone ?? undefined },
+      create: { email: d.email, name: d.name, phone: d.phone, tags: "[]", notes: "", acceptsEmail: !!d.marketing },
+      update: { name: d.name, phone: d.phone ?? undefined, ...(d.marketing ? { acceptsEmail: true } : {}) },
     });
     const o = await tx.order.create({
       data: {
@@ -231,6 +263,7 @@ storeRouter.post("/checkout", async (req, res) => {
         tags: "[]",
         notes: "",
         items: { create: q.lines },
+        taxCalcId: q.taxCalcId,
         ...(applied > 0 ? { giftCardCode: gc!.card.code, giftCardAmount: applied } : {}),
         ...(covered ? { paymentStatus: "paid", paymentMethod: "gift_card" } : {}),
       },
@@ -246,6 +279,9 @@ storeRouter.post("/checkout", async (req, res) => {
   });
   if (covered) {
     void sendOrderConfirmation(order.id);
+    void recordTax(q.taxCalcId, order.number);
+    void emitOrder("order.paid", order.id);
+    void screenOrder(order.id, null);
     return void res.json({ url: `${process.env.STOREFRONT_URL}/${q.market.code.toLowerCase()}/order/${order.number}`, orderNumber: order.number });
   }
 
@@ -315,15 +351,65 @@ export async function stripeWebhook(req: Request, res: Response) {
         if (newlyPaid) {
           void sendOrderConfirmation(orderId);
           void issueForPaidOrder(orderId);
+          void emitOrder("order.paid", orderId);
+          void afterPaid(orderId, typeof s.payment_intent === "string" ? s.payment_intent : null);
         }
       }
     }
   }
   if (event.type === "charge.refunded") {
     const pi = (event.data.object as Stripe.Charge).payment_intent;
-    if (typeof pi === "string") await prisma.order.updateMany({ where: { stripePaymentIntentId: pi }, data: { paymentStatus: "refunded" } });
+    if (typeof pi === "string") {
+      await prisma.order.updateMany({ where: { stripePaymentIntentId: pi }, data: { paymentStatus: "refunded" } });
+      const o = await prisma.order.findFirst({ where: { stripePaymentIntentId: pi } });
+      if (o) void emitOrder("order.refunded", o.id);
+    }
+  }
+  // Disputes, early fraud warnings and Radar reviews raise the order's risk so staff see it on the order.
+  const chargeOrder = async (chargeId: unknown) => {
+    if (typeof chargeId !== "string") return null;
+    const ch = await stripe().charges.retrieve(chargeId);
+    return typeof ch.payment_intent === "string" ? prisma.order.findFirst({ where: { stripePaymentIntentId: ch.payment_intent } }) : null;
+  };
+  if (event.type === "charge.dispute.created") {
+    const o = await chargeOrder((event.data.object as Stripe.Dispute).charge);
+    if (o) await flag(o.id, "high", "Customer opened a payment dispute (chargeback). Respond with evidence in the Stripe Dashboard before the deadline");
+  }
+  if (event.type === "radar.early_fraud_warning.created") {
+    const o = await chargeOrder((event.data.object as Stripe.Radar.EarlyFraudWarning).charge);
+    if (o) await flag(o.id, "high", "The card network reported this payment as fraud (early fraud warning). Consider refunding to avoid a dispute fee");
+  }
+  if (event.type === "review.opened") {
+    const o = await prisma.order.findFirst({ where: { stripePaymentIntentId: typeof (event.data.object as Stripe.Review).payment_intent === "string" ? ((event.data.object as Stripe.Review).payment_intent as string) : "-" } });
+    if (o) await flag(o.id, "medium", "Stripe Radar opened a manual review");
   }
   res.json({ received: true });
 }
 
 export const webhookBody = raw({ type: "application/json" });
+
+
+// After the order is paid: screen for fraud and record the sale with Stripe Tax. Never throws.
+async function afterPaid(orderId: string, paymentIntentId: string | null) {
+  const o = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!o) return;
+  await screenOrder(orderId, paymentIntentId);
+  await recordTax(o.taxCalcId, o.number);
+}
+
+// Cart reminder link: returns the items so the cart can be refilled. Only while the order is unpaid; the token is 256-bit random.
+storeRouter.get("/recover/:token", async (req, res) => {
+  const c = await recoverCart(req.params.token);
+  if (!c) return void res.status(404).json({ error: "This cart link has expired" });
+  res.json(c);
+});
+
+// Unsubscribe from cart reminders. GET = link in the email, POST = one-click from the mail app (List-Unsubscribe-Post).
+const unsubscribe = async (req: Request, res: Response) => {
+  const c = String(req.query.c ?? ""), t = String(req.query.t ?? "");
+  if (!c || !validUnsubscribe(c, t)) return void res.status(400).type("html").send("<p>This unsubscribe link is not valid.</p>");
+  await prisma.customer.updateMany({ where: { id: c }, data: { acceptsEmail: false } });
+  res.type("html").send(`<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><body style="font-family:system-ui;max-width:480px;margin:15vh auto;padding:0 20px"><h2>You're unsubscribed</h2><p>We won't send you cart reminders any more. Order confirmations still arrive when you buy something.</p>`);
+};
+storeRouter.get("/unsubscribe", unsubscribe);
+storeRouter.post("/unsubscribe", unsubscribe);

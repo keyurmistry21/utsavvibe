@@ -15,12 +15,12 @@ function transport(): Transporter {
   }));
 }
 
-export type MailKind = "order_confirmation" | "payment_link" | "gift_card" | "test";
+export type MailKind = "order_confirmation" | "payment_link" | "gift_card" | "abandoned_checkout" | "fraud_alert" | "password_reset" | "test";
 export type SendResult = { status: "sent" | "failed" | "skipped"; error?: string };
 
 // Never throws: callers (webhooks, admin actions) must not fail because an email did.
 // Every attempt is logged so staff can see what was sent, and so confirmations go out only once.
-export async function sendMail(m: { to: string; subject: string; html: string; text: string; kind: MailKind; orderId?: string }): Promise<SendResult> {
+export async function sendMail(m: { to: string; subject: string; html: string; text: string; kind: MailKind; orderId?: string; headers?: Record<string, string> }): Promise<SendResult> {
   const subject = m.subject.replace(/[\r\n]+/g, " ").trim().slice(0, 200); // no header injection through names
   const log = (status: SendResult["status"], error?: string) =>
     prisma.emailLog.create({ data: { orderId: m.orderId ?? null, kind: m.kind, toEmail: m.to, subject, status, error: error?.slice(0, 1000) ?? null } }).catch(() => {});
@@ -37,6 +37,7 @@ export async function sendMail(m: { to: string; subject: string; html: string; t
       subject,
       html: m.html,
       text: m.text,
+      headers: m.headers,
     });
     await log("sent");
     return { status: "sent" };

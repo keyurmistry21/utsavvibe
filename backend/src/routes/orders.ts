@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma, parseJson } from "../db.js";
 import { previewEmail, sendOrderConfirmation } from "../orderEmails.js";
 import { releaseForOrder } from "../giftCards.js";
+import { emitOrder } from "../webhooks.js";
+import { audit } from "../audit.js";
 
 export const ordersRouter = Router();
 
@@ -81,6 +83,11 @@ ordersRouter.patch("/:id", async (req, res) => {
     },
     include,
   });
-  if (d.status === "cancelled" && current.status !== "cancelled") await releaseForOrder(o.id); // gift card money goes back on the card
+  if (d.status === "cancelled" && current.status !== "cancelled") {
+    await releaseForOrder(o.id); // gift card money goes back on the card
+    void emitOrder("order.cancelled", o.id);
+    await audit(req, "order_cancelled", `#${o.number}`);
+  }
+  if (d.status === "fulfilled" && current.status !== "fulfilled") void emitOrder("order.fulfilled", o.id);
   res.json(shape(o));
 });

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { actor, actorPerms, hashPassword } from "../auth.js";
+import { audit } from "../audit.js";
 import { has, OWNER, PERMISSION_GROUPS, permsOf, validPermissions } from "../permissions.js";
 
 // Staff users and roles. Mounted behind `guard(users.manage)`.
@@ -30,6 +31,11 @@ const otherActiveOwners = (exceptId: string) => prisma.adminUser.count({ where: 
 
 usersRouter.get("/meta", (_req, res) => res.json({ groups: PERMISSION_GROUPS.map((g) => ({ group: g.group, items: g.items.map(([key, label]) => ({ key, label })) })) }));
 
+// Security log: sign-ins, staff, role and key changes.
+usersRouter.get("/audit-log", async (_req, res) => {
+  res.json(await prisma.auditLog.findMany({ orderBy: { at: "desc" }, take: 200 }));
+});
+
 usersRouter.get("/", async (_req, res) => {
   const users = await prisma.adminUser.findMany({ include, orderBy: { createdAt: "asc" } });
   res.json(users.map(publicUser));
@@ -40,6 +46,7 @@ usersRouter.post("/", async (req, res) => {
   await assertCanGrant(req, d.roleId);
   if (await prisma.adminUser.findUnique({ where: { email: d.email } })) throw bad("A staff member with this email already exists", 409);
   const u = await prisma.adminUser.create({ data: { email: d.email, name: d.name, roleId: d.roleId, passwordHash: await hashPassword(d.password) }, include });
+  await audit(req, "staff_created", `${u.email} as ${u.role?.name}`);
   res.status(201).json(publicUser(u));
 });
 
@@ -59,6 +66,7 @@ usersRouter.put("/:id", async (req, res) => {
   }
   const u = await prisma.adminUser.update({ where: { id: cur.id }, data: { name: d.name, roleId: d.roleId, active: d.active }, include });
   if (!d.active) await prisma.session.deleteMany({ where: { userId: cur.id } });
+  if (cur.roleId !== d.roleId || cur.active !== d.active) await audit(req, "staff_changed", `${cur.email}: role ${cur.role?.name} -> ${u.role?.name}, active ${d.active}`);
   res.json(publicUser(u));
 });
 
@@ -69,6 +77,18 @@ usersRouter.post("/:id/reset-password", async (req, res) => {
   if (permsOf(cur.role).owner && !actorPerms(req).owner) throw bad("Only an owner can reset an owner's password", 403);
   await prisma.adminUser.update({ where: { id: cur.id }, data: { passwordHash: await hashPassword(d.password) } });
   await prisma.session.deleteMany({ where: { userId: cur.id } }); // signs them out everywhere
+  await audit(req, "staff_password_reset", cur.email);
+  res.json({ ok: true });
+});
+
+// Lost phone: an owner switches off someone's two-factor sign-in so they can sign in and set it up again.
+usersRouter.post("/:id/reset-2fa", async (req, res) => {
+  const cur = await prisma.adminUser.findUnique({ where: { id: req.params.id }, include: { role: true } });
+  if (!cur) throw bad("User not found", 404);
+  if (permsOf(cur.role).owner && !actorPerms(req).owner) throw bad("Only an owner can reset an owner's two-factor sign-in", 403);
+  await prisma.adminUser.update({ where: { id: cur.id }, data: { totpEnabled: false, totpSecret: null } });
+  await prisma.session.deleteMany({ where: { userId: cur.id } });
+  await audit(req, "staff_2fa_reset", cur.email);
   res.json({ ok: true });
 });
 
@@ -81,6 +101,7 @@ usersRouter.delete("/:id", async (req, res) => {
     if (!(await otherActiveOwners(cur.id))) throw bad("There must always be at least one active owner");
   }
   await prisma.adminUser.delete({ where: { id: cur.id } });
+  await audit(req, "staff_deleted", cur.email);
   res.json({ ok: true });
 });
 
@@ -108,6 +129,7 @@ rolesRouter.post("/", async (req, res) => {
   if (missing) throw bad(`You can't grant access you don't have yourself (${missing})`, 403);
   if (await prisma.role.findUnique({ where: { name: d.name } })) throw bad("A role with this name already exists", 409);
   const r = await prisma.role.create({ data: { ...d, permissions: JSON.stringify([...new Set(d.permissions)]) }, include: { _count: { select: { users: true } } } });
+  await audit(req, "role_created", `${r.name}: ${d.permissions.length} permissions`);
   res.status(201).json(roleJson(r));
 });
 
@@ -125,6 +147,7 @@ rolesRouter.put("/:id", async (req, res) => {
   // a role you hold yourself can't be edited by you (stops quietly widening your own access)
   if (actor(req).roleId === cur.id && !mine.owner) throw bad("You can't edit the role you hold. Ask an owner.", 403);
   const r = await prisma.role.update({ where: { id: cur.id }, data: { ...d, permissions: JSON.stringify([...new Set(d.permissions)]) }, include: { _count: { select: { users: true } } } });
+  await audit(req, "role_changed", `${r.name}: ${d.permissions.length} permissions`);
   res.json(roleJson(r));
 });
 

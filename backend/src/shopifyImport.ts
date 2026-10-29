@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import dns from "node:dns/promises";
+import { privateIp } from "./ssrf.js";
 import net from "node:net";
 import { prisma } from "./db.js";
 import { normalizeHandle, sanitizeDescription } from "./html.js";
@@ -126,11 +127,6 @@ export function takeParsed(token: string, userId: string) {
 // ---- images ----
 // Only Shopify's own CDN, and only addresses that resolve to the public internet: an import must never make the server fetch internal URLs.
 const IMAGE_HOSTS = [/^cdn\.shopify\.com$/i, /^[a-z0-9-]+\.myshopify\.com$/i, /^cdn\.shopifycdn\.net$/i, /\.shopifycdn\.com$/i];
-const privateIp = (ip: string) => {
-  if (net.isIPv6(ip)) return /^(::1?|f[cd]|fe[89ab]|::ffff:(10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.))/i.test(ip);
-  const [a, b] = ip.split(".").map(Number);
-  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224 || (a === 100 && b >= 64 && b <= 127);
-};
 export async function fetchImage(src: string): Promise<Buffer> {
   const u = new URL(src);
   if (u.protocol !== "https:" || u.port || !IMAGE_HOSTS.some((re) => re.test(u.hostname))) throw new Error("image host not allowed (only Shopify's CDN)");

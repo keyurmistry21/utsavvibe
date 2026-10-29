@@ -139,3 +139,27 @@ export function giftCardEmail(g: { code: string; amount: number; currency: strin
   const text = `Your ${amount} gift card\n\nCode: ${g.code}\n\nEnter this code at checkout to pay. Anyone with the code can spend the balance, so keep it safe.${site ? `\n\n${site}` : ""}`;
   return { subject: `Your ${amount} gift card from ${storeName()}`, html, text };
 }
+
+export function abandonedEmail(o: EmailOrder, url: string, unsubscribeUrl: string) {
+  const first = (o.customer?.name || o.shippingName || "").split(" ")[0];
+  const list = o.items.map((i) => `<tr><td style="padding:8px 0;border-bottom:1px solid ${COLORS.line}">${esc(i.title)} <span style="color:${COLORS.muted}">× ${i.quantity}</span></td><td align="right" style="padding:8px 0;border-bottom:1px solid ${COLORS.line};white-space:nowrap">${fmt(i.unitPrice * i.quantity, o.currency)}</td></tr>`).join("");
+  return {
+    subject: "You left something in your cart",
+    html: layout({
+      preheader: "Your items are saved. Pick up where you left off.",
+      heading: "Still thinking it over?",
+      intro: `${first ? `Hi ${esc(first)}, you` : "You"} didn’t finish checking out, so we saved your cart. Stock is limited, so complete your order whenever you’re ready.`,
+      cta: { label: "Return to my cart", url },
+      body: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px">${list}</table><p style="margin:24px 0 0;color:${COLORS.muted};font-size:12px;line-height:1.55">You’re getting this because you asked for cart reminders when you checked out. <a href="${esc(unsubscribeUrl)}" style="color:${COLORS.muted}">Unsubscribe</a></p>`,
+    }),
+    text: `You left something in your cart\n\n${o.items.map((i) => `- ${i.title} × ${i.quantity}`).join("\n")}\n\nReturn to your cart: ${url}\n\nUnsubscribe: ${unsubscribeUrl}\n${storeName()}`,
+  };
+}
+
+export function passwordResetEmail(url: string) {
+  return {
+    subject: "Reset your password",
+    html: layout({ preheader: "Choose a new password.", heading: "Reset your password", intro: "Use the button below to choose a new password. The link works once and expires in 1 hour. If you didn't ask for this, ignore this email: your password stays the same.", cta: { label: "Choose a new password", url }, body: "" }),
+    text: `Reset your password (link works once and expires in 1 hour):\n${url}\n\nIf you didn't ask for this, ignore this email.\n${storeName()}`,
+  };
+}

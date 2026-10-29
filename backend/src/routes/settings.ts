@@ -5,6 +5,8 @@ import { currentUser } from "../auth.js";
 import { testEmail } from "../emails.js";
 import { shipFromAddress } from "./locations.js";
 import { mailConfigured, sendMail } from "../mail.js";
+import { getSetting, putSetting } from "../appSettings.js";
+import { audit } from "../audit.js";
 
 export const settingsRouter = Router();
 
@@ -45,4 +47,16 @@ settingsRouter.post("/email-test", async (req, res) => {
   const r = await sendMail({ to: user.email, kind: "test", ...testEmail() });
   if (r.status !== "sent") return void res.status(502).json({ error: r.error ?? "Could not send" });
   res.json({ sent: true, to: user.email });
+});
+
+// Checkout behaviour. Automatic tax asks Stripe Tax for the tax on each order instead of using the fixed market rate.
+settingsRouter.get("/checkout", async (_req, res) => {
+  res.json({ ...(await getSetting("checkout")), stripeConfigured: !!process.env.STRIPE_SECRET_KEY });
+});
+
+settingsRouter.put("/checkout", async (req, res) => {
+  const d = z.object({ automaticTax: z.boolean(), highValueMinor: z.number().int().min(0).max(100_000_000) }).parse(req.body);
+  await putSetting("checkout", d);
+  await audit(req, "checkout_settings", `automatic tax ${d.automaticTax ? "on" : "off"}`);
+  res.json(d);
 });
