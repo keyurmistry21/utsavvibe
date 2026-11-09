@@ -18,7 +18,6 @@ export function AddToCart({ product, market, highlight }: { product: StoreProduc
           <span>{product.variants.length > 1 ? v.title : "Price"}{highlight === v.id && product.variants.length > 1 && <em className="vhit-tag">Scanned</em>}{v.inStock && v.stockLeft != null && <em className="lowstock">Only {v.stockLeft} left</em>}</span>
           <span className="price">
             {v.price != null && money(v.price, product.currency)}
-            {v.compareAt != null && <s>{money(v.compareAt, product.currency)}</s>}
           </span>
           <button
             className="primary"

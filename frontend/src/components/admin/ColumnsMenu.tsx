@@ -63,7 +63,10 @@ export function ColumnsMenu<K extends string, S extends string>({ columns, sorts
                 <button aria-label={`Move ${col.label} down`} disabled={i === view.order.length - 1} onClick={() => move(i, i + 1)}>↓</button>
               </span>
               <button className="eye" aria-pressed={on} aria-label={`${on ? "Hide" : "Show"} ${col.label}`} title={on ? "Hide column" : "Show column"} onClick={() => toggle(k)}>
-                <svg viewBox="0 0 24 24" aria-hidden="true">{on ? <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></> : <><path d="M3 3l18 18M10.6 5.1A9.8 9.8 0 0112 5c6.5 0 10 7 10 7a17 17 0 01-3.2 4.2M6.5 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7c1.6 0 3-.4 4.3-1" /></>}</svg>
+                <span className="t-icon-swap" data-state={on ? "a" : "b"} aria-hidden="true">
+                  <svg className="t-icon" data-icon="a" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></svg>
+                  <svg className="t-icon" data-icon="b" viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A9.8 9.8 0 0112 5c6.5 0 10 7 10 7a17 17 0 01-3.2 4.2M6.5 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7c1.6 0 3-.4 4.3-1" /></svg>
+                </span>
               </button>
             </li>
           );

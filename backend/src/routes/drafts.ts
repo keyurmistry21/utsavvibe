@@ -4,7 +4,7 @@ import { assertMarketAllowed, orderScopeParam } from "../auth.js";
 import { z } from "zod";
 import { prisma, nextOrderNumber } from "../db.js";
 import { priceTotals, pickShipping, taxRateFor } from "../money.js";
-import { canSell, shouldDecrement } from "../stock.js";
+import { canSell, shouldDecrement, takeStock } from "../stock.js";
 import { createCheckoutSession } from "../checkout.js";
 import { stripe } from "../stripe.js";
 import { sendOrderConfirmation, sendPaymentLinkEmail } from "../orderEmails.js";
@@ -220,7 +220,7 @@ draftsRouter.post("/:id/mark-paid", async (req, res) => {
       if (!i.variantId) continue;
       const v = await tx.variant.findUnique({ where: { id: i.variantId }, include: { product: { select: { trackInventory: true, continueSelling: true } } } });
       if (!v || !canSell(v.product, v.inventory, i.quantity)) throw bad(`insufficient stock for ${i.title}`, 409);
-      if (shouldDecrement(v.product)) await tx.variant.update({ where: { id: i.variantId }, data: { inventory: { decrement: i.quantity } } });
+      if (shouldDecrement(v.product)) await takeStock(tx, i.variantId, i.quantity, o.marketId);
     }
     return tx.order.update({ where: { id: o.id }, data: { status: "open", paymentStatus: "paid", paymentMethod: method }, include });
   });

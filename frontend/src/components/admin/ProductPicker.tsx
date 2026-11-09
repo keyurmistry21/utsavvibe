@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { money, type Market, type Product } from "@/lib/api";
 import { Modal } from "./Modal";
+import { SearchField } from "./SearchField";
 
 export type Picked = { variantId: string; title: string; price: number };
 
@@ -51,7 +52,7 @@ export function ProductPicker({ products, market, inOrder, onAdd, onClose }: {
         </>
       }
     >
-      <input autoFocus className="pickersearch" placeholder="Search products, variants, SKU or tags" value={q} onChange={(e) => setQ(e.target.value)} />
+      <SearchField autoFocus className="pickersearch" placeholder="Search products, variants, SKU or tags" value={q} onChange={setQ} />
       <div className="pickerlist">
         {list.map((p) => (
           <div key={p.id} className="pickprod">

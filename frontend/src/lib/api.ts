@@ -8,7 +8,7 @@ export type Market = {
 export type Price = { amount: number; compareAt?: number | null };
 export type Variant = {
   id?: string; title: string; options: Record<string, string>; sku?: string | null;
-  inventory: number; weightG: number; barcode?: string | null; costPerItem?: number | null; prices: Record<string, Price>;
+  inventory: number; stock?: Record<string, { quantity: number; sku?: string | null; barcode?: string | null }>; weightG: number; barcode?: string | null; costPerItem?: number | null; prices: Record<string, Price>;
 };
 export type ProductImage = { id: string; url: string; thumbUrl: string; alt: string; position: number; width: number; height: number };
 export type Product = {
@@ -107,3 +107,5 @@ export type ProductRow = {
   tags: string[]; createdAt: string; updatedAt: string; thumbUrl: string | null;
   inventory: number; variantCount: number; markets: string[]; prices: Record<string, { currency: string; min: number }>;
 };
+
+export type StockMarket = { id: string; code: string; name: string };

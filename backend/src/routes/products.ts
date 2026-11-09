@@ -7,6 +7,7 @@ import { processImage } from "../images.js";
 import { csvCell } from "../csv.js";
 import { normalizeHandle, sanitizeDescription } from "../html.js";
 import { importProduct, keepParsed, parseShopify, takeParsed } from "../shopifyImport.js";
+import { adjustStock, setLevels, type LevelInput } from "../stock.js";
 import { imageFiles, imageUrls, removeFiles, saveFile } from "../storage.js";
 
 export const productsRouter = Router();
@@ -39,7 +40,8 @@ const productInput = z.object({
         title: z.string().default("Default"),
         options: z.record(z.string(), z.string()).default({}),
         sku: z.string().trim().max(64).nullable().optional(),
-        inventory: z.number().int().min(0).default(0),
+        inventory: z.number().int().min(0).default(0), // used when no per-location counts are sent
+        stock: z.record(z.string(), z.object({ quantity: z.number().int().min(0).max(1_000_000), sku: z.string().trim().max(64).nullable().optional(), barcode: z.string().trim().max(64).nullable().optional() })).optional(), // per market id
         weightG: z.number().int().min(0).default(0),
         barcode: z.string().trim().max(64).nullable().optional(),
         costPerItem: z.number().int().min(0).nullable().optional(),
@@ -83,7 +85,7 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 
 const include = {
   markets: true,
-  variants: { include: { prices: true } },
+  variants: { include: { prices: true, levels: true } },
   images: { orderBy: { position: "asc" } },
 } as const;
 
@@ -97,6 +99,7 @@ const shape = (p: any) => ({
   variants: p.variants.map((v: any) => ({
     ...v,
     options: parseJson(v.options, {}),
+    stock: Object.fromEntries((v.levels ?? []).map((l: any) => [l.marketId, { quantity: l.quantity, sku: l.sku, barcode: l.barcode }])),
     prices: Object.fromEntries(v.prices.map((x: any) => [x.marketId, { amount: x.amount, compareAt: x.compareAt }])),
   })),
 });
@@ -113,13 +116,76 @@ function variantData(v: z.infer<typeof productInput>["variants"][number], market
     title: v.title,
     options: JSON.stringify(v.options),
     sku: v.sku || null,
-    inventory: v.inventory,
+    inventory: v.stock ? Object.values(v.stock).reduce((a, b) => a + b.quantity, 0) : v.inventory,
     weightG: v.weightG,
     barcode: v.barcode || null,
     costPerItem: v.costPerItem ?? null,
-    prices: { create: marketIds.map((marketId) => ({ marketId, ...v.prices[marketId], compareAt: v.prices[marketId].compareAt ?? null })) },
+    prices: { create: marketIds.map((marketId) => ({ marketId, ...v.prices[marketId], compareAt: null })) },
   };
 }
+
+/**
+ * Per-location counts. Sent explicitly -> stored as given. Not sent (import, API) -> the plain quantity goes to the default location.
+ * Variant.inventory stays the total, so storefront, feeds and checkout keep working unchanged.
+ */
+async function applyStock(d: z.infer<typeof productInput>, productId: string) {
+  const vars = await prisma.variant.findMany({ where: { productId } });
+  await prisma.$transaction(async (tx) => {
+    for (const v of vars) {
+      const sent = d.variants.find((x) => x.id === v.id) ?? d.variants.find((x) => x.sku && x.sku === v.sku);
+      if (!sent) continue;
+      if (sent.stock) {
+        await setLevels(tx, v.id, Object.fromEntries(Object.entries(sent.stock).filter(([id]) => d.marketIds.includes(id))));
+      } else if (!(await tx.inventoryLevel.count({ where: { variantId: v.id } })) && d.marketIds[0]) {
+        await setLevels(tx, v.id, { [d.marketIds[0]]: { quantity: sent.inventory } }); // import / API: plain quantity goes to the first market
+      }
+    }
+  });
+  return (await prisma.product.findUnique({ where: { id: productId }, include }))!;
+}
+
+// Codes must be unique across variants and across per-location codes. Friendly 409 wording ("SKU", "barcode") for the form.
+async function assertLocationCodes(d: z.infer<typeof productInput>, productId?: string) {
+  const seen = new Set<string>();
+  for (const v of d.variants) {
+    for (const l of Object.values(v.stock ?? {})) {
+      for (const [kind, val] of [["SKU", l.sku], ["barcode", l.barcode]] as const) {
+        const c = val?.trim();
+        if (!c) continue;
+        if (seen.has(`${kind}:${c.toLowerCase()}`) || (kind === "SKU" && d.variants.some((x) => x.sku?.trim().toLowerCase() === c.toLowerCase())) || (kind === "barcode" && d.variants.some((x) => x.barcode?.trim() === c))) throw Object.assign(new Error(`The ${kind} ${c} is used twice in this product`), { status: 409 });
+        seen.add(`${kind}:${c.toLowerCase()}`);
+        const keep = d.variants.map((x) => x.id).filter((x): x is string => !!x);
+        const clash = kind === "SKU"
+          ? (await prisma.variant.findFirst({ where: { sku: c, ...(productId ? { productId: { not: productId } } : {}) } })) || (await prisma.inventoryLevel.findFirst({ where: { sku: c, variantId: { notIn: keep } } }))
+          : (await prisma.variant.findFirst({ where: { barcode: c, ...(productId ? { productId: { not: productId } } : {}) } })) || (await prisma.inventoryLevel.findFirst({ where: { barcode: c, variantId: { notIn: keep } } }));
+        if (clash) throw Object.assign(new Error(`The ${kind} ${c} is already used by another product`), { status: 409 });
+      }
+    }
+  }
+}
+
+// Markets for the stock fields of the product form and the scan screen.
+productsRouter.get("/stock/markets", async (_req, res) => {
+  res.json((await prisma.market.findMany({ where: { active: true }, orderBy: { code: "asc" } })).map((m) => ({ id: m.id, code: m.code, name: m.name })));
+});
+
+// Scan: look a code (SKU, barcode, or a /p/<code> QR link) up and add or remove units at one location.
+productsRouter.post("/stock/scan", async (req, res) => {
+  const d = z.object({ code: z.string().trim().min(1).max(300), marketId: z.string().min(1), delta: z.number().int().min(-10_000).max(10_000).refine((n) => n !== 0, "Enter a quantity") }).parse(req.body);
+  const m = d.code.match(/\/p\/([^/?#]+)/);
+  const code = m ? decodeURIComponent(m[1]) : d.code;
+  const chosen = await prisma.market.findFirst({ where: { id: d.marketId, active: true } });
+  if (!chosen) throw Object.assign(new Error("Choose a market"), { status: 400 });
+  // a per-market code decides the market itself; a plain variant code uses the market chosen on screen
+  const own = await prisma.inventoryLevel.findFirst({ where: { OR: [{ sku: code }, { barcode: code }] }, include: { market: true } });
+  const v = await prisma.variant.findFirst({ where: own ? { id: own.variantId } : { OR: [{ sku: code }, { barcode: code }] }, include: { product: { select: { title: true } }, levels: true } });
+  if (!v) throw Object.assign(new Error(`No product with the code "${code}"`), { status: 404 });
+  const target = own?.market ?? chosen;
+  const have = v.levels.find((l) => l.marketId === target.id)?.quantity ?? 0;
+  if (have + d.delta < 0) throw Object.assign(new Error(`${target.code} only has ${have} of ${v.product.title}${v.title !== "Default" ? ` (${v.title})` : ""}`), { status: 409 });
+  await prisma.$transaction((tx) => adjustStock(tx, v.id, target.id, d.delta));
+  res.json({ product: v.product.title, variant: v.title, sku: v.sku, location: target.code, quantity: have + d.delta, total: v.inventory + d.delta });
+});
 
 productsRouter.get("/", async (req, res) => {
   const { status, tag, q } = req.query as Record<string, string | undefined>;
@@ -229,12 +295,12 @@ productsRouter.get("/export", async (req, res) => {
     prisma.product.findMany({ where: ids.length ? { id: { in: ids } } : productWhere(q), orderBy: { createdAt: "asc" }, take: 10000, include: { variants: { include: { prices: true } }, markets: true } }),
     prisma.market.findMany({ orderBy: { code: "asc" } }),
   ]);
-  const header = ["Handle", "Title", "Status", "Vendor", "Type", "Tags", "Variant", "Options", "SKU", "Inventory", ...markets.flatMap((m) => [`Price ${m.code} (${m.currency})`, `Compare-at ${m.code} (${m.currency})`]), "Markets", "Notes"];
+  const header = ["Handle", "Title", "Status", "Vendor", "Type", "Tags", "Variant", "Options", "SKU", "Inventory", ...markets.flatMap((m) => [`Price ${m.code} (${m.currency})`]), "Markets", "Notes"];
   const lines = products.flatMap((p) =>
     p.variants.map((v) => {
       const price = (mid: string) => v.prices.find((x) => x.marketId === mid);
       const money = (n?: number | null) => (n == null ? "" : (n / 100).toFixed(2));
-      return [p.handle, p.title, p.status, p.vendor, p.productType, parseJson<string[]>(p.tags, []).join(", "), v.title, Object.entries(parseJson<Record<string, string>>(v.options, {})).map(([k, x]) => `${k}=${x}`).join("; "), v.sku, v.inventory, ...markets.flatMap((m) => [money(price(m.id)?.amount), money(price(m.id)?.compareAt)]), p.markets.map((pm) => markets.find((m) => m.id === pm.marketId)?.code).filter(Boolean).join(", "), p.notes].map(csvCell).join(",");
+      return [p.handle, p.title, p.status, p.vendor, p.productType, parseJson<string[]>(p.tags, []).join(", "), v.title, Object.entries(parseJson<Record<string, string>>(v.options, {})).map(([k, x]) => `${k}=${x}`).join("; "), v.sku, v.inventory, ...markets.flatMap((m) => [money(price(m.id)?.amount)]), p.markets.map((pm) => markets.find((m) => m.id === pm.marketId)?.code).filter(Boolean).join(", "), p.notes].map(csvCell).join(",");
     }),
   );
   res.setHeader("content-type", "text/csv; charset=utf-8");
@@ -299,11 +365,17 @@ productsRouter.post("/codes/taken", async (req, res) => {
     d.skus.length ? prisma.variant.findMany({ where: { sku: { in: d.skus }, ...other }, select: { sku: true } }) : [],
     d.barcodes.length ? prisma.variant.findMany({ where: { barcode: { in: d.barcodes }, ...other }, select: { barcode: true } }) : [],
   ]);
-  res.json({ skus: s.map((x) => x.sku), barcodes: b.map((x) => x.barcode) });
+  const lo = d.productId ? { variant: { productId: { not: d.productId } } } : {};
+  const [ls, lb] = await Promise.all([
+    d.skus.length ? prisma.inventoryLevel.findMany({ where: { sku: { in: d.skus }, ...lo }, select: { sku: true } }) : [],
+    d.barcodes.length ? prisma.inventoryLevel.findMany({ where: { barcode: { in: d.barcodes }, ...lo }, select: { barcode: true } }) : [],
+  ]);
+  res.json({ skus: [...s, ...ls].map((x) => x.sku), barcodes: [...b, ...lb].map((x) => x.barcode) });
 });
 
 productsRouter.get("/:id", async (req, res) => {
-  const p = await prisma.product.findUnique({ where: { id: req.params.id }, include });
+  // by id or by URL handle (the admin address uses the handle)
+  const p = await prisma.product.findFirst({ where: { OR: [{ id: req.params.id }, { handle: req.params.id }] }, include });
   if (!p) return void res.status(404).json({ error: "not found" });
   res.json(shape(p));
 });
@@ -311,6 +383,7 @@ productsRouter.get("/:id", async (req, res) => {
 productsRouter.post("/", async (req, res) => {
   const d = productInput.parse(req.body);
   assertPrices(d);
+  await assertLocationCodes(d);
   const p = await prisma.product.create({
     data: {
       title: d.title,
@@ -327,7 +400,7 @@ productsRouter.post("/", async (req, res) => {
     },
     include,
   });
-  res.status(201).json(shape(p));
+  res.status(201).json(shape(await applyStock(d, p.id)));
 });
 
 // Full replace of variants/prices: simple and predictable for an admin form.
@@ -335,6 +408,7 @@ productsRouter.post("/", async (req, res) => {
 productsRouter.put("/:id", async (req, res) => {
   const d = productInput.parse(req.body);
   assertPrices(d);
+  await assertLocationCodes(d, req.params.id);
   const id = req.params.id;
   const p = await prisma.$transaction(async (tx) => {
     const keepIds = d.variants.map((v) => v.id).filter((x): x is string => !!x);
@@ -366,7 +440,7 @@ productsRouter.put("/:id", async (req, res) => {
       include,
     });
   });
-  res.json(shape(p));
+  res.json(shape(await applyStock(d, id)));
 });
 
 productsRouter.delete("/:id", async (req, res) => {

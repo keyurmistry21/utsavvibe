@@ -16,7 +16,7 @@ Next.js 16 App Router + React 19 + TypeScript. Plain CSS in `src/app/styles.css`
 - Storefront look: warm cream theme, classes prefixed `sf-`/`pcard`/`pdp`/`hero`. Generic class names (`card`, `hero`) collide with other rules, so use specific names (the product placeholder art uses `art-ph sm|lg`). `ProductArt` is the gradient fallback when a product has no image.
 - Admin styles are scoped under `.admin`, storefront under `.store`. Don't add unscoped global rules.
 - Prices shown to users come from the server (`/api/store/quote`); the client sends only variant ids and quantities.
-- Deep links: `/admin/products?new=1`, `/admin/markets?new=1`, `/admin/orders?status=open`.
+- Deep links: `/admin/products/new`, `/admin/products/<handle>` (own pages, not state), `/admin/markets?new=1`, `/admin/orders?status=open`.
 - Don't use `useSearchParams` in pages without a Suspense boundary (static prerender fails); read `location.search` in an effect instead.
 
 ## Orders, drafts, labels
@@ -33,7 +33,7 @@ Next.js 16 App Router + React 19 + TypeScript. Plain CSS in `src/app/styles.css`
 Every long-text field that is HTML (product description, pages, policies) uses `RichTextEditor`, which has a `</> HTML` button to edit the source. Pasted code goes through `lib/cleanHtml.ts` (DOMParser allow-list, mirrors the server) before it is shown, so `onerror=`/`<script>` can never run inside the admin; the real gate is `sanitizeDescription` in `backend/src/html.ts` on every save. Allowed: formatting, links, lists, headings h2-h4, tables, images (src must be http(s) or a `/` path), `pre`/`code`, and iframes ONLY from youtube.com / youtube-nocookie.com / player.vimeo.com. Everything else (scripts, styles, classes, inline handlers, other iframes, forms) is removed, so keep the client and server allow-lists in sync. Plain textareas (notes, meta descriptions, address fields) stay plain text on purpose. Storefront styling for the richer tags is under `.sf .desc`.
 
 ## Variant editor
-Variants are cards (`.vcard`), not a table, so nothing scrolls sideways: per-market price and compare-at (the crossed-out "was" price, must be above the price, display only), quantity, weight, then SKU and barcode side by side with Generate, plus "Preview barcode and QR". Don't go back to a wide table.
+Variants are cards (`.vcard`), not a table, so nothing scrolls sideways: per-market price (no compare-at / "was" price: removed), quantity per location, weight, then SKU and barcode side by side with Generate, plus "Preview barcode and QR". Don't go back to a wide table.
 
 ## Product pages
 - List: `ProductList.tsx` (same pattern as Customers: views Active/Draft/Archived, stock chips, column picker via shared `ColumnsMenu`, bulk activate/draft/archive/delete, CSV export) against `GET /products/list`. Editor: `ProductEditor.tsx` (two columns like Shopify). Adding options (Size, Color) rebuilds variants with `syncVariants`: existing combinations keep their data, refinements inherit (first child takes the old variant, others copy prices only because SKUs are unique), so never replace it with a plain regenerate. Description is edited in `RichTextEditor` (execCommand) and sanitized by the API on save. Toggles use `Switch`.

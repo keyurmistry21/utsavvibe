@@ -5,7 +5,7 @@ import Stripe from "stripe";
 import { prisma, parseJson, nextOrderNumber } from "../db.js";
 import { pickShipping, priceTotals, taxRateFor } from "../money.js";
 import { htmlToText } from "../html.js";
-import { canSell, shouldDecrement } from "../stock.js";
+import { canSell, shouldDecrement, takeStock } from "../stock.js";
 import { stripe } from "../stripe.js";
 import { createCheckoutSession } from "../checkout.js";
 import { imageUrls } from "../storage.js";
@@ -36,7 +36,7 @@ storeRouter.get("/site", async (_req, res) => res.json(await loadPrefs()));
 // QR / barcode landing: SKU or barcode -> the product page (variant highlighted) in the requested market, else the first market selling it.
 storeRouter.get("/lookup/:code", async (req, res) => {
   const code = req.params.code.trim().slice(0, 64);
-  const v = code ? await prisma.variant.findFirst({ where: { OR: [{ sku: code }, { barcode: code }], product: { status: "active" } }, include: { product: { include: { markets: { include: { market: true } } } } } }) : null;
+  const v = code ? await prisma.variant.findFirst({ where: { OR: [{ sku: code }, { barcode: code }, { levels: { some: { OR: [{ sku: code }, { barcode: code }] } } }], product: { status: "active" } }, include: { product: { include: { markets: { include: { market: true } } } } } }) : null;
   const markets = v?.product.markets.map((m) => m.market).filter((m) => m.active) ?? [];
   const wanted = String(req.query.market ?? "").toUpperCase();
   const m = markets.find((x) => x.code === wanted) ?? markets[0];
@@ -272,7 +272,7 @@ storeRouter.post("/checkout", async (req, res) => {
     if (covered) {
       for (const i of q.lines) {
         const v = await tx.variant.findUnique({ where: { id: i.variantId }, include: { product: { select: { trackInventory: true } } } });
-        if (v && shouldDecrement(v.product)) await tx.variant.update({ where: { id: i.variantId }, data: { inventory: { decrement: i.quantity } } });
+        if (v && shouldDecrement(v.product)) await takeStock(tx, i.variantId, i.quantity, o.marketId);
       }
     }
     return o;
@@ -340,10 +340,11 @@ export async function stripeWebhook(req: Request, res: Response) {
           if (!flipped.count) return false;
           await tx.order.updateMany({ where: { id: orderId, status: "draft" }, data: { status: "open" } });
           const items = await tx.orderItem.findMany({ where: { orderId } });
+          const paidOrder = await tx.order.findUnique({ where: { id: orderId }, select: { marketId: true } });
           for (const i of items) {
             if (!i.variantId) continue;
             const v = await tx.variant.findUnique({ where: { id: i.variantId }, include: { product: { select: { trackInventory: true } } } });
-            if (v && shouldDecrement(v.product)) await tx.variant.update({ where: { id: i.variantId }, data: { inventory: { decrement: i.quantity } } });
+            if (v && shouldDecrement(v.product)) await takeStock(tx, i.variantId, i.quantity, paidOrder?.marketId);
           }
           return true;
         });

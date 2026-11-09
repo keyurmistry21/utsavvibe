@@ -10,6 +10,7 @@ import { RichTextEditor } from "./RichTextEditor";
 import { Switch } from "./Switch";
 import { useApi } from "./hooks";
 import { Select } from "../Select";
+import { SearchField } from "./SearchField";
 
 type Row = { id: string; title: string; handle: string; kind: "manual" | "smart"; visible: boolean; productCount: number; updatedAt: string };
 type Prod = { id: string; title: string; status: string; thumbUrl: string | null };
@@ -29,7 +30,7 @@ function AddProducts({ have, onAdd, onClose }: { have: Set<string>; onAdd: (p: P
   const n = Object.keys(sel).length;
   return (
     <Modal title="Add products" onClose={onClose} footer={<><span className="muted">{n ? `${n} selected` : "Select products to add"}</span><span style={{ display: "flex", gap: 8 }}><button onClick={onClose}>Cancel</button><button className="primary" disabled={!n} onClick={() => onAdd(Object.values(sel))}>Add</button></span></>}>
-      <input autoFocus className="pickersearch" placeholder="Search products" value={q} onChange={(e) => setQ(e.target.value)} />
+      <SearchField autoFocus className="pickersearch" placeholder="Search products" value={q} onChange={setQ} />
       <div className="pickerlist">
         {(data?.items ?? []).filter((p) => !have.has(p.id)).map((p) => (
           <label key={p.id} className="pickprod check" style={{ cursor: "pointer" }}>

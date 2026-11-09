@@ -7,6 +7,7 @@ import { ColumnsMenu, loadView, saveView, type ViewState } from "./ColumnsMenu";
 import { Badge, TagList } from "./hooks";
 import { Select } from "../Select";
 import { useAdminMarket } from "@/lib/adminMarket";
+import { SearchField } from "./SearchField";
 
 const PAGE = 50;
 type ColKey = "status" | "inventory" | "markets" | "price" | "type" | "vendor" | "tags" | "variants" | "updated" | "created";
@@ -43,7 +44,7 @@ const FILTERS: [string, string][] = [["all", "Any stock"], ["out_of_stock", "Out
 type View = ViewState<ColKey, Sort>;
 type Stats = { total: number; active: number; draft: number; archived: number; outOfStock: number };
 
-export function ProductList({ onAdd, onEdit }: { onAdd: () => void; onEdit: (id: string) => void }) {
+export function ProductList({ onAdd, onEdit }: { onAdd: () => void; onEdit: (handle: string) => void }) {
   const [view, setViewState] = useState<View>({ order: COLS.map((c) => c.key), visible: DEFAULT_VISIBLE, sort: "updated", dir: "desc" });
   const [ready, setReady] = useState(false);
   const [q, setQ] = useState("");
@@ -108,6 +109,7 @@ export function ProductList({ onAdd, onEdit }: { onAdd: () => void; onEdit: (id:
         <div className="headtools">
           <button onClick={exportCsv}>{sel.size ? `Export ${sel.size} selected` : "Export"}</button>
           <Link className="btn-link" href="/admin/products/import">Import</Link>
+          <Link className="btn-link" href="/admin/products/scan">Scan stock</Link>
           <Link className="btn-link" href={sel.size ? `/admin/products/labels?ids=${[...sel].join(",")}` : "/admin/products/labels"}>{sel.size ? `Print labels (${sel.size})` : "Print labels"}</Link>
           <button className="primary" onClick={onAdd}>Add product</button>
         </div>
@@ -127,10 +129,7 @@ export function ProductList({ onAdd, onEdit }: { onAdd: () => void; onEdit: (id:
           <Select className="viewselect" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Product view">
             {VIEWS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </Select>
-          <div className="searchfield grow">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.3-4.3" /></svg>
-            <input placeholder="Search and filter" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
+          <SearchField className="grow" placeholder="Search and filter" value={q} onChange={setQ} />
           <div className="colwrap">
             <button className="colbtn iconbtn" aria-label="Sort and choose columns" title="Sort and columns" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16M15 4v16" /></svg>
@@ -176,7 +175,7 @@ export function ProductList({ onAdd, onEdit }: { onAdd: () => void; onEdit: (id:
                   <td>
                     <div className="prodcell">
                       {p.thumbUrl ? <img className="listthumb" src={p.thumbUrl} alt="" /> : <span className="listthumb noimg" />}
-                      <button className="link namebtn" onClick={() => onEdit(p.id)}>{p.title}</button>
+                      <button className="link namebtn" onClick={() => onEdit(p.handle)}>{p.title}</button>
                     </div>
                   </td>
                   {cols.map((c) => <td key={c.key} className={c.right ? "r" : ""}>{c.render(p)}</td>)}

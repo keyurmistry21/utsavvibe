@@ -2,6 +2,17 @@
 
 import { useCallback, useState } from "react";
 
+// error state shake (transitions-dev): remove the class, force a reflow, add it back so the shake replays every time
+export function shake(el: Element | null | undefined) {
+  if (!el) return;
+  el.classList.remove("is-shaking");
+  void (el as HTMLElement).offsetWidth;
+  el.classList.add("is-shaking");
+  const cs = getComputedStyle(document.documentElement);
+  const ms = (parseFloat(cs.getPropertyValue("--shake-dur-a")) || 80) * 2 + (parseFloat(cs.getPropertyValue("--shake-dur-b")) || 60) * 2;
+  setTimeout(() => el.classList.remove("is-shaking"), ms + 20);
+}
+
 // A blur caused by pressing a button must not show its error until the click is over: the error line would push the
 // button down mid-press and the click would be lost. Blurs during a press wait until just after pointerup.
 let pressing = false;
@@ -36,6 +47,7 @@ export function useValidation(errors: Record<string, string | undefined>) {
       requestAnimationFrame(() => requestAnimationFrame(() => {
         const el = document.querySelector<HTMLElement>('[aria-invalid="true"]');
         if (!el) return;
+        document.querySelectorAll('[aria-invalid="true"]').forEach(shake);
         el.scrollIntoView({ block: "center", behavior: "smooth" });
         (el.matches("input,textarea,button,[contenteditable]") ? el : el.querySelector<HTMLElement>("input,textarea,[contenteditable]") ?? el).focus?.({ preventScroll: true });
       }));

@@ -20,6 +20,7 @@ model Market {
   shippingRates ShippingRate[]
   regions      MarketRegion[]
   prices       VariantPrice[]
+  stockLevels  InventoryLevel[]
   products     ProductMarket[]
   orders       Order[]
 }
@@ -96,6 +97,22 @@ model Variant {
   costPerItem Int? // minor units, admin-only
   prices    VariantPrice[]
   orderItems OrderItem[]
+  levels    InventoryLevel[]
+}
+
+// Stock of one variant at one location. Variant.inventory is always the sum of these rows (once a store has locations).
+model InventoryLevel {
+  variantId  String
+  marketId   String
+  quantity   Int      @default(0)
+  sku        String?  @db.VarChar(64) // this variant's own SKU / barcode for this market: its label adds and removes that market's stock (uniqueness is checked on save)
+  barcode    String?  @db.VarChar(64)
+  variant    Variant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  market     Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@id([variantId, marketId])
+  @@index([sku])
+  @@index([barcode])
 }
 
 // Manual price per variant per market.

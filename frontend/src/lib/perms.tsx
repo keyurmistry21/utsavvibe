@@ -17,6 +17,7 @@ export function useCan() {
 export const ROUTE_PERMS: [string, string][] = [
   ["/admin/orders", "orders.view"],
   ["/admin/products/import", "products.manage"],
+  ["/admin/products/scan", "products.manage"],
   ["/admin/products", "products.view"],
   ["/admin/collections", "products.view"],
   ["/admin/gift-cards", "gift_cards.view"],

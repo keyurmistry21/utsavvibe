@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-// Demo catalog so the storefront isn't empty. Handles start with "demo-".
+// Demo catalog so the storefront isn't empty. Products are tagged "demo" (handles are plain, no prefix).
 // usage: npm -w backend run seed:demo [-- --clear]
 const prisma = new PrismaClient();
 
@@ -52,10 +52,10 @@ const catalog: { title: string; description: string; tags: string[]; variants: {
   },
 ];
 
-const slug = (s: string) => `demo-${s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+const slug = (s: string) => `${s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
 
 if (process.argv.includes("--clear")) {
-  const r = await prisma.product.deleteMany({ where: { handle: { startsWith: "demo-" }, variants: { none: { orderItems: { some: {} } } } } });
+  const r = await prisma.product.deleteMany({ where: { tags: { contains: JSON.stringify("demo") }, notes: { startsWith: "Demo product." }, variants: { none: { orderItems: { some: {} } } } } });
   console.log(`removed ${r.count} demo products`);
 } else {
   const markets = await prisma.market.findMany();

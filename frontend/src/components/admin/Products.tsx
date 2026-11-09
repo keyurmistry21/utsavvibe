@@ -1,33 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api, type Market, type Product } from "@/lib/api";
-import { blank, fromProduct, ProductEditor, type Form } from "./ProductEditor";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { ProductList } from "./ProductList";
-import { useApi } from "./hooks";
 
+// Handles that match a fixed page (labels, import, scan, new) are reached through /edit/<handle>.
+const RESERVED = new Set(["new", "labels", "import", "scan", "edit"]);
+
+// The list. Add and edit open their own addresses: /admin/products/new and /admin/products/<handle>.
 export function Products() {
-  const { data: markets } = useApi<Market[]>("/markets");
-  const [form, setForm] = useState<Form | null>(null);
-  const [loadErr, setLoadErr] = useState("");
-  // /admin/products?new=1 opens the add-product page straight away
-  useEffect(() => {
-    if (markets && new URLSearchParams(location.search).get("new")) {
-      history.replaceState(null, "", location.pathname);
-      setForm(blank());
-    }
-  }, [markets]);
-
-  const edit = async (id: string) => {
-    setLoadErr("");
-    try { setForm(fromProduct(await api<Product>(`/products/${id}`))); } catch (e) { setLoadErr((e as Error).message); }
-  };
-
-  if (form && markets) return <ProductEditor key={form.id ?? "new"} markets={markets} initial={form} onDone={() => setForm(null)} />;
-  return (
-    <>
-      {loadErr && <div className="error">{loadErr}</div>}
-      <ProductList onAdd={() => setForm(blank())} onEdit={edit} />
-    </>
-  );
+  const router = useRouter();
+  // old link /admin/products?new=1
+  useEffect(() => { if (new URLSearchParams(location.search).get("new")) router.replace("/admin/products/new"); }, [router]);
+  return <ProductList onAdd={() => router.push("/admin/products/new")} onEdit={(handle) => router.push(`/admin/products/${RESERVED.has(handle) ? `edit/${handle}` : handle}`)} />;
 }

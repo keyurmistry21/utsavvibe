@@ -171,7 +171,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )}
               {l.label === "Products" && (path.startsWith("/admin/products") || path.startsWith("/admin/collections") || path.startsWith("/admin/gift-cards")) && (
                 <div className="sub">
-                  <Link href="/admin/products" className={path === "/admin/products" || path.startsWith("/admin/products/labels") ? "active" : ""}>All products</Link>
+                  <Link href="/admin/products" className={path.startsWith("/admin/products") && !path.startsWith("/admin/products/import") ? "active" : ""}>All products</Link>
                   {can("products.view") && <Link href="/admin/collections" className={path.startsWith("/admin/collections") ? "active" : ""}>Collections</Link>}
                   {can("gift_cards.view") && <Link href="/admin/gift-cards" className={path.startsWith("/admin/gift-cards") ? "active" : ""}>Gift cards</Link>}
                   {can("products.manage") && <Link href="/admin/products/import" className={path.startsWith("/admin/products/import") ? "active" : ""}>Import from Shopify</Link>}

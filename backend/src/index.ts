@@ -12,7 +12,7 @@ import { customersRouter } from "./routes/customers.js";
 import { draftsRouter } from "./routes/drafts.js";
 import { settingsRouter } from "./routes/settings.js";
 import { usersRouter, rolesRouter } from "./routes/users.js";
-import { locationsRouter, ensureDefaultLocation } from "./routes/locations.js";
+import { locationsRouter, ensureDefaultLocation, ensureStockLevels } from "./routes/locations.js";
 import { policiesRouter } from "./routes/policies.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { ensureRoles } from "./permissions.js";
@@ -96,5 +96,6 @@ if (process.env.NODE_ENV === "production") {
 await loadSecret();
 await ensureRoles();
 await ensureDefaultLocation();
+await ensureStockLevels();
 startAbandonedJob();
 app.listen(port, () => console.log(`api on :${port}`));

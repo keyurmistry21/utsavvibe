@@ -36,6 +36,16 @@ export async function ensureDefaultLocation() {
   await prisma.location.create({ data: { name: f.name || f.company || "Main location", company: f.company ?? "", line1: f.line1 ?? "", line2: f.line2 ?? "", city: f.city ?? "", region: f.region ?? "", postcode: f.postcode ?? "", country: (f.country ?? "").toUpperCase().slice(0, 2), phone: f.phone ?? "", isDefault: true } });
 }
 
+/** Startup: stock counted before per-market stock existed (Variant.inventory) goes to the first market the product sells in. */
+export async function ensureStockLevels() {
+  const vars = await prisma.variant.findMany({ where: { levels: { none: {} }, inventory: { not: 0 } }, select: { id: true, inventory: true, product: { select: { markets: { select: { marketId: true }, orderBy: { marketId: "asc" } } } } } });
+  const fallback = (await prisma.market.findFirst({ where: { active: true }, orderBy: { code: "asc" } }))?.id;
+  for (const v of vars) {
+    const marketId = v.product.markets[0]?.marketId ?? fallback;
+    if (marketId) await prisma.inventoryLevel.create({ data: { variantId: v.id, marketId, quantity: v.inventory } });
+  }
+}
+
 locationsRouter.get("/", async (_req, res) => {
   res.json(await prisma.location.findMany({ orderBy: [{ isDefault: "desc" }, { name: "asc" }] }));
 });

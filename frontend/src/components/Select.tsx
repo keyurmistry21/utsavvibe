@@ -47,6 +47,7 @@ export function Select({ value, onChange, children, disabled, className = "", st
   const cur = value !== undefined ? String(value) : inner;
   const sel = opts.find((o) => o.value === cur);
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false); // stays true during the close animation
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const [pos, setPos] = useState<{ left: number; width: number; top?: number; bottom?: number; maxH: number } | null>(null);
@@ -56,6 +57,14 @@ export function Select({ value, onChange, children, disabled, className = "", st
   const searchRef = useRef<HTMLInputElement>(null);
   const buf = useRef({ text: "", t: 0 });
   const uid = useId();
+
+  useEffect(() => {
+    if (open) { setMounted(true); return; }
+    if (!mounted) return;
+    const ms = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--dropdown-close-dur")) || 150;
+    const t = setTimeout(() => setMounted(false), ms);
+    return () => clearTimeout(t);
+  }, [open, mounted]);
 
   const showSearch = opts.length > SEARCH_FROM;
   const shown = useMemo(() => (query ? opts.filter((o) => o.label.toLowerCase().includes(query.toLowerCase())) : opts), [opts, query]);
@@ -155,9 +164,9 @@ export function Select({ value, onChange, children, disabled, className = "", st
         <span className={`sb-label ${placeholder ? "ph" : ""}`}>{label || " "}</span>
         <svg className="sb-chev" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" /></svg>
       </button>
-      {open && pos && typeof document !== "undefined" &&
+      {mounted && pos && typeof document !== "undefined" &&
         createPortal(
-          <div ref={pop} className="selectpop" data-variant={variant} style={{ left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxH }}>
+          <div ref={pop} className={`selectpop ${open ? "" : "is-closing"}`} data-flip={pos.bottom !== undefined ? "up" : "down"} data-variant={variant} style={{ left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxH }}>
             {showSearch && (
               <div className="ssearch">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.3-4.3" /></svg>

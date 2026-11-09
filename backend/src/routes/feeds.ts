@@ -30,7 +30,6 @@ async function rows(code: string) {
     return p.variants.filter((v) => v.prices[0]).map((v) => {
       const opts = parseJson<Record<string, string>>(v.options, {});
       const pr = v.prices[0];
-      const onSale = pr.compareAt != null && pr.compareAt > pr.amount;
       const key = (re: RegExp) => Object.entries(opts).find(([k]) => re.test(k))?.[1] ?? "";
       return {
         id: v.sku || v.id,
@@ -41,9 +40,8 @@ async function rows(code: string) {
         image: imgs[0] ?? "",
         more: imgs.slice(1, 10),
         available: canSell(p, v.inventory) ? "in_stock" : "out_of_stock",
-        price: price(onSale ? pr.compareAt! : pr.amount, market.currency),
-        sale: onSale ? price(pr.amount, market.currency) : "",
-        brand: p.vendor || storeName(),
+        price: price(pr.amount, market.currency),
+                brand: p.vendor || storeName(),
         gtin: gtin(v.barcode),
         mpn: v.sku ?? "",
         type: p.productType,
@@ -67,7 +65,7 @@ feedsRouter.get("/google/:code.xml", async (req, res) => {
 <title>${esc(i.title.slice(0, 150))}</title><description>${esc(i.desc)}</description>
 <link>${esc(i.link)}</link>${i.image ? `<g:image_link>${esc(i.image)}</g:image_link>` : ""}${i.more.map((u) => `<g:additional_image_link>${esc(u)}</g:additional_image_link>`).join("")}
 <g:availability>${i.available}</g:availability><g:condition>new</g:condition>
-<g:price>${esc(i.price)}</g:price>${i.sale ? `<g:sale_price>${esc(i.sale)}</g:sale_price>` : ""}
+<g:price>${esc(i.price)}</g:price>
 <g:brand>${esc(i.brand)}</g:brand>${i.gtin ? `<g:gtin>${i.gtin}</g:gtin>` : ""}${i.mpn ? `<g:mpn>${esc(i.mpn)}</g:mpn>` : ""}${!i.gtin && !i.mpn ? "<g:identifier_exists>no</g:identifier_exists>" : ""}
 ${i.type ? `<g:product_type>${esc(i.type)}</g:product_type>` : ""}${i.size ? `<g:size>${esc(i.size)}</g:size>` : ""}${i.color ? `<g:color>${esc(i.color)}</g:color>` : ""}
 ${i.weightG ? `<g:shipping_weight>${i.weightG} g</g:shipping_weight>` : ""}${rate ? countries.slice(0, 20).map((c) => `<g:shipping><g:country>${esc(c)}</g:country><g:service>${esc(rate.name)}</g:service><g:price>${esc(price(rate.amount, f.market.currency))}</g:price></g:shipping>`).join("") : ""}
@@ -79,8 +77,8 @@ ${i.weightG ? `<g:shipping_weight>${i.weightG} g</g:shipping_weight>` : ""}${rat
 feedsRouter.get("/meta/:code.csv", async (req, res) => {
   const f = await rows(req.params.code);
   if (!f) return void res.status(404).send("not found");
-  const head = ["id", "title", "description", "availability", "condition", "price", "sale_price", "link", "image_link", "additional_image_link", "brand", "item_group_id", "gtin", "mpn", "product_type", "size", "color", "quantity_to_sell_on_facebook"];
-  const lines = f.items.map((i) => [i.id, i.title.slice(0, 200), i.desc, i.available.replace("_", " "), "new", i.price, i.sale, i.link, i.image, i.more.join(","), i.brand, i.group, i.gtin, i.mpn, i.type, i.size, i.color, i.qty].map(csvCell).join(","));
+  const head = ["id", "title", "description", "availability", "condition", "price", "link", "image_link", "additional_image_link", "brand", "item_group_id", "gtin", "mpn", "product_type", "size", "color", "quantity_to_sell_on_facebook"];
+  const lines = f.items.map((i) => [i.id, i.title.slice(0, 200), i.desc, i.available.replace("_", " "), "new", i.price, i.link, i.image, i.more.join(","), i.brand, i.group, i.gtin, i.mpn, i.type, i.size, i.color, i.qty].map(csvCell).join(","));
   res.type("text/csv; charset=utf-8").setHeader("Cache-Control", "public, max-age=900");
   res.send([head.join(","), ...lines].join("\n"));
 });

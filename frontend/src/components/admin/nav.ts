@@ -40,8 +40,9 @@ export const links = [
 // things the search / finder can jump to
 export const actions = [
   ...links.map((l) => ({ label: l.label, href: l.href })),
-  { label: "Add product", href: "/admin/products?new=1" },
+  { label: "Add product", href: "/admin/products/new" },
   { label: "Print product labels", href: "/admin/products/labels" },
+  { label: "Scan stock in / out", href: "/admin/products/scan" },
   { label: "Collections", href: "/admin/collections" },
   { label: "Create collection", href: "/admin/collections?new=1" },
   { label: "Gift cards", href: "/admin/gift-cards" },

@@ -7,6 +7,7 @@ import { PRESETS, today, type PresetKey } from "@/lib/dates";
 import { useCan } from "@/lib/perms";
 import { useApi } from "./hooks";
 import { useAdminMarket } from "@/lib/adminMarket";
+import { DateRangePicker } from "./DateRangePicker";
 
 type Cur = { currency: string; markets: string[]; orders: number; revenue: number; tax: number; shipping: number; net: number; expenses: number; expenseCount: number; profit: number };
 type Prev = { orders: number; revenue: number; net: number; expenses: number; profit: number };
@@ -135,14 +136,7 @@ export function Dashboard() {
           {/* opening Custom starts from the range you were just looking at, so it never lands on an empty form */}
           <button className={preset === "custom" ? "on" : ""} onClick={() => { if (preset !== "custom" && range) setCustom({ from: range.from, to: range.to }); setPreset("custom"); }}>Custom</button>
         </div>
-        {preset === "custom" && (
-          <div className="ep-dates" role="group" aria-label="Custom date range">
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="ep-cal"><rect x="3.5" y="5" width="17" height="15" rx="2.5" /><path d="M8 3v4M16 3v4M3.5 10h17" /></svg>
-            <label><span>From</span><input type="date" max={custom.to || today()} value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} /></label>
-            <i aria-hidden>→</i>
-            <label><span>To</span><input type="date" min={custom.from || undefined} max={today()} value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} /></label>
-          </div>
-        )}
+        {preset === "custom" && <DateRangePicker from={custom.from} to={custom.to} onChange={(from, to) => setCustom({ from, to })} />}
         {ready && <div className="ep-period">{fmtDay(data.from)} – {fmtDay(data.to)}</div>}
       </div>
       {customErr && <div className="error">{customErr}</div>}
@@ -172,18 +166,18 @@ export function Dashboard() {
           )}
 
           <div className="ep-two">
-            <div className="card ep-card">
-              <h4>Sales by market</h4>
+            <div className="ep-panel">
+              <div className="ep-panel-head"><h4>Sales by market</h4><span>Paid orders in this period</span></div>
               <table className="ep-table">
                 <thead><tr><th>Market</th><th className="r">Orders</th><th className="r">Revenue</th><th className="r">Tax</th><th className="r">Shipping</th></tr></thead>
                 <tbody>
-                  {data.markets.map((r) => <tr key={r.code}><td><b>{r.code}</b></td><td className="r">{r.orders}</td><td className="r">{money(r.revenue, r.currency)}</td><td className="r">{money(r.tax, r.currency)}</td><td className="r">{money(r.shipping, r.currency)}</td></tr>)}
+                  {data.markets.map((r) => <tr key={r.code}><td><span className="ep-code">{r.code}</span><span className="ep-cur-tag">{r.currency}</span></td><td className="r">{r.orders}</td><td className="r strong">{money(r.revenue, r.currency)}</td><td className="r dim">{money(r.tax, r.currency)}</td><td className="r dim">{money(r.shipping, r.currency)}</td></tr>)}
                   {!data.markets.length && <tr><td colSpan={5} className="ep-none">No paid orders in this period.</td></tr>}
                 </tbody>
               </table>
             </div>
-            <div className="card ep-card">
-              <h4>Top products</h4>
+            <div className="ep-panel">
+              <div className="ep-panel-head"><h4>Top products</h4><span>By units sold</span></div>
               <ol className="ep-top-list">
                 {data.topProducts.map((t, i) => <li key={t.title}><span className="rank">{i + 1}</span><span className="name">{t.title}</span><span className="qty">{t.quantity} sold</span></li>)}
                 {!data.topProducts.length && <li className="ep-none">No sales in this period.</li>}
@@ -193,14 +187,25 @@ export function Dashboard() {
         </>
       )}
 
-      <div className="card ep-card">
-        <h4>Yearly revenue</h4>
-        <table className="ep-table">
+      <div className="ep-panel">
+        <div className="ep-panel-head"><h4>Yearly revenue</h4><span>Calendar years, every currency on its own row</span></div>
+        <table className="ep-table ep-year">
           <thead><tr><th>Year</th><th>Currency</th><th className="r">Orders</th><th className="r">Revenue</th><th className="r">Net sales</th><th className="r">Expenses</th><th className="r">Profit</th></tr></thead>
           <tbody>
-            {years?.map((y) => (
-              <tr key={y.year + y.currency}><td><b>{y.year}</b></td><td>{y.currency}</td><td className="r">{y.orders}</td><td className="r">{money(y.revenue, y.currency)}</td><td className="r">{money(y.net, y.currency)}</td><td className="r">{money(y.expenses, y.currency)}</td><td className={`r ${y.profit < 0 ? "neg" : "pos"}`}><b>{money(y.profit, y.currency)}</b></td></tr>
-            ))}
+            {years?.map((y, i) => {
+              const first = i === 0 || years[i - 1].year !== y.year;
+              return (
+                <tr key={y.year + y.currency} className={first ? "ep-yfirst" : ""}>
+                  <td className="ep-ycell">{first && <span className="ep-year-pill">{y.year}</span>}</td>
+                  <td><span className="ep-cur-tag">{y.currency}</span></td>
+                  <td className="r">{y.orders}</td>
+                  <td className="r strong">{money(y.revenue, y.currency)}</td>
+                  <td className="r dim">{money(y.net, y.currency)}</td>
+                  <td className="r dim">{y.expenses ? `−${money(y.expenses, y.currency)}` : money(0, y.currency)}</td>
+                  <td className="r"><span className={`ep-profit ${y.profit < 0 ? "neg" : "pos"}`}>{money(y.profit, y.currency)}</span></td>
+                </tr>
+              );
+            })}
             {years && !years.length && <tr><td colSpan={7} className="ep-none">No sales or expenses yet.</td></tr>}
           </tbody>
         </table>

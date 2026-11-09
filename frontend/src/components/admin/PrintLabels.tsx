@@ -3,7 +3,7 @@
 import QRCode from "qrcode";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { api, money, type Market, type Product } from "@/lib/api";
+import { api, money, type Market, type Product, type StockMarket } from "@/lib/api";
 import { ean13Svg, productQrUrl } from "@/lib/codes";
 import { useQrBase } from "@/lib/useQrBase";
 import { useApi } from "./hooks";
@@ -24,6 +24,7 @@ type Row = { key: string; productId: string; product: string; variant: string; o
 export function PrintLabels() {
   const { data: products, error } = useApi<Product[]>("/products");
   const { data: markets } = useApi<Market[]>("/markets");
+  const { data: locs } = useApi<StockMarket[]>("/products/stock/markets");
   const [q, setQ] = useState("");
   const [pick, setPick] = useState<Record<string, number>>({}); // variant key -> copies (absent = not selected)
   const [size, setSize] = useState<SizeKey>("roll50x25");
@@ -32,10 +33,16 @@ export function PrintLabels() {
   const [skip, setSkip] = useState(0); // used slots on a partly used sheet
   const [qrs, setQrs] = useState<Record<string, string>>({});
 
-  const rows: Row[] = useMemo(() => (products ?? []).flatMap((p) => p.variants.map((v, i) => ({
-    key: v.id ?? `${p.id}:${i}`, productId: p.id, product: p.title, variant: v.title === "Default" ? "" : v.title, opts: Object.entries(v.options ?? {}).map(([k, x]) => `${k}: ${x}`).join(", "),
-    sku: v.sku ?? "", barcode: v.barcode ?? "", inventory: v.inventory, prices: v.prices,
-  }))), [products]);
+  // one label row per variant, plus one per market that has its own SKU/barcode (its QR adds and removes stock for that market)
+  const rows: Row[] = useMemo(() => (products ?? []).flatMap((p) => p.variants.flatMap((v, i) => {
+    const base = { productId: p.id, product: p.title, opts: Object.entries(v.options ?? {}).map(([k, x]) => `${k}: ${x}`).join(", "), prices: v.prices };
+    const vt = v.title === "Default" ? "" : v.title;
+    const main: Row = { ...base, key: v.id ?? `${p.id}:${i}`, variant: vt, sku: v.sku ?? "", barcode: v.barcode ?? "", inventory: v.inventory };
+    const perLoc: Row[] = Object.entries(v.stock ?? {}).filter(([, l]) => l.sku || l.barcode).map(([id, l]) => ({
+      ...base, key: `${v.id ?? `${p.id}:${i}`}@${id}`, variant: [vt, locs?.find((x) => x.id === id)?.code].filter(Boolean).join(" · "), sku: l.sku ?? "", barcode: l.barcode ?? "", inventory: l.quantity,
+    }));
+    return [main, ...perLoc];
+  })), [products, locs]);
 
   // preselect from ?ids=productId,productId (the Products list "Print labels" button)
   useEffect(() => {

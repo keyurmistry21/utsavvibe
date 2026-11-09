@@ -11,12 +11,12 @@ Custom ecommerce platform replacing Shopify. Sells in three markets (UK/GBP, US/
 - Admin (`/admin`): Home, Orders (+ drafts, payment links, mark paid, tracking, labels, emails), Products (variants, per-market prices, images, SKU/barcode/QR generation, bulk label printing, Shopify CSV import, gift card products), Collections (manual and automated), Gift cards (issue, sell, redeem), Carrier postage on orders (Shippo), Customers (import/export), Markets (tax, regions, shipping), Analytics (earnings by 1/3/6/12 months, this year or a custom range, yearly revenue, profit), Expenses (staff log purchases in the currency of the market they work in; admins decide which markets each staff member may transact in), Online Store (Pages, Blog posts, Preferences incl. menus), Marketing (Google and Meta product feeds, abandoned-checkout reminders), Settings (General, Payments, Checkout and tax, Users, Roles and permissions, Locations, Notifications, Policies, Appearance, Apps and API, Security, My account).
 - Built-in protection: Stripe Radar plus store fraud flags on orders, optional Stripe Tax automatic tax, JWT sign-in with optional 2FA, API keys and signed webhooks (the replacement for Shopify apps), security log, rate limits, security headers. SEO: sitemap, robots, canonical + hreflang, JSON-LD.
 - Access control: staff users with roles; Owner is locked; permissions enforced by the API (`guard()`), mirrored in the UI.
-- Not built: Themes, multi-store (a second store = a second deployment), per-location stock, purchase orders, transfers, multiple blogs, collection images, importing Shopify customers/orders/collections, gift cards in draft orders, EasyPost (only Shippo).
+- Not built: Themes, multi-store (a second store = a second deployment), per-warehouse stock (stock is counted per market, with its own SKU and QR), purchase orders, transfers, multiple blogs, collection images, importing Shopify customers/orders/collections, gift cards in draft orders, EasyPost (only Shippo).
 
 ## Commands (repo root)
 - `make up` start MySQL (Docker, host port 3307), push schema, seed markets, run API :4000 + web :5173
 - `make down` stop MySQL (data kept in the Docker volume)
-- `make demo` / `make demo-clear` add or remove 6 sample products (handles start with `demo-`) priced in all 3 markets
+- `make demo` / `make demo-clear` add or remove 6 sample products (tagged `demo`, plain handles) priced in all 3 markets
 - `make admin EMAIL=… PASSWORD='…' NAME='…'` create/reset an admin user
 - `npm run typecheck` backend + frontend
 - Port 3306 belongs to another local project's MySQL. Never touch that container.

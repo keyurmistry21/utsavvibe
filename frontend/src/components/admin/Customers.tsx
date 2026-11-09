@@ -7,6 +7,7 @@ import { ImportCustomers } from "./ImportCustomers";
 import { NewCustomerSheet } from "./NewCustomerSheet";
 import { Badge, TagList } from "./hooks";
 import { ColumnsMenu, loadView, saveView, type ViewState } from "./ColumnsMenu";
+import { SearchField } from "./SearchField";
 
 const PAGE = 50;
 type ColKey = "email_sub" | "location" | "orders" | "spent" | "email" | "phone" | "first" | "last" | "postcode" | "language" | "id" | "added" | "updated" | "sms" | "whatsapp" | "tax" | "tags";
@@ -106,10 +107,7 @@ export function Customers() {
 
       <div className="card custlistcard">
         <div className="custtools">
-          <div className="searchfield grow">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.3-4.3" /></svg>
-            <input placeholder="Search customers" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
+          <SearchField className="grow" placeholder="Search customers" value={q} onChange={setQ} />
           <div className="colwrap">
             <button className="colbtn iconbtn" aria-label="Sort and choose columns" title="Sort and columns" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16M15 4v16" /></svg>

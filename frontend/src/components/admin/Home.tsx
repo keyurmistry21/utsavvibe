@@ -37,7 +37,7 @@ export function Home() {
 
   const cards = status && [
     status.products === 0
-      ? { tone: "amber", title: "Add your first product", body: "Pick the markets it sells in, then set a price per market (GBP, USD, CAD).", cta: "Add product", href: "/admin/products?new=1" }
+      ? { tone: "amber", title: "Add your first product", body: "Pick the markets it sells in, then set a price per market (GBP, USD, CAD).", cta: "Add product", href: "/admin/products/new" }
       : { tone: "amber", title: `${status.activeProducts} of ${status.products} products are live`, body: "Draft products are hidden from the storefront. Open one to publish it.", cta: "Review products", href: "/admin/products" },
     status.stripeConfigured
       ? { tone: "green", title: "Stripe is connected", body: status.webhookConfigured ? "Payments and the webhook are configured." : "Add STRIPE_WEBHOOK_SECRET so paid orders are marked automatically.", cta: "View orders", href: "/admin/orders" }
@@ -85,7 +85,7 @@ export function Home() {
 
       <div className="chips">
         <Link href="/admin/orders?status=open" className="pill">Fulfil orders {!!status?.toFulfil && <span className="count">{status.toFulfil}</span>}</Link>
-        <Link href="/admin/products?new=1" className="pill">Add product</Link>
+        <Link href="/admin/products/new" className="pill">Add product</Link>
         <Link href="/admin/markets?new=1" className="pill">Add market</Link>
       </div>
 
