@@ -1478,3 +1478,57 @@ a.hm-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0
 .store .igrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; }
 .store .igrid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; display: block; }
 .admin .offlinebox ul { margin: 6px 0 10px; padding-left: 18px; }
+
+/* ---------- In-store till ---------- */
+.admin .till { max-width: 1100px; }
+.admin .till-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.admin .till-head .pagetitle { margin: 0; font-size: 24px; }
+.admin .till-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; padding: 5px 12px; border-radius: 999px; background: #e3f5e9; color: #14793a; }
+.admin .till-status i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.admin .till-status.off { background: #fff0d4; color: #8a5a00; }
+.admin .till-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 18px; align-items: start; }
+.admin .till-side { position: sticky; top: 8px; display: grid; gap: 0; }
+.admin .till-scanrow { display: flex; align-items: center; gap: 8px; }
+.admin .till-scanrow svg { width: 24px; height: 24px; flex: none; fill: none; stroke: #6b6b6b; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.admin .till-scanrow input { flex: 1; height: 48px; font-size: 16px; }
+.admin .till-scanrow button { height: 48px; padding: 0 18px; }
+.admin .till-video { width: 100%; max-height: 300px; margin-top: 12px; border-radius: 12px; background: #000; object-fit: cover; }
+.admin .till-cat { margin: 8px 0 0; font-size: 12px; }
+.admin .till-basket { min-height: 180px; }
+.admin .till-empty { display: grid; justify-items: center; gap: 4px; padding: 28px 8px; text-align: center; color: var(--muted); }
+.admin .till-empty svg { width: 44px; height: 44px; fill: none; stroke: #b9bcb0; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; margin-bottom: 6px; }
+.admin .till-empty b { color: var(--text); font-size: 15px; }
+.admin .sellbasket li { gap: 14px; padding: 14px 0; }
+.admin .sellbasket img, .admin .sellbasket .ph { width: 56px; height: 56px; border-radius: 12px; }
+.admin .sellbasket .ph { display: grid; place-items: center; font-style: normal; font-weight: 800; color: #4f7d12; background: #eef5df; font-size: 20px; }
+.admin .sb-info b { font-size: 14.5px; }
+.admin .sb-qty { background: #f2f3ef; border-radius: 999px; padding: 3px; gap: 2px; }
+.admin .sb-qty button { width: 34px; height: 34px; border-radius: 50%; box-shadow: none; background: #fff; font-size: 18px; }
+.admin .sb-qty span { min-width: 28px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.admin .sb-price { min-width: 84px; font-size: 15px; }
+.admin .sb-x { width: 30px; height: 30px; padding: 0; border-radius: 50%; box-shadow: none; background: transparent; color: #8a8a8a; font-size: 20px; }
+.admin .sb-x:hover { background: #fde8e6; color: #b42318; }
+.admin .till-sum { padding-bottom: 12px; }
+.admin .till-line { display: flex; justify-content: space-between; margin-bottom: 10px; color: var(--muted); }
+.admin .till-disc { margin-bottom: 10px; }
+.admin .till-total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 12px; border-top: 1px solid #ececec; }
+.admin .till-total span { font-weight: 650; }
+.admin .till-total b { font-size: 30px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.admin .till-pay { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; margin: 10px 0 14px; }
+.admin .till-pay button { display: grid; justify-items: center; gap: 4px; padding: 12px 6px; height: auto; border-radius: 12px; line-height: 1.2; font-weight: 700; }
+.admin .till-pay button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.admin .till-pay button small { font-weight: 450; font-size: 11px; color: var(--muted); white-space: normal; text-align: center; }
+.admin .till-pay button.on { background: #1f2a12; color: #fff; box-shadow: 0 4px 14px rgba(31,42,18,.3); }
+.admin .till-pay button.on small { color: rgba(255,255,255,.75); }
+.admin .till-go { width: 100%; height: 52px; font-size: 16px; font-weight: 700; border-radius: 12px; }
+.admin .till-result { max-width: 520px; margin: 24px auto; text-align: center; padding: 28px 24px; }
+.admin .till-check { width: 72px; height: 72px; margin: 0 auto 12px; border-radius: 50%; background: #e3f5e9; display: grid; place-items: center; animation: tillPop .4s cubic-bezier(.2,1.4,.4,1); }
+.admin .till-check svg { width: 38px; height: 38px; fill: none; stroke: #14793a; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+@keyframes tillPop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.admin .till-big { font-size: 34px; font-weight: 800; letter-spacing: -.02em; margin: 4px 0 8px; } .admin .till-big span { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.admin .till-qr { width: min(300px, 80%); height: auto; margin: 6px auto; border-radius: 16px; box-shadow: 0 0 0 1px #e5e6e0; padding: 8px; background: #fff; }
+.admin .till-wait { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); margin: 8px 0 14px; }
+.admin .till-wait i { width: 10px; height: 10px; border-radius: 50%; background: #4f7d12; animation: tillPulse 1.2s ease-in-out infinite; }
+@keyframes tillPulse { 0%, 100% { opacity: .3; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.1); } }
+@media (prefers-reduced-motion: reduce) { .admin .till-check, .admin .till-wait i { animation: none; } }
+@media (max-width: 900px) { .admin .till-grid { grid-template-columns: 1fr; } .admin .till-side { position: static; } .admin .till-scanrow { flex-wrap: wrap; } .admin .till-scanrow input { flex: 1 1 100%; order: -1; } .admin .till-scanrow svg { display: none; } .admin .till-scanrow button { flex: 1; } .admin .sellbasket li { display: grid; grid-template-columns: 56px 1fr auto; grid-template-areas: "img info x" "img qty price"; align-items: center; gap: 6px 12px; } .admin .sellbasket li > :nth-child(1) { grid-area: img; align-self: start; } .admin .sb-info { grid-area: info; } .admin .sb-x { grid-area: x; } .admin .sb-qty { grid-area: qty; justify-self: start; } .admin .sb-price { grid-area: price; text-align: right; } }

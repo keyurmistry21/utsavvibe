@@ -34,6 +34,11 @@ export function Sell({ code: initial }: { code?: string }) {
   const [payWith, setPayWith] = useState<"card" | "cash" | "terminal">("card");
   const [term, setTerm] = useState<{ configured: boolean; simulated: boolean; locationId: string | null } | null>(null);
   const [termMsg, setTermMsg] = useState("");
+  const [camera, setCamera] = useState(false);
+  const [camErr, setCamErr] = useState("");
+  const video = useRef<HTMLVideoElement>(null);
+  const lastScan = useRef({ code: "", at: 0 });
+  const addRef = useRef<(c: string) => Promise<void>>(async () => {});
   const [busy, setBusy] = useState(false);
   const [sale, setSale] = useState<Sale | null>(null);
   const [qr, setQr] = useState("");
@@ -187,9 +192,40 @@ export function Sell({ code: initial }: { code?: string }) {
   const total = subtotal - Math.min(discMinor, subtotal);
   const locations = basket[0]?.locations ?? [];
 
+  addRef.current = add;
+  useEffect(() => {
+    if (!camera) return;
+    const BD = (window as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> } }).BarcodeDetector;
+    if (!BD) { setCamErr("This browser can't read codes with the camera. Use a scanner or type the SKU."); setCamera(false); return; }
+    let stop = false, stream: MediaStream | null = null;
+    const det = new BD({ formats: ["qr_code", "ean_13", "ean_8", "upc_a", "code_128"] });
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then((st) => {
+      stream = st;
+      if (video.current) { video.current.srcObject = st; void video.current.play(); }
+      const tick = async () => {
+        if (stop) return;
+        try {
+          const found = video.current ? await det.detect(video.current) : [];
+          const v = found[0]?.rawValue;
+          if (v && !(v === lastScan.current.code && Date.now() - lastScan.current.at < 2500)) { lastScan.current = { code: v, at: Date.now() }; await addRef.current(v); }
+        } catch { /* frame not ready */ }
+        setTimeout(tick, 300);
+      };
+      void tick();
+    }).catch(() => { setCamErr("Camera access was blocked."); setCamera(false); });
+    return () => { stop = true; stream?.getTracks().forEach((t) => t.stop()); };
+  }, [camera]);
+
+  const units = basket.reduce((a, l) => a + l.qty, 0);
+  const payLabel = payWith === "cash" ? "Take cash" : payWith === "terminal" ? "Charge on card reader" : "Show payment QR";
+  const state = paid ? "paid" : gone ? "gone" : sale ? (sale.terminal ? "reader" : "qr") : "sell";
+
   return (
-    <div className="sellpage">
-      <h1 className="pagetitle">Sell in store</h1>
+    <div className="till">
+      <div className="till-head">
+        <h1 className="pagetitle">Sell in store</h1>
+        <span className={`till-status ${online ? "on" : "off"}`}><i />{online ? "Online" : "Offline"}</span>
+      </div>
       {!online && <div className="notice" role="status">You're offline. Cash sales are saved on this device and sync when the internet returns. Card payments need a connection.</div>}
       {queue.length > 0 && (
         <div className="card offlinebox" role="status">
@@ -201,87 +237,111 @@ export function Sell({ code: initial }: { code?: string }) {
         </div>
       )}
 
-      {!sale && (
-        <>
-          <div className="card">
-            <p className="muted">Scan each product's QR code with the camera (or type its SKU) to add it to the basket.</p>
-            <form onSubmit={(e) => { e.preventDefault(); add(code); }} className="row">
-              <input ref={input} value={code} onChange={(e) => setCode(e.target.value)} placeholder="SKU or barcode" autoFocus />
-              <button className="primary" type="submit">Add</button>
-            </form>
-            {err && <p className="err">{err}</p>}
-            {catInfo && <p className="muted">Offline catalogue: {catInfo}.</p>}
+      {state === "sell" && (
+        <div className="till-grid">
+          <div className="till-main">
+            <div className="card till-scan">
+              <form onSubmit={(e) => { e.preventDefault(); add(code); }} className="till-scanrow">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5a1 1 0 011-1h2M17 4h2a1 1 0 011 1v2M20 17v2a1 1 0 01-1 1h-2M7 20H5a1 1 0 01-1-1v-2M8 9v6M12 9v6M16 9v6" /></svg>
+                <input ref={input} value={code} onChange={(e) => setCode(e.target.value)} placeholder="Scan a QR code or type a SKU" aria-label="SKU or barcode" autoFocus autoComplete="off" />
+                <button className="primary" type="submit">Add</button>
+                <button type="button" onClick={() => { setCamErr(""); setCamera((c) => !c); }} aria-pressed={camera}>{camera ? "Stop camera" : "Camera"}</button>
+              </form>
+              {camera && <video ref={video} muted playsInline className="till-video" />}
+              {camErr && <p className="err" role="alert">{camErr}</p>}
+              {err && <p className="err" role="alert">{err}</p>}
+              {catInfo && <p className="muted till-cat">Works offline · catalogue {catInfo}</p>}
+            </div>
+
+            <div className="card till-basket">
+              <div className="cardhead"><h3>Basket{units ? ` · ${units} item${units === 1 ? "" : "s"}` : ""}</h3>{basket.length > 0 && <button className="link" onClick={reset}>Clear all</button>}</div>
+              {basket.length === 0 ? (
+                <div className="till-empty"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h11l2-8H6M9 20h.01M17 20h.01" /></svg><b>Nothing in the basket yet</b><span>Scan a product's QR code to add it.</span></div>
+              ) : (
+                <ul className="sellbasket">
+                  {basket.map((l) => {
+                    const low = l.tracked && l.qty >= l.stock;
+                    return (
+                      <li key={l.variantId}>
+                        {l.imageId ? <img src={`/uploads/${l.imageId}-thumb.webp`} alt="" width={56} height={56} /> : <i className="ph" aria-hidden="true">{l.title.slice(0, 1)}</i>}
+                        <div className="sb-info"><b>{l.title}</b>{l.variant && <span>{l.variant}</span>}<span className={low ? "lowtag" : "muted"}>{l.sku ?? "No SKU"} · {l.tracked ? (low ? `last ${l.stock} in stock` : `${l.stock} in stock`) : "stock not tracked"}</span></div>
+                        <div className="sb-qty">
+                          <button aria-label={`Fewer ${l.title}`} onClick={() => setQty(l.variantId, l.qty - 1)}>−</button>
+                          <span aria-live="polite">{l.qty}</span>
+                          <button aria-label={`More ${l.title}`} onClick={() => setQty(l.variantId, l.qty + 1)} disabled={l.tracked && l.qty >= l.stock}>+</button>
+                        </div>
+                        <b className="sb-price">{money((l.price ?? 0) * l.qty, l.market.currency)}</b>
+                        <button className="sb-x" aria-label={`Remove ${l.title}`} onClick={() => setQty(l.variantId, 0)}>×</button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           </div>
 
-          {basket.length > 0 && (
-            <div className="card">
-              <h3>Basket</h3>
-              <ul className="sellbasket">
-                {basket.map((l) => (
-                  <li key={l.variantId}>
-                    {l.imageId ? <img src={`/uploads/${l.imageId}-thumb.webp`} alt="" width={48} height={48} /> : <i className="ph" />}
-                    <div className="sb-info"><b>{l.title}</b>{l.variant && <span>{l.variant}</span>}<span className="muted">SKU {l.sku ?? "–"} · {l.tracked ? `${l.stock} in stock` : "stock not tracked"}</span></div>
-                    <div className="sb-qty">
-                      <button aria-label="Less" onClick={() => setQty(l.variantId, l.qty - 1)}>−</button>
-                      <span>{l.qty}</span>
-                      <button aria-label="More" onClick={() => setQty(l.variantId, l.qty + 1)}>+</button>
-                    </div>
-                    <b className="sb-price">{money((l.price ?? 0) * l.qty, l.market.currency)}</b>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="field"><label htmlFor="s-disc">Discount ({cur}, optional)</label><input id="s-disc" inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value)} {...val.props("discount")} /><FieldError k="discount" msg={val.err("discount")} /></div>
-              {discMinor > 0 && <div className="field"><label htmlFor="s-dn">Reason for the discount</label><input id="s-dn" value={discountNote} onChange={(e) => setDiscountNote(e.target.value)} placeholder="e.g. Diwali offer, damaged box" /></div>}
-              {locations.length > 1 && (
-                <div className="field"><label htmlFor="s-loc">Store location</label>
-                  <select id="s-loc" value={loc} onChange={(e) => setLoc(e.target.value)}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
-              )}
-              <div className="field"><label htmlFor="s-name">Customer name</label><input id="s-name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} {...val.props("name")} /><FieldError k="name" msg={val.err("name")} /></div>
-              <div className="field"><label htmlFor="s-email">Customer email</label><input id="s-email" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} {...val.props("email")} /><FieldError k="email" msg={val.err("email")} /></div>
-              <div className="field"><label htmlFor="s-phone">Phone (optional)</label><input id="s-phone" inputMode="tel" autoComplete="off" value={phone} onChange={(e) => setPhone(e.target.value)} {...val.props("phone")} /><FieldError k="phone" msg={val.err("phone")} /></div>
-
-              <div className="tabs" role="group" aria-label="Payment method">
-                <button className={payWith === "card" ? "on" : ""} onClick={() => setPayWith("card")}>Card (payment QR)</button>
-                {term?.configured && <button className={payWith === "terminal" ? "on" : ""} onClick={() => setPayWith("terminal")}>Card reader</button>}
-                <button className={payWith === "cash" ? "on" : ""} onClick={() => setPayWith("cash")}>Cash</button>
-              </div>
-              <p className="muted">Total about <b>{money(total, cur)}</b>{basket[0].market.taxInclusive ? " (tax included)" : " plus tax"}. The server works out the final amount.{payWith === "cash" ? " Cash sales close straight away and update stock." : ""}</p>
-              {err && <p className="err">{err}</p>}
-              <div className="row"><button className="primary" disabled={busy} onClick={confirm}>{busy ? "Working…" : payWith === "cash" ? "Take cash payment" : payWith === "terminal" ? "Charge on card reader" : "Confirm and show payment QR"}</button><button onClick={reset}>Clear</button></div>
+          <aside className="till-side">
+            <div className="card till-sum">
+              <div className="till-line"><span>Subtotal</span><span>{basket.length ? money(subtotal, cur) : "–"}</span></div>
+              <div className="field till-disc"><label htmlFor="s-disc">Discount{cur ? ` (${cur})` : ""}</label><input id="s-disc" inputMode="decimal" placeholder="0.00" value={discount} onChange={(e) => setDiscount(e.target.value)} disabled={!basket.length} {...val.props("discount")} /><FieldError k="discount" msg={val.err("discount")} /></div>
+              {discMinor > 0 && <div className="field"><input aria-label="Reason for the discount" value={discountNote} onChange={(e) => setDiscountNote(e.target.value)} placeholder="Reason: Diwali offer, damaged box…" /></div>}
+              <div className="till-total"><span>Total</span><b>{basket.length ? money(total, cur) : "–"}</b></div>
+              {basket.length > 0 && <p className="muted">{basket[0].market.taxInclusive ? "Tax included." : "Plus tax."} The server works out the final amount.</p>}
             </div>
-          )}
-        </>
+
+            <div className="card">
+              <h3>Customer</h3>
+              <div className="field"><label htmlFor="s-name">Name</label><input id="s-name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} {...val.props("name")} /><FieldError k="name" msg={val.err("name")} /></div>
+              <div className="field"><label htmlFor="s-email">Email (for the receipt)</label><input id="s-email" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} {...val.props("email")} /><FieldError k="email" msg={val.err("email")} /></div>
+              <div className="field"><label htmlFor="s-phone">Phone (optional)</label><input id="s-phone" inputMode="tel" autoComplete="off" value={phone} onChange={(e) => setPhone(e.target.value)} {...val.props("phone")} /><FieldError k="phone" msg={val.err("phone")} /></div>
+              {locations.length > 1 && <div className="field"><label htmlFor="s-loc">Store location</label><select id="s-loc" value={loc} onChange={(e) => setLoc(e.target.value)}>{locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>}
+            </div>
+
+            <div className="card">
+              <h3>Payment</h3>
+              <div className="till-pay" role="group" aria-label="Payment method">
+                <button className={payWith === "card" ? "on" : ""} onClick={() => setPayWith("card")} aria-pressed={payWith === "card"}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3zM3 10h18" /></svg>Card<small>Customer scans a QR</small></button>
+                {term?.configured && <button className={payWith === "terminal" ? "on" : ""} onClick={() => setPayWith("terminal")} aria-pressed={payWith === "terminal"}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v18H7zM10 17h4M9 7h6" /></svg>Reader<small>Tap or insert</small></button>}
+                <button className={payWith === "cash" ? "on" : ""} onClick={() => setPayWith("cash")} aria-pressed={payWith === "cash"}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v10H3zM12 14a2 2 0 100-4 2 2 0 000 4z" /></svg>Cash<small>{online ? "Closes the sale now" : "Saved until online"}</small></button>
+              </div>
+              {payWith === "terminal" && !online && <p className="err">The card reader needs internet.</p>}
+              {err && !basket.length ? null : null}
+              <button className="primary till-go" disabled={busy || !basket.length} onClick={confirm}>{busy ? "Working…" : basket.length ? `${payLabel} · ${money(total, cur)}` : "Add items to continue"}</button>
+            </div>
+          </aside>
+        </div>
       )}
 
-      {sale && (
-        <div className="card sellpay">
-          {paid ? (
+      {state !== "sell" && sale && (
+        <div className="card till-result">
+          {state === "paid" ? (
             <>
-              <h2>{queuedMsg ? "Saved ✓" : "Paid ✓"}</h2>
-              {queuedMsg ? <p>{queuedMsg}</p> : <p>Order #{sale.number} · {money(sale.total, sale.currency)} is paid{payWith === "cash" ? " in cash" : ""}. The customer gets a confirmation email and stock is updated.</p>}
-              <div className="row"><button className="primary" onClick={reset}>Next sale</button></div>
+              <div className="till-check" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg></div>
+              <h2>{queuedMsg ? "Saved on this device" : "Payment received"}</h2>
+              {queuedMsg ? <p>{queuedMsg}</p> : <p>Order <b>#{sale.number}</b> · {money(sale.total, sale.currency)}{payWith === "cash" ? " in cash" : ""}. The receipt is emailed and stock is updated.</p>}
+              <button className="primary till-go" onClick={reset}>Start next sale</button>
             </>
-          ) : gone ? (
+          ) : state === "gone" ? (
             <>
+              <h2>Payment link closed</h2>
               <p className="err">{gone}</p>
-              <div className="row"><button className="primary" onClick={reset}>Start again</button></div>
+              <button className="primary till-go" onClick={reset}>Start again</button>
             </>
-          ) : sale.terminal ? (
+          ) : state === "reader" ? (
             <>
               <h2>Card reader</h2>
-              <p><b>{money(sale.total, sale.currency)}</b> · order #{sale.number}</p>
-              {termMsg && <p role="status">{termMsg}</p>}
-              {err && <p className="err">{err}</p>}
+              <p className="till-big">{money(sale.total, sale.currency)} <span>order #{sale.number}</span></p>
+              {termMsg && <p className="till-wait" role="status"><i />{termMsg}</p>}
+              {err && <p className="err" role="alert">{err}</p>}
               <div className="row"><button onClick={cancelReader}>{err ? "Close this sale" : "Cancel"}</button>{err && <button className="primary" onClick={() => runReader(sale)}>Try again</button>}</div>
             </>
           ) : (
             <>
               <h2>Customer scans to pay</h2>
-              <p><b>{money(sale.total, sale.currency)}</b> · order #{sale.number}</p>
-              {qr && <img src={qr} alt="Payment QR code" width={260} height={260} />}
-              <p className="muted">Opens secure Stripe checkout on their phone. Valid for {sale.expiresInMinutes} minutes. Waiting for payment…</p>
-              <div className="row"><button onClick={cancel}>Cancel sale</button></div>
+              <p className="till-big">{money(sale.total, sale.currency)} <span>order #{sale.number}</span></p>
+              {qr && <img src={qr} alt="Payment QR code" className="till-qr" />}
+              <p className="till-wait" role="status"><i />Waiting for payment · valid {sale.expiresInMinutes} minutes</p>
+              <button onClick={cancel}>Cancel sale</button>
             </>
           )}
         </div>
