@@ -37,10 +37,7 @@ if (!useDocker) {
   if (!(await reachable(dbHost, dbPort))) {
     console.error(`
 Docker is ${noDocker ? "skipped" : "not installed or not running"}, and no MySQL answers at ${dbHost}:${dbPort}.
-Pick one:
-  A) Install Docker Desktop (https://www.docker.com/products/docker-desktop), start it, then run:  npm run up
-  B) Use a MySQL 8 server you already have: create an empty database and user, put its address in backend/.env as DATABASE_URL, then run:  npm run up -- --no-docker
-     (see "Run without Docker" in README.md)`);
+Install Docker Desktop (https://www.docker.com/products/docker-desktop), start it, wait until it says it is running, then run:  npm run up`);
     process.exit(1);
   }
   console.log(`2/5 using the MySQL already running at ${dbHost}:${dbPort} (no Docker). Dev emails are not caught: set SMTP_* in backend/.env to send, or they are skipped.`);

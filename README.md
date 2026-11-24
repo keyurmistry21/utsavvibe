@@ -15,7 +15,7 @@ Custom ecommerce platform (replaces Shopify). Markets: UK/GBP, US/USD, CA/CAD. P
 
 ## Run (macOS, Windows, Linux)
 
-**You need:** [Node.js 20+](https://nodejs.org) and [Git](https://git-scm.com), plus either Docker Desktop (easiest) or your own MySQL 8.
+**You need:** [Node.js 20+](https://nodejs.org), [Git](https://git-scm.com) and [Docker Desktop](https://www.docker.com/products/docker-desktop) (running).
 
 ```
 git clone https://github.com/keyurmistry21/utsavvibe.git
@@ -33,21 +33,10 @@ npm run create-admin -- you@example.com "a long password" "Your Name"
 
 Optional: `npm run demo` adds 6 sample products priced in all three markets (`npm run demo:clear` removes them). `npm run down` stops MySQL (data is kept).
 
-Dev emails land in the local inbox at http://localhost:8026 (Mailpit, Docker only). For real sending set `SMTP_*` and `MAIL_FROM` in `backend/.env`.
-
-### Run without Docker
-Use a MySQL 8 server you already have (MariaDB, including XAMPP's, is not tested):
-1. Create an empty database and a user:
-   ```sql
-   CREATE DATABASE utsavvibe CHARACTER SET utf8mb4;
-   CREATE USER 'utsavvibe'@'%' IDENTIFIED BY 'choose-a-password';
-   GRANT ALL ON utsavvibe.* TO 'utsavvibe'@'%';
-   ```
-2. Run `npm run up` once (it creates `backend/.env` and stops with a message), then set `DATABASE_URL="mysql://utsavvibe:choose-a-password@localhost:3306/utsavvibe"` in `backend/.env`.
-3. Start with `npm run up -- --no-docker`. Dev emails are not caught without Docker: they are skipped until you set `SMTP_*`.
+Dev emails land in the local inbox at http://localhost:8026 (Mailpit). For real sending set `SMTP_*` and `MAIL_FROM` in `backend/.env`.
 
 ### Troubleshooting
-- **"Docker is not installed or not running"**: start Docker Desktop and wait until it says it is running, or use the no-Docker steps above.
+- **"Docker is not installed or not running"**: install Docker Desktop, start it, and wait until it says it is running. Then run `npm run up` again.
 - **Port already in use**: something else uses 3307 (MySQL), 4000 (API) or 5173 (website). Stop it, or change the port in `docker-compose.yml` / `backend/.env`.
 - **Windows**: use PowerShell or Windows Terminal, run commands from the project folder, and don't run `npm audit fix --force` (it can break dependency versions).
 - **Reset your local data**: `docker compose down -v` deletes the local database volume. Only do this if you are sure.
