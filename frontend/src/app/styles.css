@@ -1277,3 +1277,139 @@ a.hm-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0
 .admin .side.main.collapsed .subwrap { grid-template-rows: 0fr; opacity: 0; }
 .admin .side.main.collapsed .chev { display: none; }
 @media (prefers-reduced-motion: reduce) { .admin .side .subwrap, .admin .side .chev, .admin .side .sub a { transition: none; } }
+
+/* ---------- restored: rules deleted by commit 922bde0 that components still use ---------- */
+.admin .vhead .acts { display: flex; gap: 14px; font-size: 13px; flex-wrap: wrap; }
+.admin .vlist { display: flex; flex-direction: column; gap: 12px; }
+.admin .vcard { border: 1px solid var(--border, #e3e3e3); border-radius: 12px; padding: 12px 14px 4px; background: #fff; }
+.admin .vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 12px; }
+.admin .vgrid .field { min-width: 0; margin-bottom: 12px; }
+.admin .vcodes { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.admin .vcodes .field { min-width: 0; margin-bottom: 12px; }
+.admin .vgrid .genrow { margin-bottom: 0; }
+@media (max-width: 520px) { .admin .vgrid { grid-template-columns: 1fr 1fr; } .admin .vcodes { grid-template-columns: 1fr; } }
+
+/* HTML source view in the rich text editor + richer content (tables, images, embeds) */
+.admin .rtebtn.on { background: #303030; color: #fff; }
+.admin .rtebtn:disabled { opacity: .4; cursor: default; }
+.admin .rte-src { display: block; width: 100%; min-height: 240px; max-height: 480px; resize: vertical; border: 0; border-radius: 0; outline: none; padding: 12px 14px; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; background: #fbfbfb; color: #222; box-sizing: border-box; white-space: pre-wrap; tab-size: 2; }
+.admin .rte-note { font-size: 12px; color: #6b6b6b; padding: 6px 14px 10px; border-top: 1px solid var(--border, #e3e3e3); }
+.admin .rte-body img, .sf .desc img, .sf-page .desc img { max-width: 100%; height: auto; border-radius: 8px; }
+.admin .rte-body table, .sf .desc table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+.admin .rte-body td, .admin .rte-body th, .sf .desc td, .sf .desc th { border: 1px solid #ddd; padding: 6px 10px; text-align: left; vertical-align: top; }
+.admin .rte-body th, .sf .desc th { background: #f5f1ea; }
+.admin .rte-body pre, .sf .desc pre { background: #f4f4f4; padding: 10px 12px; border-radius: 8px; overflow-x: auto; }
+.admin .rte-body code, .sf .desc code { font-family: ui-monospace, Menlo, monospace; font-size: .92em; }
+.sf .desc iframe { width: 100%; aspect-ratio: 16 / 9; height: auto; border: 0; border-radius: 10px; }
+.sf .desc h4 { font-size: 15px; margin: 14px 0 6px; }
+.sf .desc hr { border: 0; border-top: 1px solid #e6dccb; margin: 18px 0; }
+
+/* storefront: collections, blog */
+.sf .collrow { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 28px; }
+.sf .collchip { padding: 9px 18px; border: 1px solid var(--line); border-radius: 999px; background: #fff; font-weight: 600; font-size: 14px; }
+.sf .collchip:hover { border-color: var(--accent); color: var(--accent); }
+.sf .postlist { display: grid; gap: 22px; margin-top: 18px; }
+.sf .postcard { display: grid; grid-template-columns: 200px 1fr; gap: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.sf .postcard:not(:has(img)) { grid-template-columns: 1fr; }
+.sf .postcard img { width: 200px; height: 140px; object-fit: cover; border-radius: 10px; }
+.sf .postcard h2 { font-family: Georgia, serif; font-size: 20px; margin: 0 0 4px; }
+.sf .postcard p { margin: 8px 0 0; color: var(--muted); }
+.sf .postcover { width: 100%; max-height: 380px; object-fit: cover; border-radius: 14px; margin: 8px 0 18px; }
+.sf .giftrow { display: flex; gap: 8px; margin-top: 12px; }
+.sf .giftrow input { flex: 1; text-transform: uppercase; letter-spacing: .06em; }
+.sf .giftok { color: var(--ok, #1a7f4b); font-size: 14px; margin-top: 6px; }
+
+/* admin: radios sized like checkboxes; file pickers styled as buttons */
+.admin input[type=radio] { width: 16px; height: 16px; accent-color: #303030; flex: none; margin: 0; }
+.admin label.btn-link { height: 34px; padding: 0 14px; font-size: 13px; cursor: pointer; }
+
+/* cart: free-shipping progress, consent line, trust note */
+.shipbar { margin: 14px 0 4px; font-size: 14px; }
+.shipbar-track { height: 8px; border-radius: 999px; background: var(--line, #eadfd3); margin-top: 6px; overflow: hidden; }
+.shipbar-track > div { height: 100%; background: var(--accent, #b4491f); border-radius: 999px; transition: width .3s; }
+.shipbar.done { color: #1b6b3a; font-weight: 600; }
+.consent { display: flex; gap: 8px; align-items: flex-start; margin: 14px 0 6px; font-size: 14px; line-height: 1.4; }
+.consent input { width: 18px; height: 18px; margin-top: 1px; flex: none; }
+.lowstock { display: block; font-style: normal; font-size: 12px; font-weight: 600; color: #b4491f; margin-top: 2px; }
+
+.admin .codeblock { background: #f4f4f4; border-radius: 8px; padding: 10px 12px; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 8px 0; }
+.consent { font-weight: 400; }
+.mktpick { margin: 0 0 10px; padding: 0 4px; }
+.mktpick label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #b5b5b5; margin-bottom: 4px; }
+.side.collapsed .mktpick { display: none; }
+
+.admin .readonly { padding: 7px 10px; border: 1px solid #e3e3e3; border-radius: 8px; background: #f3f3f3; color: #303030; font-weight: 600; min-height: 34px; display: flex; align-items: center; }
+.admin .notice { padding: 10px 14px; border-radius: 10px; background: #fff7e0; border: 1px solid #f0d98a; margin: 8px 0 12px; font-size: 14px; }
+
+/* A row of form fields lines up by its TOP edge, so an inline error under one box doesn't push the other boxes down.
+   (Rows that hold a button next to a field keep the bottom alignment so the button sits level with the box.) */
+.admin .row:not(:has(> button)):not(:has(> div > button)):not(:has(> .btn-link)), .store .row { align-items: flex-start; }
+
+/* Dialogs hang from a fixed spot near the top and grow downward, so an inline error line appearing inside one never
+   re-centres it and shifts the text boxes you're typing in. */
+.admin .readonly.locked { justify-content: space-between; gap: 8px; background: #2a2a2a; border-color: #3a3a3a; color: #e8e8e8; }
+.admin .readonly.locked svg { width: 16px; height: 16px; fill: none; stroke: #b5b5b5; stroke-width: 1.8; stroke-linecap: round; flex: none; }
+.admin .mktaccess .optrow { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-weight: 400; cursor: pointer; }
+.admin .mktaccess .optrow input { width: 18px; height: 18px; flex: none; }
+.admin .mktaccess .optlist { margin: 4px 0 0 28px; padding: 6px 12px; border-left: 3px solid #e3e3e3; }
+
+/* ======================================================================
+   Admin design polish: one look for every page (tokens, cards, tables,
+   tabs, buttons, badges, scrollbars, page entrance)
+   ====================================================================== */
+.admin { --bg: #f2f3ef; --surface: #fff; --border: #e5e6e0; --brand: #1f2a12; --brand-2: #34520f; --accent: #95bf47; --text: #1d1f1a; --muted: #666a60; -webkit-font-smoothing: antialiased; }
+.admin main.content.is-home { background: var(--bg); }
+.admin main.content .inner { animation: pageIn .3s cubic-bezier(.2,.8,.2,1); }
+@keyframes pageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .admin main.content .inner { animation: none; } }
+
+/* headings */
+.admin h2 { font-size: 22px; letter-spacing: -.02em; }
+.admin .pagehead h2 { font-size: 24px; }
+.admin .pagehead .muted, .admin .pagehead + .muted { font-size: 14px; }
+
+/* cards */
+.admin .card { border-radius: 14px; box-shadow: 0 1px 2px rgba(20,24,10,.05), 0 0 0 1px rgba(20,24,10,.06); }
+.admin .card .card { box-shadow: none; border: 1px solid var(--border); border-radius: 12px; }
+
+/* tables */
+.admin th { background: #fafbf8; text-transform: uppercase; letter-spacing: .05em; font-size: 11.5px; font-weight: 650; color: #7a7d72; padding: 11px 14px; }
+.admin td { padding: 13px 14px; font-size: 13.5px; border-bottom-color: #f0f1ec; }
+.admin tbody tr:hover, .admin .card:has(> table) tbody tr:hover { background: #f8f9f5; }
+.admin tbody td[colspan]:only-child { text-align: center; color: var(--muted); padding: 40px 16px; }
+.admin .card:has(> table):not(:has(> h3)) { border-radius: 14px; }
+
+/* tabs: segmented control */
+.admin .tabs { display: inline-flex; max-width: 100%; padding: 3px; gap: 2px; background: #e6e7e1; border-radius: 11px; }
+.admin .tabs button { border-radius: 8px; font-weight: 600; color: #5d6157; padding: 5px 14px; }
+.admin .tabs button:hover { background: rgba(255,255,255,.6); }
+.admin .tabs button.on { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.14), 0 0 0 1px rgba(0,0,0,.04); }
+
+/* buttons */
+.admin button, .admin .btn-link { border-radius: 9px; box-shadow: 0 1px 1px rgba(20,24,10,.05), 0 0 0 1px #dadbd3; }
+.admin button:hover, .admin .btn-link:hover { background: #f6f7f2; }
+.admin button.primary, .admin .btn-link.primary { background: var(--brand); color: #fff; box-shadow: 0 1px 2px rgba(20,24,10,.25), inset 0 1px 0 rgba(255,255,255,.12); }
+.admin button.primary:hover, .admin .btn-link.primary:hover { background: var(--brand-2); }
+.admin button.link, .admin button.link:hover { box-shadow: none; background: none; }
+
+/* badges and chips */
+.admin .badge, .admin .chip { border-radius: 999px; padding-left: 10px; padding-right: 10px; }
+.admin .badge.good { background: #dff5e7; color: #14793a; } .admin .badge.warn { background: #fff0d4; color: #8a5a00; } .admin .badge.bad { background: #fde8e6; color: #b42318; }
+
+/* sidebar */
+.admin .side.main a.active svg { color: #b9f08a; }
+.admin .side { scrollbar-width: thin; scrollbar-color: #2e2e2e transparent; }
+.admin main.content { scrollbar-width: thin; scrollbar-color: #c9cbc1 transparent; }
+.admin .side .navhead { letter-spacing: .08em; }
+
+/* header action rows wrap on small screens instead of pushing the page sideways */
+.admin .headtools { flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 700px) { .admin .headtools { margin-left: 0; justify-content: flex-start; width: 100%; } }
+
+/* sign-in screen: centred card on a soft green wash */
+.admin:has(> form.login) { display: grid; place-items: center; padding: 24px 16px; background: radial-gradient(80% 60% at 50% 0%, #e4efd2 0%, transparent 70%), #f2f3ef; }
+.admin > form.login { width: min(400px, 100%); max-width: none; margin: 0; padding: 28px 28px 24px; border-radius: 20px; box-shadow: 0 24px 60px rgba(31,42,18,.14), 0 0 0 1px rgba(20,24,10,.06); animation: pageIn .4s cubic-bezier(.2,.8,.2,1); }
+.admin > form.login .brand { font-size: 17px; margin-bottom: 20px !important; }
+.admin > form.login .brand .logo { width: 34px !important; height: 34px !important; border-radius: 10px !important; }
+.admin > form.login h2 { font-size: 26px; margin-bottom: 18px; }
+.admin > form.login button.primary { width: 100%; height: 42px; font-size: 15px; margin-top: 6px; }

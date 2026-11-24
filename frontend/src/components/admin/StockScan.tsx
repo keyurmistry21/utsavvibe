@@ -77,7 +77,7 @@ export function StockScan() {
 
   return (
     <>
-      <div className="pagehead"><h2>Scan stock</h2><div className="headtools"><Link className="btn" href="/admin/products"><ArrowLeft /> Products</Link></div></div>
+      <div className="pagehead"><h2>Scan stock</h2><div className="headtools"><Link className="btn-link" href="/admin/products"><ArrowLeft /> Products</Link></div></div>
       <div className="card" style={{ maxWidth: 640 }}>
         {!locs.length ? <p className="muted">No active markets yet.</p> : (
           <>
