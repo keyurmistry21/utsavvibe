@@ -13,9 +13,27 @@ Custom ecommerce platform (replaces Shopify). Markets: UK/GBP, US/USD, CA/CAD. P
 - Also built: in-store QR sales with offline cash mode and card readers, refunds, discount codes, per-location stock with transfers, customer accounts and reviews, campaigns, Quebec-style tax parts (GST/HST/PST/QST). Not built yet: themes, multi-store, Quebec French. Carrier postage needs a free Shippo account and `SHIPPO_API_KEY` in `backend/.env`; Stripe keys are also still to be added.
 - Seasonal store tip: Stripe has no monthly fee, so an off-season site costs only hosting. Back up the database before you scale the server down.
 
+## Prerequisites (install these first)
+
+| Software | Version | Get it | Check it works |
+|---|---|---|---|
+| **Git** | any recent | https://git-scm.com/downloads | `git --version` |
+| **Node.js** (includes npm) | **20 or newer** (22 LTS is fine) | https://nodejs.org | `node --version` and `npm --version` |
+| **Docker Desktop** | any recent; must be **running** | https://www.docker.com/products/docker-desktop | `docker --version`, and the Docker Desktop window says "Engine running" |
+
+Also needed:
+- **A code editor** such as VS Code (optional, recommended): https://code.visualstudio.com
+- **Free ports:** 3307 (MySQL), 4000 (API), 5173 (website), 8026 and 1026 (dev mail inbox). Stop anything else using them.
+- **About 3 GB of disk** for the Docker images and `node_modules`, and an internet connection for the first run.
+- **macOS:** install Docker Desktop for your chip (Apple silicon or Intel). Homebrew works too: `brew install git node` and `brew install --cask docker`.
+- **Windows 10/11:** Docker Desktop needs WSL 2 (it offers to install it; restart if asked). Use **PowerShell** or Windows Terminal. You do **not** need `make`, XAMPP, or a separate MySQL.
+- **Linux:** install Git, Node 20+, and Docker Engine with the compose plugin.
+
+Not needed to start: Stripe account, Shippo account, SMTP. Add those later (see "Stripe" below) to take real payments.
+
 ## Run (macOS, Windows, Linux)
 
-**You need:** [Node.js 20+](https://nodejs.org), [Git](https://git-scm.com) and [Docker Desktop](https://www.docker.com/products/docker-desktop) (running).
+**After the prerequisites are installed** (and Docker Desktop is running), open a terminal and run:
 
 ```
 git clone https://github.com/keyurmistry21/utsavvibe.git
