@@ -3,14 +3,16 @@
 import { FieldError, type useValidation } from "./validation";
 import { Plus } from "../Icons";
 
-type Item = { label: string; url: string };
+type Sub = { label: string; url: string };
+type Item = { label: string; url: string; children?: Sub[] };
 
 export const urlErr = (u: string) => (!u.trim() ? "Enter a link" : /^\/[^\s]*$/.test(u.trim()) || /^https?:\/\/[^\s]+$/.test(u.trim()) || /^mailto:[^\s@]+@[^\s@]+$/.test(u.trim()) ? "" : "Use a path like /pages/about, or a full https:// link");
 
 export type { Item };
-export function MenuCard({ title, hint, items, onChange, val, id, quick }: { title: string; hint: string; items: Item[]; onChange: (i: Item[]) => void; val: ReturnType<typeof useValidation>; id: string; quick: { label: string; url: string }[] }) {
+export function MenuCard({ title, hint, items, onChange, val, id, quick, subs }: { title: string; hint: string; items: Item[]; onChange: (i: Item[]) => void; val: ReturnType<typeof useValidation>; id: string; quick: { label: string; url: string }[]; subs?: boolean }) {
   const move = (i: number, d: number) => { const n = [...items]; const j = i + d; if (j < 0 || j >= n.length) return; [n[i], n[j]] = [n[j], n[i]]; onChange(n); };
   const set = (i: number, p: Partial<Item>) => onChange(items.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const setSub = (i: number, j: number, p: Partial<Sub>) => set(i, { children: (items[i].children ?? []).map((c, k) => (k === j ? { ...c, ...p } : c)) });
   return (
     <div className="card">
       <h3>{title}</h3>
@@ -24,6 +26,18 @@ export function MenuCard({ title, hint, items, onChange, val, id, quick }: { tit
             <button className="link" aria-label="Move down" disabled={i === items.length - 1} onClick={() => move(i, 1)}>↓</button>
             <button className="link" onClick={() => onChange(items.filter((_, j) => j !== i))}>Remove</button>
           </div>
+          {subs && (
+            <div style={{ flexBasis: "100%", margin: "-4px 0 10px 18px", paddingLeft: 12, borderLeft: "2px solid #e3e3e3" }}>
+              {(it.children ?? []).map((c, j) => (
+                <div key={j} className="row" style={{ alignItems: "flex-start" }}>
+                  <div className="field"><label htmlFor={`${id}-sl${i}-${j}`}>Drop-down label</label><input id={`${id}-sl${i}-${j}`} value={c.label} onChange={(e) => setSub(i, j, { label: e.target.value })} {...val.props(`${id}-sl${i}-${j}`)} /><FieldError small k={`${id}-sl${i}-${j}`} msg={val.err(`${id}-sl${i}-${j}`)} /></div>
+                  <div className="field grow"><label htmlFor={`${id}-su${i}-${j}`}>Link</label><input id={`${id}-su${i}-${j}`} value={c.url} placeholder="/collections/all-rakhi" onChange={(e) => setSub(i, j, { url: e.target.value })} {...val.props(`${id}-su${i}-${j}`)} /><FieldError small k={`${id}-su${i}-${j}`} msg={val.err(`${id}-su${i}-${j}`)} /></div>
+                  <div className="field" style={{ flex: "none", minWidth: 0, paddingTop: 22 }}><button className="link" onClick={() => set(i, { children: (it.children ?? []).filter((_, k) => k !== j) })}>Remove</button></div>
+                </div>
+              ))}
+              <button className="link" onClick={() => set(i, { children: [...(it.children ?? []), { label: "", url: "" }] })}>+ Add drop-down link</button>
+            </div>
+          )}
         </div>
       ))}
       <button onClick={() => onChange([...items, { label: "", url: "" }])}><Plus />Add menu item</button>

@@ -6,6 +6,7 @@ import { marketAlternates, siteOrigin } from "@/lib/seo";
 import { JsonLd } from "@/components/store/JsonLd";
 import { money } from "@/lib/api";
 import { ProductGrid } from "@/components/store/ProductGrid";
+import { Celebrate, Faq, Family, Hero, PreBook, Showcases, Testimonials, Why } from "@/components/store/HomeSections";
 
 export async function generateMetadata({ params }: { params: Promise<{ market: string }> }): Promise<Metadata> {
   const { market } = await params;
@@ -37,31 +38,14 @@ export default async function MarketHome({ params }: { params: Promise<{ market:
         { "@context": "https://schema.org", "@type": "Organization", name: site.storeName, url: origin, description: site.tagline },
         { "@context": "https://schema.org", "@type": "WebSite", name: site.storeName, url: `${origin}/${market.toLowerCase()}`, inLanguage: "en" },
       ]} />
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Festive season · {current.name}</p>
-          <h1>Celebrate every ritual,<br />beautifully.</h1>
-          <p className="sub">Handpicked idols, diyas, rakhis and pooja essentials, priced in {current.currency} and delivered to your door.</p>
-          <a href="#shop" className="btn">Shop the collection</a>
-        </div>
-        <div className="hero-art" aria-hidden="true"><i /><i /><i /></div>
-      </section>
+      <Hero market={market} />
+      <PreBook market={market} />
+      <Why />
+      <Showcases market={market} />
 
-      <section className="trust">
-        <div><b>{free != null ? `Free shipping over ${money(free, current.currency)}` : "Tracked delivery"}</b><span>Tracked to your door</span></div>
-        <div><b>{current.taxInclusive ? "Tax included" : "Clear pricing"}</b><span>{current.taxInclusive ? "No surprises at checkout" : "Tax shown before you pay"}</span></div>
-        <div><b>Secure checkout</b><span>Powered by Stripe</span></div>
-      </section>
-
-      {!!collections.length && (
-        <section>
-          <h2 className="sec">Shop by collection</h2>
-          <div className="collrow">{collections.map((c) => <Link key={c.handle} href={`/${market}/collections/${c.handle}`} className="collchip">{c.title}</Link>)}</div>
-        </section>
-      )}
-
-      <section id="shop">
-        <h2 className="sec">Shop all</h2>
+      <section id="shop" className="th-sec th-shop">
+        <h2 className="th-title"><span className="acc">Shop </span><span>All</span></h2>
+        {!!collections.length && <div className="collrow">{collections.map((c) => <Link key={c.handle} href={`/${market}/collections/${c.handle}`} className="collchip">{c.title}</Link>)}</div>}
         {products.length ? (
           <ProductGrid market={market} products={products} />
         ) : (
@@ -70,19 +54,13 @@ export default async function MarketHome({ params }: { params: Promise<{ market:
             <p>No products are available in {current.name} right now. Check back soon.</p>
           </div>
         )}
+        {free != null && <p className="th-lead">Free shipping on orders over {money(free, current.currency)}</p>}
       </section>
-      {ig.length > 0 && (
-        <section className="sf-insta" aria-label="Instagram">
-          <h2>From Instagram</h2>
-          <div className="igrid">
-            {ig.map((p) => (
-              <a key={p.id} href={p.permalink} target="_blank" rel="noreferrer noopener" aria-label={p.caption || "Instagram post"}>
-                <img src={p.image} alt={p.caption || "Instagram post"} width={300} height={300} loading="lazy" referrerPolicy="no-referrer" />
-              </a>
-            ))}
-          </div>
-        </section>
-      )}
+
+      <Family ig={ig} />
+      <Celebrate market={market} />
+      <Testimonials />
+      <Faq />
     </>
   );
 }

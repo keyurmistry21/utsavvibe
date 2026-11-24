@@ -77,7 +77,9 @@ onlineStoreRouter.post("/pages/bulk", async (req, res) => {
 // ---- navigation + preferences (one JSON blob in Setting) ----
 // url: "/pages/about" style paths are relative to the market the customer is browsing; https:// links are used as typed.
 const linkUrl = z.string().trim().max(500).refine((u) => /^\/[^\s]*$/.test(u) || /^https?:\/\/[^\s]+$/.test(u) || /^mailto:[^\s@]+@[^\s@]+$/.test(u), "Use a path like /pages/about, or a full https:// link");
-const menu = z.array(z.object({ label: z.string().trim().min(1, "Every link needs a label").max(60), url: linkUrl })).max(20);
+const link = z.object({ label: z.string().trim().min(1, "Every link needs a label").max(60), url: linkUrl });
+// one level of sub-links: shown as a drop-down (mega menu) under the item
+const menu = z.array(link.extend({ children: z.array(link).max(20).optional() })).max(20);
 export const prefs = z.object({
   storeName: z.string().trim().min(1, "Enter a store name").max(60).default("UtsavVibe"),
   announcement: z.string().trim().max(200).default(""),
@@ -88,6 +90,8 @@ export const prefs = z.object({
   publicUrl: z.string().trim().max(200).refine((u) => !u || /^https?:\/\/[^\s/]+(:\d+)?$/.test(u.replace(/\/$/, "")), "Use a full address like https://utsavvibe.com").default(""),
   headerMenu: menu.default([{ label: "Shop", url: "/" }]),
   footerMenu: menu.default([]),
+  // announcement pop-up shown once per visitor (until the text changes)
+  popup: z.object({ enabled: z.boolean().default(false), title: z.string().trim().max(120).default(""), text: z.string().trim().max(1000).default("") }).default({ enabled: false, title: "", text: "" }),
 });
 export type Prefs = z.infer<typeof prefs>;
 

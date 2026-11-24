@@ -8,6 +8,7 @@ import { JsonLd } from "@/components/store/JsonLd";
 import { AddToCart } from "@/components/store/AddToCart";
 import { Gallery } from "@/components/store/Gallery";
 import { PdpImageProvider } from "@/components/store/PdpImage";
+import { WishButton } from "@/components/store/wishlistContext";
 import { Reviews, type ReviewData } from "@/components/store/Reviews";
 
 type Props = { params: Promise<{ market: string; handle: string }>; searchParams?: Promise<{ variant?: string }> };
@@ -83,7 +84,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
       <div className="pdp">
         <Gallery images={p.images} title={p.title} />
         <div>
-          <h1>{p.title}</h1>
+          <h1>{p.title} <WishButton id={p.id} title={p.title} className="pdp-wish" /></h1>
           {rv?.count ? <a href="#reviews" className="ratingline" aria-label={`${rv.average} out of 5 stars, ${rv.count} reviews`}><span className="stars" aria-hidden="true">{"★★★★★".slice(0, Math.round(rv.average ?? 0))}<i>{"★★★★★".slice(Math.round(rv.average ?? 0))}</i></span> {rv.average} ({rv.count})</a> : null}
           <AddToCart product={p} market={market.toLowerCase()} highlight={variant} />
           {/* sanitized by the API when the product is saved */}

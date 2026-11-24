@@ -13,6 +13,7 @@
     "dev:server": "npm -w backend run dev",
     "dev:web": "npm -w frontend run dev",
     "typecheck": "npm -w backend run typecheck && npm -w frontend run typecheck",
-    "seed": "npm -w backend run seed"
+    "seed": "npm -w backend run seed",
+    "seed:content": "npm -w backend run seed:content"
   }
 }

@@ -38,7 +38,8 @@ export const fromPrice = (p: StoreProduct) => {
   return prices.length ? Math.min(...prices) : null;
 };
 
-export type Site = { publicUrl?: string; storeName: string; announcement: string; tagline: string; metaTitle: string; metaDescription: string; headerMenu: { label: string; url: string }[]; footerMenu: { label: string; url: string }[] };
+export type MenuItem = { label: string; url: string; children?: { label: string; url: string }[] };
+export type Site = { publicUrl?: string; storeName: string; announcement: string; tagline: string; metaTitle: string; metaDescription: string; headerMenu: MenuItem[]; footerMenu: MenuItem[]; popup?: { enabled: boolean; title: string; text: string } };
 const defaultSite: Site = { storeName: "UtsavVibe", announcement: "", tagline: "Festive & devotional gifts for every celebration.", metaTitle: "", metaDescription: "", headerMenu: [{ label: "Shop", url: "/" }], footerMenu: [] };
 // never let a CMS hiccup take the whole storefront down: fall back to the defaults
 export const getSite = async (): Promise<Site> => {

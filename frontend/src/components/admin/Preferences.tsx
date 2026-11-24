@@ -7,7 +7,7 @@ import { FieldError, useValidation } from "./validation";
 import { useApi } from "./hooks";
 import { MenuCard, urlErr, type Item } from "./Menus";
 
-type Prefs = { storeName: string; announcement: string; tagline: string; metaTitle: string; metaDescription: string; publicUrl: string; headerMenu: Item[]; footerMenu: Item[] };
+type Prefs = { storeName: string; announcement: string; tagline: string; metaTitle: string; metaDescription: string; publicUrl: string; headerMenu: Item[]; footerMenu: Item[]; popup: { enabled: boolean; title: string; text: string } };
 
 export function Preferences() {
   const { data, error } = useApi<Prefs>("/online-store/preferences");
@@ -19,6 +19,7 @@ export function Preferences() {
   (["header", "footer"] as const).forEach((k) => (p?.[k === "header" ? "headerMenu" : "footerMenu"] ?? []).forEach((it, i) => {
     menuErrors[`${k}-l${i}`] = it.label.trim() ? (it.label.length > 60 ? "Keep it under 60 characters" : "") : "Enter a label";
     menuErrors[`${k}-u${i}`] = urlErr(it.url);
+    (it.children ?? []).forEach((c, j) => { menuErrors[`${k}-sl${i}-${j}`] = c.label.trim() ? (c.label.length > 60 ? "Keep it under 60 characters" : "") : "Enter a label"; menuErrors[`${k}-su${i}-${j}`] = urlErr(c.url); });
   }));
   const val = useValidation({
     ...menuErrors,
@@ -33,7 +34,7 @@ export function Preferences() {
     if (!p || !val.submit()) return;
     setSaving(true); setMsg(null);
     try {
-      const clean = (m: Item[]) => m.map((x) => ({ label: x.label.trim(), url: x.url.trim() }));
+      const clean = (m: Item[]) => m.map((x) => ({ label: x.label.trim(), url: x.url.trim(), ...(x.children?.length ? { children: x.children.map((c) => ({ label: c.label.trim(), url: c.url.trim() })) } : {}) }));
       await api("/online-store/preferences", { method: "PUT", json: { ...p, headerMenu: clean(p.headerMenu), footerMenu: clean(p.footerMenu) } }); setMsg({ ok: true, text: "Preferences saved. The storefront updates within a few seconds." }); }
     catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
     setSaving(false);
@@ -74,8 +75,15 @@ export function Preferences() {
             {f("metaTitle", "Title tag", `${p.metaTitle.length} of 70 characters used`)}
             {f("metaDescription", "Meta description", `${p.metaDescription.length} of 320 characters used`, true)}
           </div>
+          <div className="card" style={{ maxWidth: 720 }}>
+            <h3>Pop-up message</h3>
+            <p className="muted" style={{ marginTop: -4 }}>A message shown once to each visitor, for example a festival greeting. It shows again when you change the text.</p>
+            <label className="check"><input type="checkbox" checked={p.popup?.enabled ?? false} onChange={(e) => setP({ ...p, popup: { ...(p.popup ?? { title: "", text: "" }), enabled: e.target.checked } })} />Show the pop-up</label>
+            <div className="field" style={{ marginTop: 12 }}><label htmlFor="pp-t">Title</label><input id="pp-t" maxLength={120} value={p.popup?.title ?? ""} onChange={(e) => setP({ ...p, popup: { ...(p.popup ?? { enabled: false, text: "" }), title: e.target.value } })} /></div>
+            <div className="field"><label htmlFor="pp-x">Message</label><textarea id="pp-x" rows={5} maxLength={1000} value={p.popup?.text ?? ""} onChange={(e) => setP({ ...p, popup: { ...(p.popup ?? { enabled: false, title: "" }), text: e.target.value } })} /><div className="muted">Leave a blank line between paragraphs.</div></div>
+          </div>
           <div style={{ maxWidth: 720 }}>
-            <MenuCard id="header" title="Header menu" hint="Links across the top of every storefront page. A link of / is the shop home." items={p.headerMenu} onChange={(headerMenu) => setP({ ...p, headerMenu })} val={val} quick={quick} />
+            <MenuCard id="header" title="Header menu" hint="Links across the top of every storefront page. A link of / is the shop home. Add drop-down links under an item to show a menu when visitors point at it." items={p.headerMenu} onChange={(headerMenu) => setP({ ...p, headerMenu })} val={val} quick={quick} subs />
             <MenuCard id="footer" title="Footer menu" hint="Links at the bottom of every page. Good for policies and contact." items={p.footerMenu} onChange={(footerMenu) => setP({ ...p, footerMenu })} val={val} quick={quick} />
           </div>
           {msg && <div className={msg.ok ? "okmsg" : "error"} style={{ maxWidth: 720 }}>{msg.text}</div>}

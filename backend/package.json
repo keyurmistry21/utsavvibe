@@ -9,7 +9,8 @@
     "seed:demo": "tsx prisma/seed-demo.ts",
     "create-admin": "tsx prisma/create-admin.ts",
     "db:push": "prisma db push",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:content": "tsx prisma/seed-content.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

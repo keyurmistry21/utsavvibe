@@ -58,6 +58,7 @@ Install Docker Desktop (https://www.docker.com/products/docker-desktop), start i
 console.log("4/5 schema and markets");
 must("npm run db:push --silent", "syncing the database schema");
 must("npm run seed --silent", "seeding markets");
+must("npm -w backend run seed:content --silent", "adding the starter pages and menus");
 
 if (noRun) { console.log("5/5 skipped (--no-run)"); process.exit(0); }
 console.log("5/5 starting\n  API  -> http://localhost:4000\n  Site -> http://localhost:5173  (admin: /admin)\n" + (useDocker ? "  Mail -> http://localhost:8026  (dev inbox)\n" : "") + "  Create your login in another terminal:  npm run create-admin -- you@example.com \"a long password\" \"Your Name\"\n  Ctrl-C stops both.\n");
