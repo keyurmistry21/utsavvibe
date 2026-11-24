@@ -229,3 +229,56 @@ analyticsRouter.get("/traffic", async (req, res) => {
     truncated: ev.length >= 200_000,
   });
 });
+
+// ---- Home page: today at a glance (sales vs yesterday, week trend, to-do counts, recent orders, stock, visitors) ----
+const startOfUtcDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+
+analyticsRouter.get("/home", async (req, res) => {
+  const marketCode = req.query.market ? String(req.query.market).toUpperCase() : null;
+  const where = await scopeWhere(req, marketCode);
+  const scope = scopeCodes(req);
+  const mktCodes = marketCode ? [marketCode] : scope;
+  const today = startOfUtcDay(new Date());
+  const DAY = 86400000;
+  const d6 = new Date(today.getTime() - 6 * DAY), d13 = new Date(today.getTime() - 13 * DAY), yest = new Date(today.getTime() - DAY);
+
+  const [paid, recent, toFulfil, unpaid, highRisk, levels, visitors, buyers] = await Promise.all([
+    prisma.order.findMany({ where: { paymentStatus: "paid", createdAt: { gte: d13 }, ...where }, select: { createdAt: true, total: true, tax: true, currency: true, channel: true, items: { select: { title: true, quantity: true } } } }),
+    prisma.order.findMany({ where: { status: { not: "draft" }, ...where }, orderBy: { createdAt: "desc" }, take: 8, select: { id: true, number: true, total: true, currency: true, status: true, paymentStatus: true, channel: true, createdAt: true, riskLevel: true, shippingName: true, customer: { select: { name: true } }, market: { select: { code: true } } } }),
+    prisma.order.count({ where: { status: "open", paymentStatus: "paid", ...where } }),
+    prisma.order.count({ where: { status: "open", paymentStatus: "pending", createdAt: { gte: new Date(Date.now() - DAY) }, ...where } }),
+    prisma.order.count({ where: { riskLevel: "high", status: { in: ["open"] }, ...where } }),
+    prisma.inventoryLevel.findMany({
+      where: { quantity: { lte: LOW_STOCK }, variant: { product: { status: "active", trackInventory: true, continueSelling: false } }, ...(mktCodes ? { market: { code: { in: mktCodes } } } : {}) },
+      include: { market: { select: { code: true } }, variant: { select: { title: true, sku: true, product: { select: { title: true } } } } },
+      orderBy: { quantity: "asc" }, take: 100,
+    }),
+    prisma.trackEvent.findMany({ where: { createdAt: { gte: d6 }, type: "page_view", ...(mktCodes ? { market: { in: mktCodes } } : {}) }, distinct: ["sessionId"], select: { sessionId: true, createdAt: true } }),
+    prisma.trackEvent.findMany({ where: { createdAt: { gte: d6 }, type: "purchase", ...(mktCodes ? { market: { in: mktCodes } } : {}) }, distinct: ["sessionId"], select: { sessionId: true } }),
+  ]);
+
+  type C = { currency: string; today: number; yesterday: number; week: number; prevWeek: number; ordersToday: number; ordersWeek: number; series: number[] };
+  const cur: Record<string, C> = {};
+  const top: Record<string, { title: string; quantity: number }> = {};
+  for (const o of paid) {
+    const c = (cur[o.currency] ??= { currency: o.currency, today: 0, yesterday: 0, week: 0, prevWeek: 0, ordersToday: 0, ordersWeek: 0, series: Array(7).fill(0) });
+    const net = o.total - o.tax;
+    if (o.createdAt >= today) { c.today += net; c.ordersToday++; }
+    else if (o.createdAt >= yest) c.yesterday += net;
+    if (o.createdAt >= d6) {
+      c.week += net; c.ordersWeek++;
+      c.series[Math.min(6, Math.floor((startOfUtcDay(o.createdAt).getTime() - d6.getTime()) / DAY))] += net;
+      for (const i of o.items) (top[i.title] ??= { title: i.title, quantity: 0 }).quantity += i.quantity;
+    } else c.prevWeek += net;
+  }
+  const lowStock = levels.filter((l) => l.quantity > 0), out = levels.filter((l) => l.quantity <= 0);
+  const sessions = visitors.length;
+  res.json({
+    currencies: Object.values(cur),
+    todo: { toFulfil, unpaid, highRisk, lowStock: lowStock.length, outOfStock: out.length },
+    recent: recent.map((o) => ({ id: o.id, number: o.number, total: o.total, currency: o.currency, status: o.status, paymentStatus: o.paymentStatus, channel: o.channel, createdAt: o.createdAt, risk: o.riskLevel, market: o.market.code, customer: o.customer?.name || o.shippingName || "Guest" })),
+    topProducts: Object.values(top).sort((a, b) => b.quantity - a.quantity).slice(0, 5),
+    stock: [...out, ...lowStock].slice(0, 6).map((l) => ({ product: l.variant.product.title, variant: l.variant.title === "Default" ? "" : l.variant.title, sku: l.sku || l.variant.sku, market: l.market.code, quantity: l.quantity })),
+    visitors: { sessions, purchases: buyers.length, conversion: sessions ? Math.round((buyers.length / sessions) * 1000) / 10 : 0, today: visitors.filter((v) => v.createdAt >= today).length },
+  });
+});

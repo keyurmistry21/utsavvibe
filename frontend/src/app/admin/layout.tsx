@@ -18,6 +18,21 @@ const Icon = ({ d }: { d: string }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
 );
 
+// Collapsible sub-menu: always rendered so it can animate open and closed; `inert` keeps hidden links out of the tab order.
+const Sub = ({ open, children }: { open: boolean; children: React.ReactNode }) => (
+  <div className={`subwrap ${open ? "open" : ""}`} aria-hidden={!open} {...(open ? {} : { inert: true })}>
+    <div className="sub">{children}</div>
+  </div>
+);
+const SUBS: Record<string, (path: string) => boolean> = {
+  "Online Store": (p) => p.startsWith("/admin/online-store"),
+  Products: (p) => p.startsWith("/admin/products") || p.startsWith("/admin/collections") || p.startsWith("/admin/gift-cards"),
+  Orders: (p) => p.startsWith("/admin/orders"),
+};
+const Chevron = ({ open }: { open: boolean }) => (
+  <svg className={`chev ${open ? "open" : ""}`} viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+);
+
 function Login({ onDone }: { onDone: (u: AdminUser) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -160,32 +175,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link href={l.href} title={l.label} aria-label={l.label} className={!inSettings && active(l.href) && !(l.label === "Orders" && isDrafts) ? "active" : ""}>
                 <Icon d={l.icon} /><span className="navlbl">{l.label}</span>
                 {l.label === "Orders" && toFulfil > 0 && <span className="count">{toFulfil}</span>}
+                {SUBS[l.label] && !inSettings && <Chevron open={SUBS[l.label](path)} />}
               </Link>
-              {l.label === "Online Store" && path.startsWith("/admin/online-store") && (
-                <div className="sub">
+              {l.label === "Online Store" && (
+                <Sub open={!inSettings && path.startsWith("/admin/online-store")}>
                   <Link href="/admin/online-store/pages" className={path.startsWith("/admin/online-store/pages") ? "active" : ""}>Pages</Link>
                   <Link href="/admin/online-store/blog" className={path.startsWith("/admin/online-store/blog") ? "active" : ""}>Blog posts</Link>
                   <Link href="/admin/online-store/preferences" className={path.startsWith("/admin/online-store/preferences") ? "active" : ""}>Preferences</Link>
                   <a href="/uk" target="_blank" rel="noreferrer">View your store ↗</a>
-                </div>
+                </Sub>
               )}
-              {l.label === "Products" && (path.startsWith("/admin/products") || path.startsWith("/admin/collections") || path.startsWith("/admin/gift-cards")) && (
-                <div className="sub">
+              {l.label === "Products" && (
+                <Sub open={!inSettings && SUBS.Products(path)}>
                   <Link href="/admin/products" className={path.startsWith("/admin/products") && !path.startsWith("/admin/products/import") ? "active" : ""}>All products</Link>
                   {can("products.view") && <Link href="/admin/collections" className={path.startsWith("/admin/collections") ? "active" : ""}>Collections</Link>}
                   {can("gift_cards.view") && <Link href="/admin/gift-cards" className={path.startsWith("/admin/gift-cards") ? "active" : ""}>Gift cards</Link>}
                   {can("products.manage") && <Link href="/admin/products/import" className={path.startsWith("/admin/products/import") ? "active" : ""}>Import from Shopify</Link>}
-                </div>
+                </Sub>
               )}
-              {l.label === "Orders" && path.startsWith("/admin/orders") && (
-                <div className="sub">
+              {l.label === "Orders" && (
+                <Sub open={!inSettings && path.startsWith("/admin/orders")}>
                   <Link href="/admin/orders" className={!isDrafts ? "active" : ""}>All orders</Link>
                   <Link href="/admin/orders?status=draft" className={isDrafts ? "active" : ""}>Drafts</Link>
-                </div>
+                </Sub>
               )}
             </div>
           ))}
           <div className="grow" />
+          <div className="sidefoot">
           <Link href="/admin/settings" title="Settings" aria-label="Settings" className={`settingslink ${inSettings ? "active" : ""}`}><Icon d={icons.settings} /><span className="navlbl">Settings</span></Link>
           <StoreSwitcher
             compact={inSettings}
@@ -193,6 +210,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             role={user.role}
             onLogout={async () => { await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}
           />
+          </div>
         </nav>
         <nav className={`side setpanel ${inSettings ? "show" : ""} ${menu ? "open" : ""}`} aria-label="Settings" aria-hidden={!inSettings}>
           <div className="setpanel-in">

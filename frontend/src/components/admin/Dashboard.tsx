@@ -26,7 +26,7 @@ const fmtDay = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString("en",
 const compact = (n: number, c: string) => new Intl.NumberFormat("en", { style: "currency", currency: c, notation: "compact", maximumFractionDigits: 1 }).format(n / 100);
 
 // "+12% vs previous period". Up is good for earnings and profit, bad for expenses.
-function Delta({ now, before, goodWhenUp = true }: { now: number; before?: number; goodWhenUp?: boolean }) {
+export function Delta({ now, before, goodWhenUp = true }: { now: number; before?: number; goodWhenUp?: boolean }) {
   if (before == null || (before === 0 && now === 0)) return <span className="ep-delta flat">No change</span>;
   if (before === 0) return <span className="ep-delta flat">New this period</span>;
   const pct = Math.round(((now - before) / Math.abs(before)) * 100);
@@ -52,7 +52,7 @@ function dailySeries(s: Summary, cur: string) {
 }
 
 // Tiny area line drawn inside the dark hero card.
-function Spark({ values }: { values: number[] }) {
+export function Spark({ values }: { values: number[] }) {
   if (values.length < 2) return null;
   const W = 220, H = 56, max = Math.max(1, ...values);
   const pts = values.map((v, i) => [(i / (values.length - 1)) * W, H - 4 - (v / max) * (H - 10)] as const);

@@ -1204,3 +1204,76 @@ body:has(.sf) { background: #fff9f1; }
 .admin .ep-table th { background: transparent; padding: 6px 8px; }
 .admin .ep-table td { padding: 11px 8px; font-size: 14px; }
 .admin .ep-year { min-width: 520px; }
+
+/* ---------- Home ---------- */
+.admin .hm { max-width: 1160px; }
+.hm-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.hm-head h1 { margin: 0; font-size: 28px; letter-spacing: -.02em; }
+.hm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin .hm-actions .btn-link.primary { background: #1f2a12; color: #fff; box-shadow: none; }
+.admin .hm-actions .btn-link.primary:hover { background: #34520f; }
+.admin .hm-find { max-width: none; margin: 0 0 18px; }
+.hm-attn { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.hm-chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.08); font-size: 13.5px; color: #303030; text-decoration: none; transition: transform .12s, box-shadow .12s; }
+a.hm-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.1), 0 0 0 1px rgba(0,0,0,.08); }
+.hm-chip b { font-variant-numeric: tabular-nums; }
+.hm-chip.warn { background: #fff4e0; box-shadow: 0 0 0 1px #f2d9a6; color: #8a5a00; }
+.hm-chip.bad { background: #fde8e6; box-shadow: 0 0 0 1px #f5c2bc; color: #b42318; }
+.hm-chip.info { background: #e8f0fe; box-shadow: 0 0 0 1px #c5d6f7; color: #1d4ed8; }
+.hm-chip.good { background: #e3f5e9; box-shadow: 0 0 0 1px #bfe5cb; color: #14793a; }
+.ep-kpis.hm-kpis { grid-template-columns: 1.6fr repeat(3, 1fr); }
+.ep-curhead .muted { font-size: 13px; }
+.hm-row { cursor: pointer; }
+.hm-sub { font-size: 12px; color: #8a8a8a; margin-top: 2px; }
+.hm-pill { display: inline-block; font-size: 12px; font-weight: 650; padding: 2px 9px; border-radius: 999px; background: #f1f1f1; color: #616161; margin-right: 4px; }
+.hm-pill.good { background: #e3f5e9; color: #14793a; } .hm-pill.warn { background: #fff4e0; color: #8a5a00; } .hm-pill.bad { background: #fde8e6; color: #b42318; }
+.hm-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.hm-col .ep-panel { margin-bottom: 0; }
+.hm-vis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; margin: 6px 0 10px; }
+.hm-vis b { display: block; font-size: 24px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.hm-vis span { font-size: 12px; color: #7a7a7a; }
+.hm-more { display: inline-block; font-size: 13px; font-weight: 600; }
+.hm-setup ul { list-style: none; margin: 0; padding: 0; }
+.hm-setup li { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid #f0f0f0; }
+.hm-setup li:first-child { border-top: 0; }
+.hm-setup li i { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #cfcfcf; display: grid; place-items: center; font-style: normal; font-size: 13px; color: #fff; }
+.hm-setup li.done i { background: #14793a; border-color: #14793a; }
+.hm-setup li > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.hm-setup li span { color: #7a7a7a; font-size: 13px; }
+.hm-setup li.done b { color: #8a8a8a; text-decoration: line-through; }
+@media (max-width: 1000px) { .ep-kpis.hm-kpis { grid-template-columns: repeat(2, 1fr); } .ep-kpis.hm-kpis .ep-kpi.big { grid-column: 1 / -1; } }
+@media (max-width: 560px) { .hm-head h1 { font-size: 23px; } .hm-vis b { font-size: 20px; } }
+
+.ep-kpis.hm-kpis .ep-kpi { min-height: 104px; }
+.ep-kpis.hm-kpis .ep-kpi.big { min-height: 120px; }
+.hm-setup { margin-top: 16px; }
+@media (max-width: 560px) { .ep-kpis.hm-kpis { grid-template-columns: repeat(3, 1fr); gap: 8px; } .ep-kpis.hm-kpis .ep-kpi { padding: 12px 10px; } .ep-kpis.hm-kpis .ep-kpi-value { font-size: 15px; } .ep-kpis.hm-kpis .ep-kpi.big { grid-column: 1 / -1; } .ep-kpis.hm-kpis .ep-kpi.big .ep-kpi-value { font-size: 30px; } }
+
+/* Sidebar children keep their height; when the window is short the sidebar itself scrolls (the sub-menus use overflow:hidden, which let flexbox squash them and hide "View your store") */
+.admin .side > *, .admin .side .sub, .admin .side .navhead, .admin .side .searchbox, .admin .side a { flex-shrink: 0; } /* links sit inside display:contents wrappers, so a child selector alone misses them */
+.admin .side.main { overscroll-behavior: contain; }
+
+/* Settings link + store/user menu stay pinned to the bottom of the sidebar while the rest scrolls */
+.admin .side.main .sidefoot { position: sticky; bottom: -12px; margin: 0 -8px -12px; padding: 8px 8px 12px; background: #0f0f0f; box-shadow: 0 -10px 12px -6px #0f0f0f; display: flex; flex-direction: column; gap: 2px; z-index: 2; }
+.admin .side.main.collapsed .sidefoot { margin-left: -6px; margin-right: -6px; padding-left: 6px; padding-right: 6px; }
+
+/* ---------- Sidebar sub-menus: animated accordion with a rail and an active marker ---------- */
+.admin .side .subwrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .3s cubic-bezier(.2,.8,.2,1), opacity .22s ease; }
+.admin .side .subwrap.open { grid-template-rows: 1fr; opacity: 1; }
+.admin .side.main .subwrap > .sub { min-height: 0; max-height: none; overflow: hidden; margin: 0 0 0 20px; padding: 0 0 0 12px; border-left: 1px solid #2c2c2c; gap: 2px; }
+.admin .side .sub a:first-child { margin-top: 4px; }
+.admin .side .sub a:last-child { margin-bottom: 6px; }
+.admin .side .sub a { position: relative; padding: 7px 10px; font-size: 13px; font-weight: 500; color: #a3a3a3; border-radius: 8px; transition: background-color .15s, color .15s, transform .15s; }
+.admin .side .sub a:hover { background: #1c1c1c; color: #fff; }
+.admin .side .sub a:active { transform: scale(.98); }
+.admin .side .sub a.active { background: #212121; color: #fff; font-weight: 600; }
+.admin .side .sub a.active::before { content: ""; position: absolute; left: -13px; top: 7px; bottom: 7px; width: 2px; border-radius: 2px; background: #95bf47; }
+.admin .side .sub a[target="_blank"] { margin-top: 6px; padding-top: 8px; color: #8a8a8a; font-size: 12.5px; }
+.admin .side .sub a[target="_blank"]::after { content: ""; position: absolute; left: 10px; right: 10px; top: -3px; border-top: 1px solid #262626; }
+.admin .side .chev { width: 14px; height: 14px; margin-left: auto; opacity: .5; transition: transform .28s cubic-bezier(.2,.8,.2,1), opacity .2s; }
+.admin .side .count + .chev { margin-left: 6px; }
+.admin .side a:hover .chev { opacity: .85; }
+.admin .side .chev.open { transform: rotate(90deg); opacity: .9; }
+.admin .side.main.collapsed .subwrap { grid-template-rows: 0fr; opacity: 0; }
+.admin .side.main.collapsed .chev { display: none; }
+@media (prefers-reduced-motion: reduce) { .admin .side .subwrap, .admin .side .chev, .admin .side .sub a { transition: none; } }
