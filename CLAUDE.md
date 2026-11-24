@@ -15,6 +15,7 @@ Custom ecommerce platform replacing Shopify. Sells in three markets (UK/GBP, US/
 - Not built: Quebec French, Themes, multi-store (a second store = a second deployment), purchase orders, multiple blogs, collection images, importing Shopify customers/orders/collections, gift cards in draft orders, EasyPost (only Shippo).
 
 ## Commands (repo root)
+- Windows (no `make`, no bash): use the npm equivalents `npm run up`, `npm run down`, `npm run create-admin -- you@x.com "a long password" "Your Name"`, `npm run demo`, `npm run demo:clear`. Needs Node 20+ and Docker Desktop running. `make up` runs the same `scripts/dev.mjs`.
 - `make up` start MySQL (Docker, host port 3307), push schema, seed markets, run API :4000 + web :5173
 - `make down` stop MySQL (data kept in the Docker volume)
 - `make demo` / `make demo-clear` add or remove 6 sample products (tagged `demo`, plain handles) priced in all 3 markets

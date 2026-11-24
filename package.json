@@ -3,6 +3,10 @@
   "private": true,
   "workspaces": ["backend", "frontend"],
   "scripts": {
+    "up": "node scripts/dev.mjs",
+    "down": "docker compose stop mysql mailpit",
+    "demo": "npm -w backend run seed:demo --silent",
+    "demo:clear": "npm -w backend run seed:demo --silent -- --clear",
     "db:up": "docker compose up -d mysql",
     "db:push": "npm -w backend run db:push",
     "create-admin": "npm -w backend run create-admin --",
