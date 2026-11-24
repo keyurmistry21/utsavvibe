@@ -31,3 +31,21 @@ export async function setLevels(db: Tx, variantId: string, stock: Record<string,
   }
   await db.variant.update({ where: { id: variantId }, data: { inventory: Object.values(stock).reduce((a, b) => a + b.quantity, 0) } });
 }
+
+/** On-hand units a market can sell: its own level when it has one, else the variant total. */
+export async function onHand(db: Tx, variantId: string, marketId: string) {
+  const level = await db.inventoryLevel.findUnique({ where: { variantId_marketId: { variantId, marketId } }, select: { quantity: true } });
+  if (level) return level.quantity;
+  return (await db.variant.findUnique({ where: { id: variantId }, select: { inventory: true } }))?.inventory ?? 0;
+}
+
+export const RESERVE_MINUTES = 30; // unpaid storefront checkouts hold their units for this long
+
+/** Units held by other unpaid checkouts in the same market (created within the reservation window). */
+export async function reservedUnits(db: Tx, variantId: string, marketId: string) {
+  const r = await db.orderItem.aggregate({
+    _sum: { quantity: true },
+    where: { variantId, order: { marketId, status: "open", paymentStatus: "pending", createdAt: { gt: new Date(Date.now() - RESERVE_MINUTES * 60_000) } } },
+  });
+  return r._sum.quantity ?? 0;
+}

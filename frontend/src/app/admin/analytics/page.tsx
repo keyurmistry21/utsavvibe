@@ -1,5 +1,5 @@
-import { Dashboard } from "@/components/admin/Dashboard";
+import { AnalyticsTabs } from "@/components/admin/AnalyticsTabs";
 
 export default function Page() {
-  return <Dashboard />;
+  return <AnalyticsTabs />;
 }

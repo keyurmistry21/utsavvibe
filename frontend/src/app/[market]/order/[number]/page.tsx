@@ -7,7 +7,7 @@ export default async function OrderDone({ params }: { params: Promise<{ market: 
   const { market, number } = await params;
   return (
     <div className="card">
-      <ClearCart />
+      <ClearCart order={number} />
       <h1>Thank you!</h1>
       <p>Order <b>#{number}</b> received. A confirmation is on its way once payment clears.</p>
       <Link href={`/${market}`}>Continue shopping</Link>

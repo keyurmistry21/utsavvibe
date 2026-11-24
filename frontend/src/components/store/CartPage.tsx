@@ -6,12 +6,14 @@ import { useCart } from "./cart";
 import { Select } from "../Select";
 import { email as emailErr, maxLen, phone as phoneErr, postcode as postcodeErr, required } from "@/lib/validators";
 import { FieldError, useValidation } from "../admin/validation";
+import { track } from "@/lib/track";
 
 type Quote = {
   currency: string; taxInclusive: boolean; region: string | null;
   lines: { variantId: string; title: string; quantity: number; unitPrice: number }[];
   subtotal: number; tax: number; shipping: number; total: number; taxSource?: "stripe" | "market"; freeShippingRemaining?: number | null;
   giftCardApplied: number; amountDue: number; giftCardBalance: number | null;
+  stock?: { variantId: string; title: string; requested: number; available: number | null; ok: boolean }[];
 };
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -24,6 +26,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 export function CartPage({ market, country, regions }: { market: string; country: string; regions: { code: string; name: string; taxRateBps: number }[] }) {
   const { lines, setQty, count, replace } = useCart();
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [recheck, setRecheck] = useState(0); // bump to ask the server for fresh stock
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [region, setRegion] = useState("");
@@ -76,7 +79,11 @@ export function CartPage({ market, country, regions }: { market: string; country
     post<Quote>("/quote", { marketCode: market.toUpperCase(), region: region || undefined, giftCardCode: giftCode || undefined, address: taxAddress, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) })
       .then(setQuote)
       .catch((e) => { setErr(e.message); if (giftCode) { setGiftCode(""); setGiftErr(e.message); } });
-  }, [lines, market, region, giftCode, taxAddress?.postcode, taxAddress?.line1, taxAddress?.city]);
+  }, [lines, market, region, giftCode, recheck, taxAddress?.postcode, taxAddress?.line1, taxAddress?.city]);
+
+  // Stock is re-read from the server every time the cart opens or changes; checkout stays off while any line can't be fulfilled.
+  const issues = (quote?.stock ?? []).filter((x) => !x.ok);
+  const fixCart = () => { for (const x of issues) setQty(x.variantId, x.available ?? 0); };
 
   const applyGift = async () => {
     setGiftErr("");
@@ -102,6 +109,7 @@ export function CartPage({ market, country, regions }: { market: string; country
 
   const checkout = async () => {
     if (!val.submit()) return;
+    track("begin_checkout", { data: { currency: quote?.currency, value: (quote?.total ?? 0) / 100 } });
     setBusy(true);
     setErr("");
     try {
@@ -115,6 +123,7 @@ export function CartPage({ market, country, regions }: { market: string; country
       location.href = url; // Stripe-hosted checkout; cart is cleared on the order page
     } catch (e) {
       setErr((e as Error).message);
+      setRecheck((n) => n + 1); // the failure may be stock: show the latest availability
       setBusy(false);
     }
   };
@@ -132,7 +141,7 @@ export function CartPage({ market, country, regions }: { market: string; country
               const q = quote?.lines.find((x) => x.variantId === l.variantId);
               return (
                 <tr key={l.variantId}>
-                  <td>{l.title}</td>
+                  <td>{l.title}{(() => { const st = quote?.stock?.find((x) => x.variantId === l.variantId); return st && !st.ok ? <div className="error" role="alert">{st.available ? `Only ${st.available} available` : "Out of stock"}</div> : null; })()}</td>
                   <td style={{ width: 90 }}><input type="number" min={0} max={99} value={l.quantity} onChange={(e) => setQty(l.variantId, +e.target.value)} /></td>
                   <td style={{ textAlign: "right" }}>{q && quote && money(q.unitPrice * l.quantity, quote.currency)}</td>
                 </tr>
@@ -202,8 +211,9 @@ export function CartPage({ market, country, regions }: { market: string; country
           <div className="field"><label htmlFor="co-post">Postcode</label><input id="co-post" value={f.postcode} onChange={set("postcode")} autoComplete="postal-code" {...val.props("postcode")} /><FieldError k="postcode" msg={val.err("postcode")} /></div>
         </div>
         <label className="consent"><input type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)} /> Email me a reminder if I don't finish checking out. Unsubscribe any time.</label>
+        {issues.length > 0 && <div className="error" role="alert">Some items in your cart aren't available in the quantity you chose. <button className="link" type="button" onClick={fixCart}>Update my cart</button></div>}
         {err && <div className="error">{err}</div>}
-        <button className="primary" disabled={!quote || busy} onClick={checkout}>{busy ? "Please wait…" : quote && quote.giftCardApplied > 0 && quote.amountDue === 0 ? "Place order" : "Pay with Stripe"}</button>
+        <button className="primary" disabled={!quote || busy || issues.length > 0} onClick={checkout}>{busy ? "Please wait…" : quote && quote.giftCardApplied > 0 && quote.amountDue === 0 ? "Place order" : "Pay with Stripe"}</button>
         <p className="trust muted">🔒 Secure payment on Stripe's page. Cards, Apple Pay, Google Pay and Link where available. We never see your card number.</p>
       </div>
     </>

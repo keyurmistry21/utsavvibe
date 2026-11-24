@@ -1,11 +1,12 @@
 import { Router, raw } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import Stripe from "stripe";
 import { prisma, parseJson, nextOrderNumber } from "../db.js";
 import { pickShipping, priceTotals, taxRateFor } from "../money.js";
 import { htmlToText } from "../html.js";
-import { canSell, shouldDecrement, takeStock } from "../stock.js";
+import { canSell, shouldDecrement, takeStock, onHand, reservedUnits } from "../stock.js";
 import { stripe } from "../stripe.js";
 import { createCheckoutSession } from "../checkout.js";
 import { imageUrls } from "../storage.js";
@@ -23,7 +24,7 @@ import { issueForPaidOrder, releaseForOrder, reserve, splitPayment, usableCard }
 // Public storefront API: catalog, quote, checkout. Plus Stripe webhook.
 export const storeRouter = Router();
 
-const bad = (msg: string) => Object.assign(new Error(msg), { status: 400 });
+const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
 
 storeRouter.get("/markets", async (_req, res) => {
   const markets = await prisma.market.findMany({ where: { active: true }, include: { shippingRates: true, regions: { orderBy: { name: "asc" } } } });
@@ -36,12 +37,34 @@ storeRouter.get("/site", async (_req, res) => res.json(await loadPrefs()));
 // QR / barcode landing: SKU or barcode -> the product page (variant highlighted) in the requested market, else the first market selling it.
 storeRouter.get("/lookup/:code", async (req, res) => {
   const code = req.params.code.trim().slice(0, 64);
-  const v = code ? await prisma.variant.findFirst({ where: { OR: [{ sku: code }, { barcode: code }, { levels: { some: { OR: [{ sku: code }, { barcode: code }] } } }], product: { status: "active" } }, include: { product: { include: { markets: { include: { market: true } } } } } }) : null;
+  const v = code ? await prisma.variant.findFirst({ where: { OR: [{ sku: code }, { barcode: code }, { levels: { some: { OR: [{ sku: code }, { barcode: code }] } } }], qrActive: true, product: { status: "active" } }, include: { product: { include: { markets: { include: { market: true } } } } } }) : null;
   const markets = v?.product.markets.map((m) => m.market).filter((m) => m.active) ?? [];
   const wanted = String(req.query.market ?? "").toUpperCase();
   const m = markets.find((x) => x.code === wanted) ?? markets[0];
   if (!v || !m) return void res.status(404).json({ error: "not found" });
   res.json({ market: m.code, handle: v.product.handle, variantId: v.id });
+});
+
+// Visitor tracking beacon (doc §8): anonymous events, no IP or user agent stored. Bad input is dropped silently.
+const trackInput = z.object({
+  sid: z.string().regex(/^[a-z0-9]{8,40}$/i),
+  type: z.enum(["page_view", "view_item", "add_to_cart", "begin_checkout", "purchase", "page_leave"]),
+  path: z.string().max(300).startsWith("/"),
+  title: z.string().max(190).default(""),
+  market: z.string().max(8).default(""),
+  source: z.string().max(100).default("direct"),
+  medium: z.string().max(100).default(""),
+  campaign: z.string().max(100).default(""),
+  seconds: z.number().int().min(0).max(4 * 3600).optional(),
+});
+storeRouter.post("/track", async (req, res) => {
+  const d = trackInput.safeParse(req.body);
+  if (d.success) {
+    const x = d.data;
+    // keep the path only (query strings can carry emails or tokens)
+    await prisma.trackEvent.create({ data: { sessionId: x.sid, type: x.type, path: x.path.split(/[?#]/)[0], title: x.title, market: x.market.toUpperCase(), source: x.source.toLowerCase(), medium: x.medium.toLowerCase(), campaign: x.campaign.toLowerCase(), durationSec: x.seconds ?? null } }).catch(() => {});
+  }
+  res.status(204).end();
 });
 
 storeRouter.get("/policies", async (_req, res) => res.json(await publishedPolicies()));
@@ -151,6 +174,12 @@ const cartInput = z.object({
   address: z.object({ country: z.string().length(2), postcode: z.string().max(20), line1: z.string().max(200).optional(), city: z.string().max(100).optional(), region: z.string().max(8).optional() }).optional(),
 });
 
+// 409 with a customer-friendly message for the first cart line that can't be fulfilled.
+function stockProblem(stock: { title: string; available: number | null; ok: boolean }[]) {
+  const s = stock.find((x) => !x.ok);
+  if (s) throw bad(s.available ? `Only ${s.available} of ${s.title} available. Update your cart.` : `${s.title} is out of stock. Remove it from your cart.`, 409);
+}
+
 // Server-side pricing: never trust client prices.
 async function priceCart(d: z.infer<typeof cartInput>) {
   const market = await prisma.market.findFirst({ where: { code: d.marketCode, active: true }, include: { shippingRates: true, regions: true } });
@@ -158,6 +187,7 @@ async function priceCart(d: z.infer<typeof cartInput>) {
   const region = d.region?.toUpperCase();
   if (region && market.regions.length && !market.regions.some((r) => r.code === region)) throw bad(`unknown region ${region}`);
   const lines = [];
+  const stock: { variantId: string; title: string; requested: number; available: number | null; ok: boolean }[] = [];
   for (const it of d.items) {
     const v = await prisma.variant.findUnique({
       where: { id: it.variantId },
@@ -167,7 +197,10 @@ async function priceCart(d: z.infer<typeof cartInput>) {
       throw bad(`item not available in ${market.name}`);
     const sold = parseJson<string[]>(v.product.markets.find((m) => m.marketId === market.id)?.regions ?? "[]", []);
     if (region && sold.length && !sold.includes(region)) throw bad(`${v.product.title} is not available in ${market.regions.find((r) => r.code === region)?.name ?? region}`);
-    if (!canSell(v.product, v.inventory, it.quantity)) throw bad(`insufficient stock for ${v.product.title}`);
+    // never throws: the cart shows "Out of stock" / "Only X available" and checkout re-checks under a lock
+    const have = await onHand(prisma, v.id, market.id);
+    const unlimited = !v.product.trackInventory || v.product.continueSelling;
+    stock.push({ variantId: v.id, title: v.title === "Default" ? v.product.title : `${v.product.title} — ${v.title}`, requested: it.quantity, available: unlimited ? null : Math.max(0, have), ok: canSell(v.product, have, it.quantity) });
     lines.push({
       variantId: v.id,
       title: v.title === "Default" ? v.product.title : `${v.product.title} — ${v.title}`,
@@ -197,7 +230,7 @@ async function priceCart(d: z.infer<typeof cartInput>) {
   }
   const freeOver = ship.rate?.freeOverAmount ?? null;
   const freeShippingRemaining = freeOver != null && lines.some((l) => l.physical) && subtotal < freeOver ? freeOver - subtotal : null;
-  return { market, region, taxRateBps, lines, subtotal, tax, shipping, shippingRate: ship.rate, total, taxCalcId, freeShippingRemaining };
+  return { market, region, taxRateBps, lines, stock, subtotal, tax, shipping, shippingRate: ship.rate, total, taxCalcId, freeShippingRemaining };
 }
 
 // Gift card for this cart, or null. Gift cards can't pay for gift cards (keeps card-to-card laundering and fee dodging out).
@@ -219,7 +252,7 @@ storeRouter.post("/quote", async (req, res) => {
   const d = cartInput.parse(req.body);
   const q = await priceCart(d);
   const gc = await giftCardFor(q, d.giftCardCode, req.ip);
-  res.json({ currency: q.market.currency, taxInclusive: q.market.taxInclusive, taxRateBps: q.taxRateBps, region: q.region ?? null, taxSource: q.taxCalcId ? "stripe" : "market", freeShippingRemaining: q.freeShippingRemaining, lines: q.lines, subtotal: q.subtotal, tax: q.tax, shipping: q.shipping, total: q.total, giftCardApplied: gc?.applied ?? 0, amountDue: q.total - (gc?.applied ?? 0), giftCardBalance: gc?.card.balance ?? null });
+  res.json({ stock: q.stock, currency: q.market.currency, taxInclusive: q.market.taxInclusive, taxRateBps: q.taxRateBps, region: q.region ?? null, taxSource: q.taxCalcId ? "stripe" : "market", freeShippingRemaining: q.freeShippingRemaining, lines: q.lines, subtotal: q.subtotal, tax: q.tax, shipping: q.shipping, total: q.total, giftCardApplied: gc?.applied ?? 0, amountDue: q.total - (gc?.applied ?? 0), giftCardBalance: gc?.card.balance ?? null });
 });
 
 storeRouter.post("/checkout", async (req, res) => {
@@ -233,6 +266,7 @@ storeRouter.post("/checkout", async (req, res) => {
     })
     .parse(req.body);
   const q = await priceCart({ ...d, region: d.address.region });
+  stockProblem(q.stock); // stop before any order or payment exists
   if (q.market.regions.length && !q.region) throw bad("select your province/state");
   if (!JSON.parse(q.market.countries).includes(d.address.country)) throw bad(`${q.market.name} market does not ship to ${d.address.country}`);
   // card-testing / spam guard: a few unpaid checkouts per email per hour is plenty
@@ -243,6 +277,16 @@ storeRouter.post("/checkout", async (req, res) => {
   const covered = !!gc && applied === q.total; // (can only happen when shipping is free or the cart is items only) // the gift card pays everything: no Stripe session needed
 
   const order = await prisma.$transaction(async (tx) => {
+    // Last-unit protection: lock the variants, then count on-hand minus what other unpaid checkouts hold. Two buyers of the
+    // last unit queue on the lock; the second sees it reserved and is turned away before any payment is created.
+    const ids = [...new Set(q.lines.map((l) => l.variantId))].sort();
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM Variant WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE`);
+    for (const l of q.lines) {
+      const v = await tx.variant.findUnique({ where: { id: l.variantId }, include: { product: { select: { trackInventory: true, continueSelling: true, title: true } } } });
+      if (!v) throw bad("item no longer available", 409);
+      const free = (await onHand(tx, v.id, q.market.id)) - (await reservedUnits(tx, v.id, q.market.id));
+      if (!canSell(v.product, free, l.quantity)) throw bad(free > 0 ? `Only ${free} of ${l.title} available right now. Update your cart.` : `${l.title} is out of stock. Remove it from your cart.`, 409);
+    }
     const customer = await tx.customer.upsert({
       where: { email: d.email },
       create: { email: d.email, name: d.name, phone: d.phone, tags: "[]", notes: "", acceptsEmail: !!d.marketing },
@@ -332,6 +376,7 @@ export async function stripeWebhook(req: Request, res: Response) {
         if (expired.count) await releaseForOrder(orderId);
       } else {
         // idempotent: only the first delivery flips pending -> paid and decrements stock
+        const conflicts: string[] = [];
         const newlyPaid = await prisma.$transaction(async (tx) => {
           const flipped = await tx.order.updateMany({
             where: { id: orderId, paymentStatus: "pending" },
@@ -343,11 +388,20 @@ export async function stripeWebhook(req: Request, res: Response) {
           const paidOrder = await tx.order.findUnique({ where: { id: orderId }, select: { marketId: true } });
           for (const i of items) {
             if (!i.variantId) continue;
-            const v = await tx.variant.findUnique({ where: { id: i.variantId }, include: { product: { select: { trackInventory: true } } } });
-            if (v && shouldDecrement(v.product)) await takeStock(tx, i.variantId, i.quantity, paidOrder?.marketId);
+            const v = await tx.variant.findUnique({ where: { id: i.variantId }, include: { product: { select: { trackInventory: true, continueSelling: true } } } });
+            if (v && shouldDecrement(v.product)) {
+              // last-resort check: payment arrived but the units are gone (e.g. checkout older than the reservation window)
+              if (paidOrder && !v.product.continueSelling && (await onHand(tx, i.variantId, paidOrder.marketId)) < i.quantity) conflicts.push(i.title);
+              await takeStock(tx, i.variantId, i.quantity, paidOrder?.marketId);
+            }
           }
           return true;
         });
+        if (newlyPaid && conflicts.length) {
+          const o = await prisma.order.findUnique({ where: { id: orderId }, select: { tags: true, notes: true } });
+          const tags = new Set<string>(parseJson<string[]>(o?.tags ?? "[]", [])); tags.add("stock-conflict");
+          await prisma.order.update({ where: { id: orderId }, data: { tags: JSON.stringify([...tags]), notes: `${o?.notes ? o.notes + "\n" : ""}Oversold: paid, but not enough stock for ${conflicts.join(", ")}. Restock, or refund the customer.` } });
+        }
         // after the commit, and never allowed to fail the webhook (Stripe would retry and we'd double-process)
         if (newlyPaid) {
           void sendOrderConfirmation(orderId);

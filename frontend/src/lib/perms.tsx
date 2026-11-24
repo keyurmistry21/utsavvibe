@@ -15,6 +15,7 @@ export function useCan() {
 
 // which permission each admin area needs (first matching prefix wins)
 export const ROUTE_PERMS: [string, string][] = [
+  ["/admin/sell", "orders.manage"],
   ["/admin/orders", "orders.view"],
   ["/admin/products/import", "products.manage"],
   ["/admin/products/scan", "products.manage"],

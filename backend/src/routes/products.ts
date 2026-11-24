@@ -187,6 +187,14 @@ productsRouter.post("/stock/scan", async (req, res) => {
   res.json({ product: v.product.title, variant: v.title, sku: v.sku, location: target.code, quantity: have + d.delta, total: v.inventory + d.delta });
 });
 
+// Switch a variant's printed QR on or off (lost label, withdrawn item). Off = /p/<code> and in-store sales stop resolving it.
+productsRouter.put("/variants/:id/qr", async (req, res) => {
+  const { active } = z.object({ active: z.boolean() }).parse(req.body);
+  const v = await prisma.variant.update({ where: { id: req.params.id }, data: { qrActive: active }, select: { id: true, qrActive: true } }).catch(() => null);
+  if (!v) return void res.status(404).json({ error: "not found" });
+  res.json(v);
+});
+
 productsRouter.get("/", async (req, res) => {
   const { status, tag, q } = req.query as Record<string, string | undefined>;
   const products = await prisma.product.findMany({

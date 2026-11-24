@@ -15,7 +15,7 @@ import { Select } from "../Select";
 export type OptionDef = { name: string; values: string[] };
 type PriceForm = { amount: string };
 export type LocStock = { qty: string; sku: string; barcode: string }; // stock of one variant at one location, with that location's own SKU and barcode
-export type VForm = { id?: string; options: Record<string, string>; title: string; sku: string; barcode: string; inventory: string; stock: Record<string, LocStock>; weight: string; prices: Record<string, PriceForm> };
+export type VForm = { id?: string; qrActive?: boolean; options: Record<string, string>; title: string; sku: string; barcode: string; inventory: string; stock: Record<string, LocStock>; weight: string; prices: Record<string, PriceForm> };
 export type Form = {
   id?: string; title: string; description: string; status: Product["status"]; vendor: string; productType: string; tagsText: string; notes: string;
   marketIds: string[]; regions: Record<string, string[]>; images: ProductImage[];
@@ -49,7 +49,7 @@ export function fromProduct(p: Product): Form {
     seoTitle: p.seoTitle ?? "", seoDescription: p.seoDescription ?? "", handle: p.handle, handleTouched: true,
     options,
     variants: p.variants.map((v) => ({
-      id: v.id, options: v.options, title: v.title, sku: v.sku ?? "", barcode: v.barcode ?? "", inventory: String(v.inventory), stock: Object.fromEntries(Object.entries(v.stock ?? {}).map(([k, l]) => [k, { qty: String(l.quantity), sku: l.sku ?? "", barcode: l.barcode ?? "" }])), weight: gramsToUnit(v.weightG, "kg"),
+      id: v.id, qrActive: v.qrActive !== false, options: v.options, title: v.title, sku: v.sku ?? "", barcode: v.barcode ?? "", inventory: String(v.inventory), stock: Object.fromEntries(Object.entries(v.stock ?? {}).map(([k, l]) => [k, { qty: String(l.quantity), sku: l.sku ?? "", barcode: l.barcode ?? "" }])), weight: gramsToUnit(v.weightG, "kg"),
       prices: Object.fromEntries(Object.entries(v.prices).map(([m, x]) => [m, { amount: toMajor(x.amount) }])),
     })),
   };
@@ -408,7 +408,8 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
                   {f.variants.map((v, i) => i !== active ? null : (
                     <div key={v.title + i} className="vcard" role="tabpanel">
                       <div className="vpanel-in">
-                      <div className="vtools"><button className="link" type="button" disabled={!v.sku.trim() && !v.barcode.trim()} onClick={() => setCodesFor(i)}>Preview barcode and QR</button></div>
+                      <div className="vtools"><button className="link" type="button" disabled={!v.sku.trim() && !v.barcode.trim()} onClick={() => setCodesFor(i)}>Preview barcode and QR</button>
+                        {v.id && <span className="toggleline"><Switch checked={v.qrActive !== false} onChange={async (on) => { try { await api(`/products/variants/${v.id}/qr`, { method: "PUT", json: { active: on } }); setVariant(i, { qrActive: on }); } catch (e) { alert((e as Error).message); } }} label="QR code active" /><span>{v.qrActive !== false ? "QR code active" : "QR code switched off"}</span></span>}</div>
                       {selected.map((m) => {
                         const ls = v.stock[m.id];
                         return (

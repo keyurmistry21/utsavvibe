@@ -4,6 +4,7 @@ import { getMarkets, getPolicyLinks, getSite, menuHref } from "@/lib/store";
 import { CartProvider } from "@/components/store/cart";
 import { CartLink } from "@/components/store/CartLink";
 import { MarketSwitcher } from "@/components/store/MarketSwitcher";
+import { Tracker } from "@/components/store/Tracker";
 
 export default async function MarketLayout({ children, params }: { children: React.ReactNode; params: Promise<{ market: string }> }) {
   const { market } = await params;
@@ -14,6 +15,7 @@ export default async function MarketLayout({ children, params }: { children: Rea
 
   return (
     <CartProvider market={code}>
+      <Tracker />
       <div className="store sf">
         <div className="announce">{site.announcement || <>Free shipping on orders over {current.shippingRates[0]?.freeOverAmount != null ? new Intl.NumberFormat("en", { style: "currency", currency: current.currency, maximumFractionDigits: 0 }).format(current.shippingRates[0].freeOverAmount / 100) : "—"} · Shipping to {current.name}</>}</div>
         <header className="sf-head">

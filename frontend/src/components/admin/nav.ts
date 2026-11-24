@@ -28,6 +28,7 @@ export const icons = {
 export const links = [
   { href: "/admin", label: "Home", icon: icons.home, perm: "" },
   { href: "/admin/orders", label: "Orders", icon: icons.orders, perm: "orders.view" },
+  { href: "/admin/sell", label: "Sell in store", icon: icons.cart, perm: "orders.manage" },
   { href: "/admin/products", label: "Products", icon: icons.products, perm: "products.view" },
   { href: "/admin/customers", label: "Customers", icon: icons.customers, perm: "customers.view" },
   { href: "/admin/expenses", label: "Expenses", icon: icons.receipt, perm: "expenses.view" },
@@ -43,6 +44,7 @@ export const actions = [
   { label: "Add product", href: "/admin/products/new" },
   { label: "Print product labels", href: "/admin/products/labels" },
   { label: "Scan stock in / out", href: "/admin/products/scan" },
+  { label: "Sell in store (scan QR)", href: "/admin/sell" },
   { label: "Collections", href: "/admin/collections" },
   { label: "Create collection", href: "/admin/collections?new=1" },
   { label: "Gift cards", href: "/admin/gift-cards" },

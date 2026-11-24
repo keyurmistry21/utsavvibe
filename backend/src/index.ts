@@ -23,6 +23,7 @@ import { giftCardsRouter } from "./routes/giftCards.js";
 import { shippingLabelsRouter } from "./routes/shippingLabels.js";
 import { expensesRouter } from "./routes/expenses.js";
 import { analyticsRouter } from "./routes/analytics.js";
+import { posRouter } from "./routes/pos.js";
 import { storeRouter, stripeWebhook, webhookBody } from "./routes/store.js";
 import { integrationsRouter } from "./routes/integrations.js";
 import { feedsRouter } from "./routes/feeds.js";
@@ -46,6 +47,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use("/uploads", express.static(UPLOAD_DIR, { maxAge: "365d", immutable: true, index: false, dotfiles: "deny" }));
 // Abuse limits per IP (in memory). Checkout is the tight one: it creates orders and Stripe sessions, a target for card testing.
 app.use("/api/store/checkout", rateLimit({ windowMs: 10 * 60_000, max: 10, message: "Too many checkout attempts. Please wait a few minutes." }));
+app.use("/api/store/track", rateLimit({ windowMs: 60_000, max: 120 }));
 app.use("/api/store/quote", rateLimit({ windowMs: 60_000, max: 90 }));
 app.use("/api/store/feeds", rateLimit({ windowMs: 60_000, max: 60 }));
 app.use("/api/store", rateLimit({ windowMs: 60_000, max: 600 }));
@@ -62,6 +64,7 @@ app.use("/api/admin/customers", guard({ read: ["customers.view", "orders.manage"
 app.use("/api/admin/integrations", guard({ write: ["integrations.manage"] }), integrationsRouter);
 app.use("/api/admin/expenses", guard({ read: ["expenses.view"], write: ["expenses.manage"] }), expensesRouter);
 app.use("/api/admin/analytics", guard({ write: ["analytics.view"] }), analyticsRouter);
+app.use("/api/admin/pos", guard({ read: ["orders.manage"], write: ["orders.manage"] }), posRouter);
 app.use("/api/admin/drafts", guard({ read: ["orders.view"], write: ["orders.manage"] }), draftsRouter);
 app.use("/api/admin/settings", guard({ readOpen: true, write: ["settings.manage"] }), settingsRouter);
 app.use("/api/admin/online-store", guard({ write: ["online_store.manage"] }), onlineStoreRouter);

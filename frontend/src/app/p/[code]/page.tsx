@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 
 export const metadata = { title: "Find a product", robots: { index: false, follow: false } };
 
@@ -9,6 +10,8 @@ const BACKEND = process.env.BACKEND_URL ?? "http://localhost:4000";
 export default async function Scan({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ market?: string }> }) {
   const { code } = await params;
   const { market } = await searchParams;
+  // A staff member who is signed in lands on the in-store sale screen; the page itself re-checks the session and permission through the API.
+  if ((await cookies()).get("uv_session")?.value) redirect(`/admin/sell/${encodeURIComponent(decodeURIComponent(code))}`);
   const res = await fetch(`${BACKEND}/api/store/lookup/${encodeURIComponent(decodeURIComponent(code))}${market ? `?market=${encodeURIComponent(market)}` : ""}`, { cache: "no-store" }).catch(() => null);
   if (res?.ok) {
     const r = (await res.json()) as { market: string; handle: string; variantId: string };

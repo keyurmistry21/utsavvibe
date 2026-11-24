@@ -95,6 +95,7 @@ model Variant {
   weightG   Int            @default(0)
   barcode   String?
   costPerItem Int? // minor units, admin-only
+  qrActive  Boolean        @default(true) // false = the printed product QR stops opening this variant (lost/withdrawn label)
   prices    VariantPrice[]
   orderItems OrderItem[]
   levels    InventoryLevel[]
@@ -183,12 +184,18 @@ model Order {
   recoveryToken   String?     @db.VarChar(64) // abandoned-checkout link (random, 256-bit)
   recoveryEmailAt DateTime?   // when the reminder was sent (once per order)
   taxCalcId       String?     // Stripe Tax calculation id
+  channel         String      @default("online") // online | in_store (salesperson sold it by scanning the product QR)
+  salespersonId   String?     // AdminUser who made an in-store sale
+  salespersonName String?     // name kept on the order so reports survive staff deletion
+  locationId      String?     // store location of an in-store sale
+  locationName    String?
   tags            String @db.Text
   notes           String @db.Text
   createdAt       DateTime    @default(now())
   items           OrderItem[]
 
   @@index([recoveryToken])
+  @@index([channel, createdAt])
 }
 
 model OrderItem {
@@ -464,4 +471,23 @@ model Expense {
   createdAt      DateTime @default(now())
 
   @@index([date])
+}
+
+// First-party storefront analytics (no personal data): one row per event, grouped by a random per-visit session id.
+model TrackEvent {
+  id          String   @id @default(cuid())
+  sessionId   String   @db.VarChar(40)
+  type        String   @db.VarChar(24) // page_view | view_item | add_to_cart | begin_checkout | purchase | page_leave
+  path        String   @db.VarChar(300)
+  title       String   @default("") @db.VarChar(190)
+  market      String   @default("") @db.VarChar(8)
+  source      String   @default("direct") @db.VarChar(100) // utm_source, else referrer host group (google, instagram, ...), else direct
+  medium      String   @default("") @db.VarChar(100)
+  campaign    String   @default("") @db.VarChar(100)
+  durationSec Int?     // page_leave: seconds the page was visible and active
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([sessionId])
+  @@index([type, createdAt])
 }

@@ -3,12 +3,14 @@ const dev = process.env.NODE_ENV !== "production";
 
 // Next injects inline bootstrap scripts, so script-src needs 'unsafe-inline' (no nonce pipeline here). Everything else is locked down:
 // no framing, no plugins, forms only to ourselves or Stripe Checkout, XHR only to our own origin (the /api proxy).
+// Google Analytics 4 is allowed only when NEXT_PUBLIC_GA_ID is set.
+const ga = !!process.env.NEXT_PUBLIC_GA_ID;
 const csp = [
   "default-src 'self'",
   "img-src 'self' data: blob: https:",
   "style-src 'self' 'unsafe-inline'",
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
-  `connect-src 'self'${dev ? " ws: wss:" : ""}`,
+  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}${ga ? " https://www.googletagmanager.com" : ""}`,
+  `connect-src 'self'${dev ? " ws: wss:" : ""}${ga ? " https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com" : ""}`,
   "font-src 'self' data:",
   "frame-ancestors 'none'",
   "base-uri 'self'",

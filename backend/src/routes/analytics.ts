@@ -115,3 +115,117 @@ analyticsRouter.get("/status", async (_req, res) => {
   ]);
   res.json({ products, activeProducts, markets, toFulfil, stripeConfigured: !!process.env.STRIPE_SECRET_KEY, webhookConfigured: !!process.env.STRIPE_WEBHOOK_SECRET });
 });
+
+// ---- Shopify-style insights (doc §10): sales, orders, AOV, channels, staff and location performance, products, stock ----
+const LOW_STOCK = 5;
+type Cell = { currency: string; sales: number; orders: number };
+
+async function scopeWhere(req: Parameters<typeof scopeCodes>[0], marketCode: string | null) {
+  const scope = scopeCodes(req);
+  if (scope && marketCode && !scope.includes(marketCode)) throw Object.assign(new Error("An admin hasn't given you access to that market."), { status: 403 });
+  return marketCode ? { market: { code: marketCode } } : scope ? { market: { code: { in: scope } } } : {};
+}
+
+analyticsRouter.get("/insights", async (req, res) => {
+  const { from, to, days } = range(req.query);
+  const marketCode = req.query.market ? String(req.query.market).toUpperCase() : null;
+  const where = await scopeWhere(req, marketCode);
+  const [paid, pending, levels] = await Promise.all([
+    prisma.order.findMany({ where: { paymentStatus: "paid", createdAt: { gte: from, lte: to }, ...where }, include: { items: true, market: { select: { code: true } } } }),
+    prisma.order.count({ where: { paymentStatus: "pending", status: { not: "cancelled" }, createdAt: { gte: from, lte: to }, ...where } }),
+    prisma.inventoryLevel.findMany({
+      where: { quantity: { lte: LOW_STOCK }, variant: { product: { status: "active", trackInventory: true } }, ...(marketCode ? { market: { code: marketCode } } : scopeCodes(req) ? { market: { code: { in: scopeCodes(req)! } } } : {}) },
+      include: { market: { select: { code: true } }, variant: { select: { title: true, sku: true, product: { select: { title: true } } } } },
+      orderBy: { quantity: "asc" }, take: 50,
+    }),
+  ]);
+
+  // money is only ever added within one currency
+  const total: Record<string, Cell> = {};
+  const channel: Record<string, Record<string, Cell & { channel: string }>> = {};
+  const staff: Record<string, { id: string; name: string; currency: string; sales: number; orders: number }> = {};
+  const loc: Record<string, { name: string; currency: string; sales: number; orders: number }> = {};
+  const variants: Record<string, { title: string; currency: string; quantity: number; revenue: number }> = {};
+  const daily: Record<string, Record<string, number>> = {};
+  const hourly: Record<string, number[]> = {};
+  for (const o of paid) {
+    const t = (total[o.currency] ??= { currency: o.currency, sales: 0, orders: 0 });
+    t.sales += o.total - o.tax; t.orders++; // net sales: tax is not income
+    const ch = o.channel === "in_store" ? "in_store" : "online";
+    const c = ((channel[o.currency] ??= {})[ch] ??= { currency: o.currency, channel: ch, sales: 0, orders: 0 });
+    c.sales += o.total - o.tax; c.orders++;
+    if (ch === "in_store") {
+      const sk = `${o.salespersonId ?? "?"}|${o.currency}`;
+      const s = (staff[sk] ??= { id: o.salespersonId ?? "", name: o.salespersonName ?? "Unknown", currency: o.currency, sales: 0, orders: 0 });
+      s.sales += o.total - o.tax; s.orders++;
+      const lk = `${o.locationName ?? "Store"}|${o.currency}`;
+      const l = (loc[lk] ??= { name: o.locationName ?? "Store", currency: o.currency, sales: 0, orders: 0 });
+      l.sales += o.total - o.tax; l.orders++;
+    }
+    for (const i of o.items) {
+      const vk = `${i.title}|${o.currency}`;
+      const v = (variants[vk] ??= { title: i.title, currency: o.currency, quantity: 0, revenue: 0 });
+      v.quantity += i.quantity; v.revenue += i.unitPrice * i.quantity;
+    }
+    const day = o.createdAt.toISOString().slice(0, 10);
+    ((daily[o.currency] ??= {})[day] ??= 0);
+    daily[o.currency][day] += o.total - o.tax;
+    (hourly[o.currency] ??= Array(24).fill(0))[o.createdAt.getUTCHours()] += o.total - o.tax;
+  }
+  const top = (rows: { sales: number; currency: string }[]) => Object.values(rows.reduce<Record<string, (typeof rows)[number]>>((m, r) => ((!m[r.currency] || r.sales > m[r.currency].sales) && (m[r.currency] = r), m), {}));
+  res.json({
+    days, from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10),
+    totals: Object.values(total).map((t) => ({ ...t, aov: t.orders ? Math.round(t.sales / t.orders) : 0 })),
+    pending,
+    channels: Object.values(channel).flatMap((x) => Object.values(x)),
+    salespeople: Object.values(staff).sort((a, b) => b.sales - a.sales),
+    locations: Object.values(loc).sort((a, b) => b.sales - a.sales),
+    topSalesperson: top(Object.values(staff)),
+    topLocation: top(Object.values(loc)),
+    topVariants: Object.values(variants).sort((a, b) => b.quantity - a.quantity).slice(0, 15),
+    daily: Object.entries(daily).map(([currency, d]) => ({ currency, points: Object.entries(d).sort(([a], [b]) => a.localeCompare(b)).map(([date, sales]) => ({ date, sales })) })),
+    hourly: Object.entries(hourly).map(([currency, hours]) => ({ currency, hours })),
+    lowStock: levels.map((l) => ({ product: l.variant.product.title, variant: l.variant.title === "Default" ? "" : l.variant.title, sku: l.sku || l.variant.sku, market: l.market.code, quantity: l.quantity })),
+  });
+});
+
+// ---- Storefront traffic (first-party events recorded by the storefront tracker; doc §8.6) ----
+analyticsRouter.get("/traffic", async (req, res) => {
+  const { from, to, days } = range(req.query);
+  const marketCode = req.query.market ? String(req.query.market).toUpperCase() : null;
+  const scope = scopeCodes(req);
+  if (scope && marketCode && !scope.includes(marketCode)) return void res.status(403).json({ error: "An admin hasn't given you access to that market." });
+  const ev = await prisma.trackEvent.findMany({
+    where: { createdAt: { gte: from, lte: to }, ...(marketCode ? { market: marketCode } : scope ? { market: { in: scope } } : {}) },
+    orderBy: { createdAt: "asc" }, take: 200_000,
+  });
+  type S = { source: string; medium: string; campaign: string; steps: Set<string>; last: string };
+  const sessions = new Map<string, S>();
+  const pages: Record<string, { path: string; title: string; views: number; secs: number; timed: number; exits: number }> = {};
+  const page = (p: string, t: string) => (pages[p] ??= { path: p, title: t, views: 0, secs: 0, timed: 0, exits: 0 });
+  for (const e of ev) {
+    const s = sessions.get(e.sessionId) ?? { source: e.source, medium: e.medium, campaign: e.campaign, steps: new Set<string>(), last: "" };
+    sessions.set(e.sessionId, s);
+    if (e.type === "page_view") { s.steps.add("page_view"); s.last = e.path; page(e.path, e.title).views++; }
+    else if (e.type === "page_leave") { const p = page(e.path, e.title); if (e.durationSec != null) { p.secs += e.durationSec; p.timed++; } }
+    else s.steps.add(e.type);
+  }
+  const funnel = { sessions: sessions.size, view_item: 0, add_to_cart: 0, begin_checkout: 0, purchase: 0 };
+  const src: Record<string, { source: string; medium: string; campaign: string; sessions: number; add_to_cart: number; purchase: number }> = {};
+  for (const s of sessions.values()) {
+    for (const k of ["view_item", "add_to_cart", "begin_checkout", "purchase"] as const) if (s.steps.has(k)) funnel[k]++;
+    if (s.last && !s.steps.has("purchase")) page(s.last, "").exits++;
+    const k = `${s.source}|${s.medium}|${s.campaign}`;
+    const r = (src[k] ??= { source: s.source, medium: s.medium, campaign: s.campaign, sessions: 0, add_to_cart: 0, purchase: 0 });
+    r.sessions++; if (s.steps.has("add_to_cart")) r.add_to_cart++; if (s.steps.has("purchase")) r.purchase++;
+  }
+  const rows = Object.values(pages).map((p) => ({ path: p.path, title: p.title, views: p.views, avgSeconds: p.timed ? Math.round(p.secs / p.timed) : null, exits: p.exits, exitRate: p.views ? Math.round((p.exits / p.views) * 100) : 0 }));
+  res.json({
+    days, funnel,
+    conversionRate: funnel.sessions ? Math.round((funnel.purchase / funnel.sessions) * 1000) / 10 : 0,
+    sources: Object.values(src).sort((a, b) => b.sessions - a.sessions).slice(0, 20),
+    topPages: rows.sort((a, b) => b.views - a.views).slice(0, 15),
+    exitPages: [...rows].filter((r) => r.exits > 0).sort((a, b) => b.exits - a.exits).slice(0, 10),
+    truncated: ev.length >= 200_000,
+  });
+});
