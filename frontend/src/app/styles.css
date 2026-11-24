@@ -1073,3 +1073,10 @@ body:has(.sf) { background: #fff9f1; }
 .admin .mblock-g .field { min-width: 0; margin-bottom: 10px; }
 .admin .vhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 28px 0 14px; padding-top: 20px; border-top: 1px solid var(--border, #e3e3e3); }
 .admin .vtabs { margin-bottom: 14px; }
+/* Password show/hide eye: sits inside the input's right edge, no button chrome */
+.admin .pwwrap { position: relative; display: block; }
+.admin .pwwrap input { padding-right: 38px; }
+.admin .pwwrap .pweye { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; box-shadow: none; border-radius: 6px; color: #6b6b6b; }
+.admin .pwwrap .pweye:hover { background: #f1f1f1; color: #303030; }
+.admin .pwwrap .pweye:focus-visible { outline: 2px solid #005bd3; outline-offset: 1px; }
+.admin .pwwrap .pweye svg { width: 18px; height: 18px; }
