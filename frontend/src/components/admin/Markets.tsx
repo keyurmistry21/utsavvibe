@@ -84,6 +84,12 @@ function MarketEditor({ initial, onDone }: { initial: Draft; onDone: () => void 
         </div>
       ))}
       <button onClick={() => setM({ ...m, regions: [...m.regions, { code: "", name: "", taxRateBps: 0 }] })}><Plus />Add region</button>
+      {m.countries.includes("US") && !m.regions.length && (
+        <button title="Lets you limit a product to certain states, and set sales tax per state" onClick={() => setM({ ...m, regions: US_STATES.map(([code, name]) => ({ code, name, taxRateBps: 0 })) })}>Add all 50 states + DC (tax 0%, edit per state)</button>
+      )}
+      {m.countries.includes("CA") && !m.regions.length && (
+        <button onClick={() => setM({ ...m, regions: CA_PROVINCES.map(([code, name, taxRateBps]) => ({ code, name, taxRateBps: taxRateBps as number })) })}>Add all provinces (standard GST/HST/PST rates)</button>
+      )}
       <h4>Shipping rates</h4>
       {m.shippingRates.map((r, i) => (
         <div key={i} className="row">
@@ -101,6 +107,9 @@ function MarketEditor({ initial, onDone }: { initial: Draft; onDone: () => void 
     </div>
   );
 }
+
+const US_STATES: [string, string][] = [["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],["CA","California"],["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],["DC","District of Columbia"],["FL","Florida"],["GA","Georgia"],["HI","Hawaii"],["ID","Idaho"],["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],["KS","Kansas"],["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],["MD","Maryland"],["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],["MS","Mississippi"],["MO","Missouri"],["MT","Montana"],["NE","Nebraska"],["NV","Nevada"],["NH","New Hampshire"],["NJ","New Jersey"],["NM","New Mexico"],["NY","New York"],["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],["OK","Oklahoma"],["OR","Oregon"],["PA","Pennsylvania"],["RI","Rhode Island"],["SC","South Carolina"],["SD","South Dakota"],["TN","Tennessee"],["TX","Texas"],["UT","Utah"],["VT","Vermont"],["VA","Virginia"],["WA","Washington"],["WV","West Virginia"],["WI","Wisconsin"],["WY","Wyoming"]];
+const CA_PROVINCES: [string, string, number][] = [["AB","Alberta",500],["BC","British Columbia",1200],["MB","Manitoba",1200],["NB","New Brunswick",1500],["NL","Newfoundland and Labrador",1500],["NS","Nova Scotia",1500],["NT","Northwest Territories",500],["NU","Nunavut",500],["ON","Ontario",1300],["PE","Prince Edward Island",1500],["QC","Quebec",1498],["SK","Saskatchewan",1100],["YT","Yukon",500]];
 
 // "GST 5 + PST 7" -> [{name: GST, bps: 500}, {name: PST, bps: 700}]; empty = no split
 const parseParts = (t: string) => { const out = t.split(/[+,]/).map((x) => x.trim().match(/^([A-Za-z]{2,10})\s+([\d.]+)%?$/)).filter(Boolean).map((m) => ({ name: m![1].toUpperCase(), bps: Math.round(parseFloat(m![2]) * 100) })); return out.length ? out : null; };

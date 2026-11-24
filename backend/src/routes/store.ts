@@ -125,7 +125,7 @@ storeRouter.get("/blog/:handle", async (req, res) => {
 });
 
 const publicProduct = (
-  p: { trackInventory?: boolean; continueSelling?: boolean; seoTitle?: string; seoDescription?: string | null; images?: { id: string; alt: string }[]; markets?: { regions: string | null }[]; id: string; handle: string; title: string; description: string; tags: string; variants: { id: string; title: string; options: string; sku?: string | null; barcode?: string | null; inventory: number; prices: { amount: number; compareAt: number | null }[] }[] },
+  p: { trackInventory?: boolean; continueSelling?: boolean; seoTitle?: string; seoDescription?: string | null; images?: { id: string; alt: string }[]; markets?: { regions: string | null }[]; id: string; handle: string; title: string; description: string; tags: string; variants: { id: string; title: string; options: string; sku?: string | null; barcode?: string | null; inventory: number; imageId?: string | null; prices: { amount: number; compareAt: number | null }[] }[] },
   currency: string,
 ) => ({
   id: p.id,
@@ -144,6 +144,7 @@ const publicProduct = (
     id: v.id,
     title: v.title,
     options: parseJson(v.options, {}),
+    imageUrl: v.imageId && (p.images ?? []).some((i) => i.id === v.imageId) ? imageUrls(v.imageId).url : null,
     sku: (v as { sku?: string | null }).sku ?? null,
     barcode: (v as { barcode?: string | null }).barcode ?? null,
     // scarcity note only when it's true and small

@@ -1532,3 +1532,34 @@ a.hm-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0
 @keyframes tillPulse { 0%, 100% { opacity: .3; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.1); } }
 @media (prefers-reduced-motion: reduce) { .admin .till-check, .admin .till-wait i { animation: none; } }
 @media (max-width: 900px) { .admin .till-grid { grid-template-columns: 1fr; } .admin .till-side { position: static; } .admin .till-scanrow { flex-wrap: wrap; } .admin .till-scanrow input { flex: 1 1 100%; order: -1; } .admin .till-scanrow svg { display: none; } .admin .till-scanrow button { flex: 1; } .admin .sellbasket li { display: grid; grid-template-columns: 56px 1fr auto; grid-template-areas: "img info x" "img qty price"; align-items: center; gap: 6px 12px; } .admin .sellbasket li > :nth-child(1) { grid-area: img; align-self: start; } .admin .sb-info { grid-area: info; } .admin .sb-x { grid-area: x; } .admin .sb-qty { grid-area: qty; justify-self: start; } .admin .sb-price { grid-area: price; text-align: right; } }
+
+/* variant image picker */
+.vimg-row{display:flex;flex-wrap:wrap;gap:8px}
+.vimg-row button{border:2px solid var(--line,#e3e3e3);background:#fff;border-radius:10px;padding:2px;min-width:44px;height:52px;cursor:pointer;font-size:12px}
+.vimg-row button img{display:block;width:44px;height:44px;object-fit:cover;border-radius:7px}
+.vimg-row button.on{border-color:#4f8a10;box-shadow:0 0 0 2px #4f8a1033}
+
+/* inventory: product link + inline stock */
+.invprod{display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none}
+.invprod:hover b{text-decoration:underline}
+.invprod img,.invthumb{width:36px;height:36px;border-radius:8px;object-fit:cover;background:#eee;flex:none}
+.admin input.invset{width:78px;text-align:right;padding:6px 8px}
+
+/* orders statistics strip */
+.ostats{padding:14px 18px}
+.ostats-range{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.ostats-range button{border:1px solid var(--line,#e3e3e3);background:#fff;border-radius:999px;padding:4px 12px;font-size:13px;cursor:pointer}
+.ostats-range button.on{background:#111;color:#fff;border-color:#111}
+.ostats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px}
+.ostats-grid>div>span{display:block;font-size:12.5px;color:#666;margin-bottom:2px}
+.ostats-grid>div>b{font-size:20px;font-weight:650}
+
+/* customer purchases */
+.purch{padding:10px 0;border-top:1px solid var(--line,#eee)}
+.purch:first-of-type{border-top:0}
+.purch ul{margin:6px 0 0;padding-left:18px}
+
+/* files library */
+.filedrop{border:2px dashed var(--line,#d8d8d8);border-radius:12px;padding:16px;text-align:center;color:#666;margin:6px 0 14px}
+.filetype{display:grid;place-items:center;font-size:10px;font-weight:700;color:#555}
+.admin tr.dirty td{background:#fffbe6}

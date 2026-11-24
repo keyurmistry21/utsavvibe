@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { api, money, type CustomerRow } from "@/lib/api";
+import Link from "next/link";
 import { Drawer } from "./Drawer";
+import { Badge, useApi } from "./hooks";
+
+type Purchase = { id: string; number: number; createdAt: string; status: string; paymentStatus: string; total: number; currency: string; channel: string; market: string; items: { title: string; quantity: number; unitPrice: number }[] };
 
 export function CustomerDetails({ customer, onSaved, onClose }: { customer: CustomerRow; onSaved: () => void; onClose: () => void }) {
   const [tags, setTags] = useState(customer.tags.join(", "));
@@ -10,6 +14,7 @@ export function CustomerDetails({ customer, onSaved, onClose }: { customer: Cust
   const [taxExempt, setTaxExempt] = useState(customer.taxExempt);
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
+  const { data: purchases } = useApi<Purchase[]>(`/customers/${customer.id}/purchases`);
   const spent = Object.entries(customer.spent).map(([cur, v]) => money(v, cur)).join(" + ") || "—";
 
   const save = async () => {
@@ -43,6 +48,17 @@ export function CustomerDetails({ customer, onSaved, onClose }: { customer: Cust
         <div className="payrow"><span>Orders</span><span>{customer.orderCount}</span></div>
         <div className="payrow"><span>Amount spent</span><span>{spent}</span></div>
         <div className="payrow"><span>Customer since</span><span>{new Date(customer.createdAt).toLocaleDateString()}</span></div>
+      </div>
+      <div className="card">
+        <h3>Purchases{purchases ? ` (${purchases.length})` : ""}</h3>
+        {purchases && !purchases.length && <p className="muted">No orders yet.</p>}
+        {purchases?.map((o) => (
+          <div key={o.id} className="purch">
+            <div className="payrow"><Link className="lnk" href={`/admin/orders/${o.id}`}>#{o.number}</Link><span>{money(o.total, o.currency)}</span></div>
+            <div className="muted">{new Date(o.createdAt).toLocaleDateString()} · {o.market} · {o.channel === "in_store" ? "In-store" : "Online"} <Badge value={o.paymentStatus} /> <Badge value={o.status} /></div>
+            <ul>{o.items.map((i, n) => <li key={n}>{i.quantity} × {i.title} <span className="muted">{money(i.unitPrice, o.currency)}</span></li>)}</ul>
+          </div>
+        ))}
       </div>
       <div className="card">
         <h3>Details</h3>

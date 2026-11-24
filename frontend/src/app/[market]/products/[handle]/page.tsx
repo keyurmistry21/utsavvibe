@@ -7,6 +7,7 @@ import { htmlToText } from "@/lib/text";
 import { JsonLd } from "@/components/store/JsonLd";
 import { AddToCart } from "@/components/store/AddToCart";
 import { Gallery } from "@/components/store/Gallery";
+import { PdpImageProvider } from "@/components/store/PdpImage";
 import { Reviews, type ReviewData } from "@/components/store/Reviews";
 
 type Props = { params: Promise<{ market: string; handle: string }>; searchParams?: Promise<{ variant?: string }> };
@@ -78,6 +79,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
         },
       ]} />
       <p className="crumbs"><Link href={`/${market}`}>Shop</Link> / {p.title}</p>
+      <PdpImageProvider initial={p.variants.find((v) => v.id === variant)?.imageUrl}>
       <div className="pdp">
         <Gallery images={p.images} title={p.title} />
         <div>
@@ -95,6 +97,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
           <div className="tags">{p.tags.filter((t) => t !== "demo").map((t) => <span key={t} className="chip">{t}</span>)}</div>
         </div>
       </div>
+      </PdpImageProvider>
       <Reviews handle={handle} data={rv} />
     </>
   );

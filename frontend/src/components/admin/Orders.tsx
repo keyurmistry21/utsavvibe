@@ -18,6 +18,8 @@ export function Orders() {
   const [tab, setTab] = useState(() => (typeof window === "undefined" ? "" : new URLSearchParams(location.search).get("status") ?? ""));
   const { market } = useAdminMarket();
   const [channel, setChannel] = useState<"" | "online" | "in_store">("");
+  const [range, setRange] = useState<"today" | "7d" | "30d" | "year">("today");
+  const { data: stats } = useApi<{ orders: number; items: number; fulfilled: number; toFulfil: number; money: { currency: string; sales: number; refunds: number }[] }>(`/orders/stats/summary?${new URLSearchParams({ range, ...(market ? { market } : {}), ...(channel ? { channel } : {}) })}`);
   const { data, error } = useApi<Order[]>(`/orders?${new URLSearchParams({ ...(tab ? { status: tab } : {}), ...(market ? { market } : {}), ...(channel ? { channel } : {}) })}`);
 
   return (
@@ -25,6 +27,19 @@ export function Orders() {
       <div className="pagehead">
         <h2>Orders</h2>
         <Link href="/admin/orders/new" className="btn-link primary">Create order</Link>
+      </div>
+      <div className="card ostats">
+        <div className="ostats-range">
+          {([["today", "Today"], ["7d", "Last 7 days"], ["30d", "Last 30 days"], ["year", "This year"]] as const).map(([k, l]) => <button key={k} className={range === k ? "on" : ""} onClick={() => setRange(k)}>{l}</button>)}
+        </div>
+        <div className="ostats-grid">
+          <div><span>Orders</span><b>{stats?.orders ?? "–"}</b></div>
+          <div><span>Items ordered</span><b>{stats?.items ?? "–"}</b></div>
+          <div><span>Sales</span><b>{stats ? (stats.money.length ? stats.money.map((m) => <span key={m.currency} style={{ display: "block", font: "inherit", color: "inherit" }}>{money(m.sales, m.currency)}</span>) : "0") : "–"}</b></div>
+          <div><span>Sales reversals</span><b>{stats ? (stats.money.some((m) => m.refunds) ? stats.money.filter((m) => m.refunds).map((m) => <span key={m.currency} style={{ display: "block", font: "inherit", color: "inherit" }}>{money(m.refunds, m.currency)}</span>) : "0") : "–"}</b></div>
+          <div><span>Orders fulfilled</span><b>{stats?.fulfilled ?? "–"}</b></div>
+          <div><span>Paid, to fulfil</span><b>{stats?.toFulfil ?? "–"}</b></div>
+        </div>
       </div>
       <div className="tabs">
         {tabs.map(([key, label]) => (

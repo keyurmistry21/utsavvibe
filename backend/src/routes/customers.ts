@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma, parseJson } from "../db.js";
 import { csvCell } from "../csv.js";
+import { scopeCodes } from "../auth.js";
 
 export const customersRouter = Router();
 
@@ -238,6 +239,18 @@ customersRouter.get("/:id", async (req, res) => {
   const c = await prisma.customer.findUnique({ where: { id: req.params.id }, include: { orders: { orderBy: { createdAt: "desc" } } } });
   if (!c) return void res.status(404).json({ error: "not found" });
   res.json(shape(c));
+});
+
+// What this customer bought: every order with its lines, newest first. Staff limited to some markets only see those.
+customersRouter.get("/:id/purchases", async (req, res) => {
+  const scope = scopeCodes(req);
+  const orders = await prisma.order.findMany({
+    where: { customerId: req.params.id, status: { not: "draft" }, ...(scope ? { market: { code: { in: scope } } } : {}) },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    select: { id: true, number: true, createdAt: true, status: true, paymentStatus: true, total: true, currency: true, channel: true, market: { select: { code: true } }, items: { select: { title: true, quantity: true, unitPrice: true } } },
+  });
+  res.json(orders.map((o) => ({ ...o, market: o.market.code })));
 });
 
 customersRouter.patch("/:id", async (req, res) => {

@@ -15,7 +15,7 @@ import { Select } from "../Select";
 export type OptionDef = { name: string; values: string[] };
 type PriceForm = { amount: string };
 export type LocStock = { qty: string; sku: string; barcode: string }; // stock of one variant at one location, with that location's own SKU and barcode
-export type VForm = { id?: string; qrActive?: boolean; options: Record<string, string>; title: string; sku: string; barcode: string; inventory: string; stock: Record<string, LocStock>; weight: string; prices: Record<string, PriceForm> };
+export type VForm = { id?: string; imageId?: string | null; qrActive?: boolean; options: Record<string, string>; title: string; sku: string; barcode: string; inventory: string; stock: Record<string, LocStock>; weight: string; prices: Record<string, PriceForm> };
 export type Form = {
   id?: string; title: string; description: string; status: Product["status"]; vendor: string; productType: string; tagsText: string; notes: string;
   marketIds: string[]; regions: Record<string, string[]>; images: ProductImage[];
@@ -49,7 +49,7 @@ export function fromProduct(p: Product): Form {
     seoTitle: p.seoTitle ?? "", seoDescription: p.seoDescription ?? "", handle: p.handle, handleTouched: true,
     options,
     variants: p.variants.map((v) => ({
-      id: v.id, qrActive: v.qrActive !== false, options: v.options, title: v.title, sku: v.sku ?? "", barcode: v.barcode ?? "", inventory: String(v.inventory), stock: Object.fromEntries(Object.entries(v.stock ?? {}).map(([k, l]) => [k, { qty: String(l.quantity), sku: l.sku ?? "", barcode: l.barcode ?? "" }])), weight: gramsToUnit(v.weightG, "kg"),
+      id: v.id, imageId: (v as { imageId?: string | null }).imageId ?? null, qrActive: v.qrActive !== false, options: v.options, title: v.title, sku: v.sku ?? "", barcode: v.barcode ?? "", inventory: String(v.inventory), stock: Object.fromEntries(Object.entries(v.stock ?? {}).map(([k, l]) => [k, { qty: String(l.quantity), sku: l.sku ?? "", barcode: l.barcode ?? "" }])), weight: gramsToUnit(v.weightG, "kg"),
       prices: Object.fromEntries(Object.entries(v.prices).map(([m, x]) => [m, { amount: toMajor(x.amount) }])),
     })),
   };
@@ -272,7 +272,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
       trackInventory: f.trackInventory, continueSelling: f.continueSelling, physical: f.physical, chargeTax: f.chargeTax, isGiftCard: f.isGiftCard,
       seoTitle: f.seoTitle, seoDescription: f.seoDescription, ...(handle ? { handle } : {}),
       variants: f.variants.map((v) => ({
-        id: v.id, title: v.title || "Default", options: v.options, sku: v.sku.trim() || null, barcode: v.barcode.trim() || null,
+        id: v.id, imageId: v.imageId && f.images.some((im) => im.id === v.imageId) ? v.imageId : null, title: v.title || "Default", options: v.options, sku: v.sku.trim() || null, barcode: v.barcode.trim() || null,
         inventory: Math.max(0, parseInt(v.inventory || "0") || 0),
         ...(locs.length ? { stock: Object.fromEntries(locs.map((l) => [l.id, { quantity: Math.max(0, parseInt(v.stock[l.id]?.qty || "0") || 0), sku: v.stock[l.id]?.sku.trim() || null, barcode: v.stock[l.id]?.barcode.trim() || null }])) } : {}),
         weightG: f.physical && v.weight ? Math.round(parseFloat(v.weight) * UNIT_G[unit]) : 0,
@@ -437,6 +437,15 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
                         );
                       })}
                       {f.trackInventory && selected.length > 0 && <div className="muted" style={{ margin: "2px 0 10px" }}>Total in stock: <b>{selected.reduce((a, m) => a + (parseInt(v.stock[m.id]?.qty || "0") || 0), 0)}</b>. Scanning a market's QR adds or removes stock for that market only.</div>}
+                      <div className="field vimg">
+                        <label>Image for this variant</label>
+                        {f.images.length ? (
+                          <div className="vimg-row">
+                            <button type="button" className={!v.imageId ? "on" : ""} onClick={() => setVariant(i, { imageId: null })}>None</button>
+                            {f.images.map((im) => <button type="button" key={im.id} className={v.imageId === im.id ? "on" : ""} onClick={() => setVariant(i, { imageId: im.id })} aria-label="Use this image"><img src={im.thumbUrl} alt={im.alt} /></button>)}
+                          </div>
+                        ) : <p className="muted" style={{ margin: 0 }}>Add product images above and save, then pick one for this variant. The storefront shows it when a customer picks this variant.</p>}
+                      </div>
                       {f.physical && (
                         <div className="vgrid">
                           <div className="field"><label htmlFor={`wt-${i}`}>Weight ({unit})</label>

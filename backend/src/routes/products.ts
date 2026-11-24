@@ -8,6 +8,8 @@ import { csvCell } from "../csv.js";
 import { normalizeHandle, sanitizeDescription } from "../html.js";
 import { importProduct, keepParsed, parseShopify, takeParsed } from "../shopifyImport.js";
 import { adjustStock, setLevels, type LevelInput } from "../stock.js";
+import { audit } from "../audit.js";
+import { scopeCodes } from "../auth.js";
 import { imageFiles, imageUrls, removeFiles, saveFile } from "../storage.js";
 
 export const productsRouter = Router();
@@ -42,6 +44,7 @@ const productInput = z.object({
         sku: z.string().trim().max(64).nullable().optional(),
         inventory: z.number().int().min(0).default(0), // used when no per-location counts are sent
         stock: z.record(z.string(), z.object({ quantity: z.number().int().min(0).max(1_000_000), sku: z.string().trim().max(64).nullable().optional(), barcode: z.string().trim().max(64).nullable().optional() })).optional(), // per market id
+        imageId: z.string().nullable().optional(),
         weightG: z.number().int().min(0).default(0),
         barcode: z.string().trim().max(64).nullable().optional(),
         costPerItem: z.number().int().min(0).nullable().optional(),
@@ -117,6 +120,7 @@ function variantData(v: z.infer<typeof productInput>["variants"][number], market
     options: JSON.stringify(v.options),
     sku: v.sku || null,
     inventory: v.stock ? Object.values(v.stock).reduce((a, b) => a + b.quantity, 0) : v.inventory,
+    imageId: v.imageId || null,
     weightG: v.weightG,
     barcode: v.barcode || null,
     costPerItem: v.costPerItem ?? null,
@@ -132,7 +136,9 @@ async function applyStock(d: z.infer<typeof productInput>, productId: string) {
   const vars = await prisma.variant.findMany({ where: { productId } });
   await prisma.$transaction(async (tx) => {
     for (const v of vars) {
-      const sent = d.variants.find((x) => x.id === v.id) ?? d.variants.find((x) => x.sku && x.sku === v.sku);
+      // a variant created in this request has no id yet: match it by id, then SKU, then its title + options
+      const key = (x: { title: string; options: unknown }) => `${x.title}|${typeof x.options === "string" ? x.options : JSON.stringify(x.options)}`;
+      const sent = d.variants.find((x) => x.id === v.id) ?? d.variants.find((x) => x.sku && x.sku === v.sku) ?? d.variants.find((x) => !x.id && key(x) === key(v));
       if (!sent) continue;
       if (sent.stock) {
         await setLevels(tx, v.id, Object.fromEntries(Object.entries(sent.stock).filter(([id]) => d.marketIds.includes(id))));
@@ -163,6 +169,47 @@ async function assertLocationCodes(d: z.infer<typeof productInput>, productId?: 
     }
   }
 }
+
+// ---- price list: every variant's price in one market, edited in place (like Shopify's Markets > Catalogs) ----
+productsRouter.get("/prices/list", async (req, res) => {
+  const marketId = String(req.query.marketId ?? "");
+  const q = String(req.query.q ?? "").trim();
+  const market = await prisma.market.findUnique({ where: { id: marketId } });
+  if (!market) return void res.status(404).json({ error: "market not found" });
+  const scope = scopeCodes(req);
+  if (scope && !scope.includes(market.code)) return void res.status(403).json({ error: "You cannot work in that market" });
+  const products = await prisma.product.findMany({
+    where: { status: { not: "archived" }, markets: { some: { marketId } }, ...(q ? { title: { contains: q } } : {}) },
+    include: { images: { orderBy: { position: "asc" }, take: 1 }, variants: { include: { prices: { where: { marketId } } } } },
+    orderBy: { title: "asc" },
+    take: 500,
+  });
+  res.json({
+    market: { id: market.id, code: market.code, currency: market.currency },
+    products: products.map((p) => ({
+      id: p.id, title: p.title, status: p.status, thumbUrl: p.images[0] ? imageUrls(p.images[0].id).thumbUrl : null,
+      variants: p.variants.map((v) => ({ id: v.id, title: v.title, amount: v.prices[0]?.amount ?? null, compareAt: v.prices[0]?.compareAt ?? null })),
+    })),
+  });
+});
+
+// Save many prices at once. Only variants that already have a price row in that market change (a product not sold there is untouched).
+productsRouter.put("/prices/list", async (req, res) => {
+  const d = z.object({ marketId: z.string(), rows: z.array(z.object({ variantId: z.string(), amount: z.number().int().min(0).max(100_000_000), compareAt: z.number().int().min(0).max(100_000_000).nullable() })).min(1).max(2000) }).parse(req.body);
+  const mk = await prisma.market.findUnique({ where: { id: d.marketId } });
+  const scope = scopeCodes(req);
+  if (!mk) return void res.status(404).json({ error: "market not found" });
+  if (scope && !scope.includes(mk.code)) return void res.status(403).json({ error: "You cannot work in that market" });
+  let updated = 0;
+  await prisma.$transaction(async (tx) => {
+    for (const r of d.rows) {
+      const x = await tx.variantPrice.updateMany({ where: { variantId: r.variantId, marketId: d.marketId }, data: { amount: r.amount, compareAt: r.compareAt && r.compareAt > r.amount ? r.compareAt : null } });
+      updated += x.count;
+    }
+  });
+  await audit(req, "prices_bulk_updated", `${updated} prices in market ${d.marketId}`);
+  res.json({ updated });
+});
 
 // Markets for the stock fields of the product form and the scan screen.
 productsRouter.get("/stock/markets", async (_req, res) => {
@@ -507,6 +554,7 @@ productsRouter.delete("/:id/images/:imageId", async (req, res) => {
   const img = await prisma.productImage.findFirst({ where: { id: req.params.imageId, productId: req.params.id } });
   if (!img) return void res.status(404).json({ error: "not found" });
   await prisma.productImage.delete({ where: { id: img.id } });
+  await prisma.variant.updateMany({ where: { productId: req.params.id, imageId: img.id }, data: { imageId: null } });
   await removeFiles(imageFiles(img.id));
   // keep positions dense so the cover is always position 0
   const rest = await prisma.productImage.findMany({ where: { productId: req.params.id }, orderBy: { position: "asc" }, select: { id: true } });

@@ -8,7 +8,7 @@ export type StoreMarket = {
   shippingRates: { id: string; name: string; amount: number; freeOverAmount: number | null }[];
 };
 export type StoreVariant = {
-  id: string; title: string; options: Record<string, string>; inStock: boolean; stockLeft?: number | null; price: number | null; compareAt: number | null; sku?: string | null; barcode?: string | null;
+  id: string; title: string; options: Record<string, string>; inStock: boolean; stockLeft?: number | null; price: number | null; compareAt: number | null; sku?: string | null; barcode?: string | null; imageUrl?: string | null;
 };
 export type StoreProduct = {
   id: string; handle: string; title: string; description: string; descriptionHtml: string; seoTitle: string; seoDescription: string; tags: string[]; currency: string; regions: string[]; images: { url: string; thumbUrl: string; alt: string }[]; variants: StoreVariant[];

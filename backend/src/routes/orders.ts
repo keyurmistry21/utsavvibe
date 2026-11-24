@@ -35,6 +35,39 @@ ordersRouter.get("/", async (req, res) => {
   res.json(orders.map(shape));
 });
 
+// Numbers above the order list: orders, items, sales and refunds for a period. Sales are kept per currency, never added across markets.
+ordersRouter.get("/stats/summary", async (req, res) => {
+  const { range, market, channel } = req.query as Record<string, string | undefined>;
+  const scope = scopeCodes(req);
+  const locScope = scopeLocations(req);
+  const now = new Date();
+  const start = new Date(now); start.setHours(0, 0, 0, 0);
+  if (range === "7d") start.setDate(start.getDate() - 6);
+  else if (range === "30d") start.setDate(start.getDate() - 29);
+  else if (range === "year") { start.setMonth(0, 1); }
+  const orders = await prisma.order.findMany({
+    where: {
+      status: { notIn: ["draft"] }, createdAt: { gte: start },
+      ...((channel === "online" || channel === "in_store") && { channel }),
+      ...(locScope ? { OR: [{ channel: "online" }, { locationId: { in: locScope } }] } : {}),
+      ...(market ? { market: { code: scope && !scope.includes(market.toUpperCase()) ? "-" : market.toUpperCase() } } : scope ? { market: { code: { in: scope } } } : {}),
+    },
+    select: { status: true, paymentStatus: true, currency: true, total: true, refundedAmount: true, items: { select: { quantity: true } } },
+  });
+  const money = new Map<string, { sales: number; refunds: number }>();
+  let items = 0, fulfilled = 0, toFulfil = 0;
+  for (const o of orders) {
+    items += o.items.reduce((a, i) => a + i.quantity, 0);
+    if (o.status === "fulfilled") fulfilled++;
+    if (o.status === "open" && o.paymentStatus === "paid") toFulfil++;
+    if (o.paymentStatus === "paid" || o.paymentStatus === "refunded" || o.paymentStatus === "partially_refunded") {
+      const m = money.get(o.currency) ?? { sales: 0, refunds: 0 };
+      m.sales += o.total; m.refunds += o.refundedAmount ?? 0; money.set(o.currency, m);
+    }
+  }
+  res.json({ orders: orders.length, items, fulfilled, toFulfil, money: [...money].map(([currency, v]) => ({ currency, ...v })) });
+});
+
 ordersRouter.get("/:id", async (req, res) => {
   const o = await prisma.order.findUnique({ where: { id: req.params.id }, include });
   if (!o) return void res.status(404).json({ error: "not found" });

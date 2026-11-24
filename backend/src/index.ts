@@ -26,6 +26,7 @@ import { analyticsRouter } from "./routes/analytics.js";
 import { posRouter } from "./routes/pos.js";
 import { discountsRouter } from "./routes/discounts.js";
 import { redirectsRouter } from "./routes/redirects.js";
+import { filesRouter } from "./routes/files.js";
 import { inventoryRouter } from "./routes/inventory.js";
 import { accountRouter } from "./routes/account.js";
 import { campaignsRouter } from "./routes/campaigns.js";
@@ -76,6 +77,7 @@ app.use("/api/admin/expenses", guard({ read: ["expenses.view"], write: ["expense
 app.use("/api/admin/analytics", guard({ write: ["analytics.view"] }), analyticsRouter);
 app.use("/api/admin/pos", guard({ read: ["orders.manage"], write: ["orders.manage"] }), posRouter);
 app.use("/api/admin/discounts", guard({ read: ["integrations.manage"], write: ["integrations.manage"] }), discountsRouter);
+app.use("/api/admin/files", guard({ write: ["online_store.manage"] }), filesRouter);
 app.use("/api/admin/redirects", guard({ write: ["online_store.manage"] }), redirectsRouter);
 app.use("/api/admin/inventory", guard({ read: ["products.view"], write: ["products.manage"] }), inventoryRouter);
 app.use("/api/admin/reviews", guard({ read: ["products.view"], write: ["products.manage"] }), reviewsAdminRouter);

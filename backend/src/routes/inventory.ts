@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { actor, assertLocationAllowed, scopeLocations } from "../auth.js";
 import { audit } from "../audit.js";
+import { imageUrls } from "../storage.js";
 import { adjustLocationStock, assignUnassigned, marketOfLocation } from "../stock.js";
 
 // Stock by location (warehouse, shop): counts, adjustments, assigning legacy per-market stock, and transfers between locations.
@@ -21,7 +22,7 @@ inventoryRouter.get("/", async (req, res) => {
   const q = String(req.query.q ?? "").trim();
   const variants = await prisma.variant.findMany({
     where: { product: { status: { not: "archived" }, ...(q ? { title: { contains: q } } : {}) } },
-    include: { product: { select: { title: true, trackInventory: true } }, levels: true },
+    include: { product: { select: { id: true, title: true, trackInventory: true, images: { orderBy: { position: "asc" }, take: 1, select: { id: true } } } }, levels: true },
     orderBy: [{ product: { title: "asc" } }, { title: "asc" }],
     take: 300,
   });
@@ -35,7 +36,7 @@ inventoryRouter.get("/", async (req, res) => {
     // unassigned = market counts minus what the locations of that market hold
     let unassigned = 0;
     for (const lv of v.levels) unassigned += lv.quantity - mine.filter((s) => marketOf.get(s.locationId) === lv.marketId).reduce((a, s) => a + s.quantity, 0);
-    return { variantId: v.id, product: v.product.title, variant: v.title === "Default" ? "" : v.title, sku: v.sku, tracked: v.product.trackInventory, byLocation, unassigned: Math.max(0, unassigned), total: v.inventory };
+    return { variantId: v.id, productId: v.product.id, thumbUrl: v.product.images[0] ? imageUrls(v.product.images[0].id).thumbUrl : null, product: v.product.title, variant: v.title === "Default" ? "" : v.title, sku: v.sku, tracked: v.product.trackInventory, byLocation, unassigned: Math.max(0, unassigned), total: v.inventory };
   });
   res.json({ locations: locs.map((l) => ({ id: l.id, name: l.name, marketId: l.marketId, isDefault: l.isDefault })), rows });
 });

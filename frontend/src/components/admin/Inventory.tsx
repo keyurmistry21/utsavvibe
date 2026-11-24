@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { useCan } from "@/lib/perms";
 import { useApi } from "./hooks";
@@ -8,7 +9,7 @@ import { Modal } from "./Modal";
 import { Select } from "../Select";
 
 type Loc = { id: string; name: string; isDefault: boolean };
-type Row = { variantId: string; product: string; variant: string; sku: string | null; tracked: boolean; byLocation: Record<string, number>; unassigned: number; total: number };
+type Row = { variantId: string; productId: string; thumbUrl: string | null; product: string; variant: string; sku: string | null; tracked: boolean; byLocation: Record<string, number>; unassigned: number; total: number };
 type Transfer = { id: string; fromName: string; toName: string; fromLocationId: string; toLocationId: string; status: "in_transit" | "received" | "cancelled"; note: string; createdAt: string; createdByEmail: string; items: { id: string; title: string; quantity: number }[] };
 
 export function Inventory() {
@@ -56,11 +57,11 @@ export function Inventory() {
               <tbody>
                 {data?.rows.map((r) => (
                   <tr key={r.variantId}>
-                    <td><b>{r.product}</b>{r.variant && <div className="muted">{r.variant}</div>}</td>
+                    <td><Link href={`/admin/products/${r.productId}`} className="invprod">{r.thumbUrl ? <img src={r.thumbUrl} alt="" width={36} height={36} /> : <span className="invthumb" />}<span><b>{r.product}</b>{r.variant && <span className="muted" style={{ display: "block" }}>{r.variant}</span>}</span></Link></td>
                     <td>{r.sku ?? "–"}</td>
                     {locs.map((l) => {
                       const n = r.byLocation[l.id] ?? 0;
-                      return <td key={l.id} className="r"><span className={n <= 0 ? "dim" : n <= 5 ? "lowtag" : ""}>{n}</span>{manage && <button className="link" style={{ marginLeft: 8 }} onClick={() => setAdj({ row: r, loc: l })} aria-label={`Adjust ${r.product} at ${l.name}`}>Adjust</button>}</td>;
+                      return <td key={l.id} className="r">{manage ? <input className="invset" type="number" min={0} defaultValue={n} key={`${r.variantId}-${l.id}-${n}`} aria-label={`Stock of ${r.product} ${r.variant} at ${l.name}`} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} onBlur={(e) => { const v = Math.max(0, parseInt(e.target.value || "0") || 0); if (v !== n) act(() => api("/inventory/adjust", { method: "POST", json: { variantId: r.variantId, locationId: l.id, delta: v - n, reason: "Set in inventory" } }), "Stock updated."); }} /> : <span className={n <= 0 ? "dim" : n <= 5 ? "lowtag" : ""}>{n}</span>}</td>;
                     })}
                     <td className="r dim">{r.unassigned || "–"}</td>
                     <td className="r strong">{r.total}</td>

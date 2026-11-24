@@ -48,6 +48,7 @@ export const links = [
 export const actions = [
   ...links.map((l) => ({ label: l.label, href: l.href })),
   { label: "Add product", href: "/admin/products/new" },
+  { label: "Prices by market (change many prices at once)", href: "/admin/products/prices" },
   { label: "Print product labels", href: "/admin/products/labels" },
   { label: "Scan stock in / out", href: "/admin/products/scan" },
   { label: "Sell in store (scan QR)", href: "/admin/sell" },
@@ -55,6 +56,7 @@ export const actions = [
   { label: "Create collection", href: "/admin/collections?new=1" },
   { label: "Gift cards", href: "/admin/gift-cards" },
   { label: "Import products from Shopify (CSV)", href: "/admin/products/import" },
+  { label: "Files (upload images and PDFs, copy links)", href: "/admin/online-store/files" },
   { label: "Blog posts", href: "/admin/online-store/blog" },
   { label: "Add blog post", href: "/admin/online-store/blog?new=1" },
   { label: "Add page", href: "/admin/online-store/pages?new=1" },

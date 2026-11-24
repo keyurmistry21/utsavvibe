@@ -96,6 +96,7 @@ model Variant {
   weightG   Int            @default(0)
   barcode   String?
   costPerItem Int? // minor units, admin-only
+  imageId   String?        // the product image that shows when this variant is picked
   qrActive  Boolean        @default(true) // false = the printed product QR stops opening this variant (lost/withdrawn label)
   prices    VariantPrice[]
   orderItems OrderItem[]
@@ -635,4 +636,16 @@ model Campaign {
   createdBy   String    @default("") @db.VarChar(190)
   createdAt   DateTime  @default(now())
   sentAt      DateTime?
+}
+
+// Uploaded files for use in pages, blog posts and emails (images, PDFs...). Stored on disk as f-<id>.<ext>, served at /uploads/.
+model FileAsset {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(200)
+  ext       String   @db.VarChar(8)
+  mime      String   @db.VarChar(80)
+  size      Int
+  alt       String   @default("") @db.VarChar(200)
+  createdBy String   @default("") @db.VarChar(190)
+  createdAt DateTime @default(now())
 }

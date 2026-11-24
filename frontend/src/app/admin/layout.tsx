@@ -185,6 +185,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Sub open={!inSettings && path.startsWith("/admin/online-store")}>
                   <Link href="/admin/online-store/pages" className={path.startsWith("/admin/online-store/pages") ? "active" : ""}>Pages</Link>
                   <Link href="/admin/online-store/blog" className={path.startsWith("/admin/online-store/blog") ? "active" : ""}>Blog posts</Link>
+                  <Link href="/admin/online-store/files" className={path.startsWith("/admin/online-store/files") ? "active" : ""}>Files</Link>
                   <Link href="/admin/online-store/redirects" className={path.startsWith("/admin/online-store/redirects") ? "active" : ""}>Redirects</Link>
                   <Link href="/admin/online-store/preferences" className={path.startsWith("/admin/online-store/preferences") ? "active" : ""}>Preferences</Link>
                   <a href="/uk" target="_blank" rel="noreferrer">View your store ↗</a>
@@ -196,6 +197,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   {can("products.view") && <Link href="/admin/collections" className={path.startsWith("/admin/collections") ? "active" : ""}>Collections</Link>}
                   {can("gift_cards.view") && <Link href="/admin/gift-cards" className={path.startsWith("/admin/gift-cards") ? "active" : ""}>Gift cards</Link>}
                   {can("products.view") && <Link href="/admin/reviews" className={path.startsWith("/admin/reviews") ? "active" : ""}>Reviews</Link>}
+                  {can("products.view") && <Link href="/admin/products/prices" className={path.startsWith("/admin/products/prices") ? "active" : ""}>Prices by market</Link>}
                   {can("products.manage") && <Link href="/admin/products/import" className={path.startsWith("/admin/products/import") ? "active" : ""}>Import from Shopify</Link>}
                 </Sub>
               )}

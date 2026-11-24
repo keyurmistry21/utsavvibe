@@ -7,16 +7,18 @@ import type { StoreProduct } from "@/lib/store";
 import { useCart } from "./cart";
 import { ArrowRight } from "../Icons";
 import { track } from "@/lib/track";
+import { usePdpImage } from "./PdpImage";
 
 export function AddToCart({ product, market, highlight }: { product: StoreProduct; market: string; highlight?: string }) {
   const { add } = useCart();
   const [added, setAdded] = useState<string | null>(null);
+  const { set: showImage } = usePdpImage();
 
   return (
     <div className="card">
       {product.variants.map((v) => (
-        <div key={v.id} className={`row ${highlight === v.id && product.variants.length > 1 ? "vhit" : ""}`} style={{ justifyContent: "space-between", marginBottom: 8 }}>
-          <span>{product.variants.length > 1 ? v.title : "Price"}{highlight === v.id && product.variants.length > 1 && <em className="vhit-tag">Scanned</em>}{v.inStock && v.stockLeft != null && <em className="lowstock">Only {v.stockLeft} left</em>}</span>
+        <div key={v.id} onMouseEnter={() => v.imageUrl && showImage(v.imageUrl)} onClick={() => v.imageUrl && showImage(v.imageUrl)} className={`row ${highlight === v.id && product.variants.length > 1 ? "vhit" : ""}`} style={{ justifyContent: "space-between", marginBottom: 8 }}>
+          <span>{v.imageUrl && product.variants.length > 1 && <img src={v.imageUrl} alt="" width={36} height={36} style={{ objectFit: "cover", borderRadius: 6, marginRight: 8, verticalAlign: "middle" }} />}{product.variants.length > 1 ? v.title : "Price"}{highlight === v.id && product.variants.length > 1 && <em className="vhit-tag">Scanned</em>}{v.inStock && v.stockLeft != null && <em className="lowstock">Only {v.stockLeft} left</em>}</span>
           <span className="price">
             {v.price != null && money(v.price, product.currency)}
           </span>
