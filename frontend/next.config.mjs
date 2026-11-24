@@ -30,6 +30,9 @@ const security = [
 export default {
   devIndicators: false,
   poweredByHeader: false,
+  experimental: {
+    agentUpgrade: "security",
+  },
   distDir: process.env.NEXT_DIST_DIR || ".next", // lets a second build/dev server run beside the main one
   // Browser calls /api/* (admin + checkout); proxy them to the Express API.
   async rewrites() {
