@@ -44,7 +44,7 @@ export function QuickView({ product: p, market, onClose }: { product: StoreProdu
           <div className="qv-actions">
             <button type="button" className="primary" disabled={!v?.inStock || v.price == null} onClick={() => {
               if (!v) return;
-              add({ variantId: v.id, title: v.title === "Default" ? p.title : `${p.title} — ${v.title}` });
+              add({ variantId: v.id, title: v.title === "Default" ? p.title : `${p.title} — ${v.title}`, image: v.imageUrl ?? p.images[0]?.thumbUrl });
               setAdded(true);
               track("add_to_cart", { data: { currency: p.currency, value: (v.price ?? 0) / 100, items: [{ item_id: v.id, item_name: p.title, price: (v.price ?? 0) / 100, quantity: 1 }] } });
             }}>{v?.inStock ? (added ? "Added ✓" : "Add to cart") : "Sold out"}</button>

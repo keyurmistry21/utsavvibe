@@ -17,6 +17,7 @@ export function Inventory() {
   const manage = can("products.manage");
   const [tab, setTab] = useState<"stock" | "transfers">("stock");
   const [q, setQ] = useState("");
+  const [f, setF] = useState<"all" | "low" | "out">("all");
   const { data, error, reload } = useApi<{ locations: Loc[]; rows: Row[] }>(`/inventory?q=${encodeURIComponent(q)}`);
   const { data: transfers, reload: reloadT } = useApi<Transfer[]>("/inventory/transfers");
   const [adj, setAdj] = useState<{ row: Row; loc: Loc } | null>(null);
@@ -24,6 +25,11 @@ export function Inventory() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const locs = data?.locations ?? [];
+  const rows = data?.rows ?? [];
+  const totalUnits = rows.reduce((a, r) => a + r.total, 0);
+  const lowCount = rows.filter((r) => r.total > 0 && r.total <= 5).length;
+  const outCount = rows.filter((r) => r.total <= 0).length;
+  const shown = rows.filter((r) => f === "all" || (f === "low" ? r.total > 0 && r.total <= 5 : r.total <= 0));
   const unassignedTotal = data?.rows.reduce((a, r) => a + r.unassigned, 0) ?? 0;
 
   const act = async (fn: () => Promise<unknown>, ok: string) => {
@@ -44,32 +50,58 @@ export function Inventory() {
 
       {tab === "stock" && (
         <>
+          <div className="inv-tiles">
+            <div className="inv-tile"><span>Units in stock</span><b>{totalUnits}</b></div>
+            <div className="inv-tile"><span>Products tracked</span><b>{rows.length}</b></div>
+            <button className={`inv-tile warn ${f === "low" ? "on" : ""}`} onClick={() => setF(f === "low" ? "all" : "low")}><span>Low stock (5 or fewer)</span><b>{lowCount}</b></button>
+            <button className={`inv-tile bad ${f === "out" ? "on" : ""}`} onClick={() => setF(f === "out" ? "all" : "out")}><span>Out of stock</span><b>{outCount}</b></button>
+          </div>
           {manage && unassignedTotal > 0 && locs.length > 0 && (
             <div className="notice" style={{ marginBottom: 12 }}>
               {unassignedTotal} unit{unassignedTotal === 1 ? "" : "s"} are counted for a market but not at any location yet.{" "}
               {locs.map((l) => <button key={l.id} className="link" style={{ marginRight: 12 }} onClick={() => confirm(`Put all unassigned stock for ${l.name}'s market on ${l.name}?`) && act(async () => { const r = await api<{ moved: number }>("/inventory/assign-all", { method: "POST", json: { locationId: l.id } }); setMsg(`${r.moved} units assigned to ${l.name}.`); }, "")}>Assign to {l.name}</button>)}
             </div>
           )}
-          <div className="card">
-            <div className="field"><label htmlFor="inv-q">Search products</label><input id="inv-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Product name" /></div>
-            <table>
-              <thead><tr><th>Product</th><th>SKU</th>{locs.map((l) => <th key={l.id} className="r">{l.name}</th>)}<th className="r">Unassigned</th><th className="r">Total</th></tr></thead>
-              <tbody>
-                {data?.rows.map((r) => (
-                  <tr key={r.variantId}>
-                    <td><Link href={`/admin/products/${r.productId}`} className="invprod">{r.thumbUrl ? <img src={r.thumbUrl} alt="" width={36} height={36} /> : <span className="invthumb" />}<span><b>{r.product}</b>{r.variant && <span className="muted" style={{ display: "block" }}>{r.variant}</span>}</span></Link></td>
-                    <td>{r.sku ?? "–"}</td>
-                    {locs.map((l) => {
-                      const n = r.byLocation[l.id] ?? 0;
-                      return <td key={l.id} className="r">{manage ? <input className="invset" type="number" min={0} defaultValue={n} key={`${r.variantId}-${l.id}-${n}`} aria-label={`Stock of ${r.product} ${r.variant} at ${l.name}`} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} onBlur={(e) => { const v = Math.max(0, parseInt(e.target.value || "0") || 0); if (v !== n) act(() => api("/inventory/adjust", { method: "POST", json: { variantId: r.variantId, locationId: l.id, delta: v - n, reason: "Set in inventory" } }), "Stock updated."); }} /> : <span className={n <= 0 ? "dim" : n <= 5 ? "lowtag" : ""}>{n}</span>}</td>;
-                    })}
-                    <td className="r dim">{r.unassigned || "–"}</td>
-                    <td className="r strong">{r.total}</td>
-                  </tr>
-                ))}
-                {data && !data.rows.length && <tr><td colSpan={locs.length + 4}>No products found.</td></tr>}
-              </tbody>
-            </table>
+          <div className="card inv-card">
+            <div className="inv-toolbar">
+              <div className="searchfield"><svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="6" /><path d="m14 14 4 4" /></svg><input id="inv-q" aria-label="Search products" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search products" /></div>
+              <div className="inv-chips" role="group" aria-label="Filter">
+                {([["all", "All"], ["low", "Low"], ["out", "Out of stock"]] as const).map(([k, l]) => <button key={k} className={f === k ? "on" : ""} onClick={() => setF(k)}>{l}</button>)}
+              </div>
+              {manage && <span className="muted inv-hint">Click a number and type, or use + / −. Saves on its own.</span>}
+            </div>
+            <div className="inv-scroll">
+              <table className="inv-table">
+                <thead><tr><th>Product</th><th>SKU</th>{locs.map((l) => <th key={l.id} className="r">{l.name}</th>)}<th className="r">Unassigned</th><th className="r">Total</th></tr></thead>
+                <tbody>
+                  {shown.map((r) => (
+                    <tr key={r.variantId}>
+                      <td><Link href={`/admin/products/${r.productId}`} className="invprod">{r.thumbUrl ? <img src={r.thumbUrl} alt="" width={44} height={44} /> : <span className="invthumb" />}<span><b>{r.product}</b>{r.variant && <span className="invvar">{r.variant}</span>}</span></Link></td>
+                      <td className="inv-sku">{r.sku ?? "–"}</td>
+                      {locs.map((l) => {
+                        const n = r.byLocation[l.id] ?? 0;
+                        const st = n <= 0 ? "out" : n <= 5 ? "low" : "ok";
+                        const set = (v: number) => { v = Math.max(0, v); if (v !== n) act(() => api("/inventory/adjust", { method: "POST", json: { variantId: r.variantId, locationId: l.id, delta: v - n, reason: "Set in inventory" } }), "Stock updated."); };
+                        return (
+                          <td key={l.id} className="r">
+                            {manage ? (
+                              <span className={`stepper ${st}`}>
+                                <button type="button" aria-label="Remove one" disabled={n <= 0} onClick={() => set(n - 1)}>−</button>
+                                <input type="number" min={0} defaultValue={n} key={`${r.variantId}-${l.id}-${n}`} aria-label={`Stock of ${r.product} ${r.variant} at ${l.name}`} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} onBlur={(e) => set(parseInt(e.target.value || "0") || 0)} />
+                                <button type="button" aria-label="Add one" onClick={() => set(n + 1)}>+</button>
+                              </span>
+                            ) : <span className={`pill ${st}`}>{n}</span>}
+                          </td>
+                        );
+                      })}
+                      <td className="r dim">{r.unassigned || "–"}</td>
+                      <td className="r"><span className={`pill ${r.total <= 0 ? "out" : r.total <= 5 ? "low" : "ok"}`}>{r.total}</span></td>
+                    </tr>
+                  ))}
+                  {data && !shown.length && <tr><td colSpan={locs.length + 4} className="inv-empty">{f === "all" && !q ? "No products yet." : "Nothing matches. Try another search or filter."}</td></tr>}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

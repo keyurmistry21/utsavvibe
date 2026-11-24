@@ -36,7 +36,7 @@ inventoryRouter.get("/", async (req, res) => {
     // unassigned = market counts minus what the locations of that market hold
     let unassigned = 0;
     for (const lv of v.levels) unassigned += lv.quantity - mine.filter((s) => marketOf.get(s.locationId) === lv.marketId).reduce((a, s) => a + s.quantity, 0);
-    return { variantId: v.id, productId: v.product.id, thumbUrl: v.product.images[0] ? imageUrls(v.product.images[0].id).thumbUrl : null, product: v.product.title, variant: v.title === "Default" ? "" : v.title, sku: v.sku, tracked: v.product.trackInventory, byLocation, unassigned: Math.max(0, unassigned), total: v.inventory };
+    return { variantId: v.id, productId: v.product.id, thumbUrl: (v.imageId ?? v.product.images[0]?.id) ? imageUrls((v.imageId ?? v.product.images[0]?.id)!).thumbUrl : null, product: v.product.title, variant: v.title === "Default" ? "" : v.title, sku: v.sku, tracked: v.product.trackInventory, byLocation, unassigned: Math.max(0, unassigned), total: v.inventory };
   });
   res.json({ locations: locs.map((l) => ({ id: l.id, name: l.name, marketId: l.marketId, isDefault: l.isDefault })), rows });
 });

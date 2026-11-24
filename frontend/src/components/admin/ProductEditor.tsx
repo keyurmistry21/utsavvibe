@@ -28,7 +28,7 @@ const UNIT_G = { kg: 1000, g: 1, lb: 453.592, oz: 28.3495 } as const;
 type Unit = keyof typeof UNIT_G;
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100);
 const sigOf = (o: Record<string, string>) => JSON.stringify(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
-const blankVariant = (): VForm => ({ options: {}, title: "Default", sku: "", barcode: "", inventory: "0", stock: {}, weight: "", prices: {} });
+const blankVariant = (): VForm => ({ options: {}, title: "Default", sku: "", barcode: "", inventory: "", stock: {}, weight: "", prices: {} });
 
 export const blank = (): Form => ({
   title: "", description: "", status: "draft", vendor: "", productType: "", tagsText: "", notes: "", marketIds: [], regions: {}, images: [],
@@ -79,7 +79,7 @@ function syncVariants(current: VForm[], opts: OptionDef[]): VForm[] {
     if (parent) return { ...blankVariant(), prices: structuredClone(parent.prices), options: c, title };
     const child = current.find((v) => !claimed.has(v) && subset(c, v.options));
     if (child) { claimed.add(child); return { ...child, options: c, title }; }
-    return { ...blankVariant(), options: c, title };
+    return { ...blankVariant(), prices: structuredClone(current[0]?.prices ?? {}), options: c, title }; // a new value starts at the shared price
   });
 }
 
@@ -137,7 +137,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
       E[`qty:${i}`] = f.trackInventory && !locs.length ? int(x.inventory, 0, 1_000_000, "quantity") : "";
       locs.forEach((l) => {
         const ls = x.stock[l.id];
-        E[`qty:${i}:${l.id}`] = f.trackInventory ? int(ls?.qty || "0", 0, 1_000_000, "quantity") : "";
+        E[`qty:${i}:${l.id}`] = f.trackInventory ? int(ls?.qty ?? "", 0, 1_000_000, "quantity") : "";
         const s2 = (ls?.sku ?? "").trim().toLowerCase();
         E[`lsku:${i}:${l.id}`] = (ls?.sku ?? "").trim().length > 64 ? "The SKU is too long (max 64 characters)" : s2 && (skuCount.get(s2) ?? 0) > 1 ? "Another variant or location already uses this SKU" : srv[`sku:${ls?.sku?.trim()}`] ?? "";
         const b2 = (ls?.barcode ?? "").trim();
@@ -184,7 +184,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
   const stockFields = (i: number, v: VForm, compact?: boolean) => {
     if (!locs.length) return (
       <>
-        <div className="field" style={{ maxWidth: 220 }}><label>Quantity</label><input type="number" min={0} value={v.inventory} onChange={(e) => setVariant(i, { inventory: e.target.value })} {...val.props(`qty:${i}`)} /><FieldError k={`qty:${i}`} msg={val.err(`qty:${i}`)} /></div>
+        <div className="field" style={{ maxWidth: 220 }}><label>Quantity</label><input type="number" min={0} placeholder="Enter quantity" value={v.inventory} onChange={(e) => setVariant(i, { inventory: e.target.value })} {...val.props(`qty:${i}`)} /><FieldError k={`qty:${i}`} msg={val.err(`qty:${i}`)} /></div>
         <p className="muted" style={{ marginTop: 0 }}>Choose the markets you sell in to count stock for each market.</p>
       </>
     );
@@ -198,7 +198,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
               <div className="locrow-h"><b>{l.name} ({l.code})</b><span className="acts"><button className="link" type="button" onClick={() => generateLoc(i, l)}>Generate SKU and barcode</button><button className="link" type="button" disabled={!ls?.sku.trim() && !ls?.barcode.trim()} onClick={() => setLocCodes({ i, loc: l })}>Preview QR</button></span></div>
               <div className="locrow-g">
                 <div className="field"><label htmlFor={`st-${i}-${l.id}`}>Quantity</label>
-                  <input id={`st-${i}-${l.id}`} type="number" min={0} placeholder="0" value={ls?.qty ?? ""} onChange={(e) => patchLoc(i, l.id, { qty: e.target.value })} {...val.props(`qty:${i}:${l.id}`)} />
+                  <input id={`st-${i}-${l.id}`} type="number" min={0} placeholder="Enter quantity" value={ls?.qty ?? ""} onChange={(e) => patchLoc(i, l.id, { qty: e.target.value })} {...val.props(`qty:${i}:${l.id}`)} />
                   <FieldError small k={`qty:${i}:${l.id}`} msg={val.err(`qty:${i}:${l.id}`)} /></div>
                 <div className="field"><label htmlFor={`ls-${i}-${l.id}`}>SKU for {l.code}</label>
                   <input id={`ls-${i}-${l.id}`} value={ls?.sku ?? ""} onChange={(e) => patchLoc(i, l.id, { sku: e.target.value })} {...val.props(`lsku:${i}:${l.id}`)} />
@@ -238,6 +238,9 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
     } catch (e) { setErr((e as Error).message); }
   };
   const setVariant = (i: number, patch: Partial<VForm>) => setF((cur) => ({ ...cur, variants: cur.variants.map((v, j) => (j === i ? { ...v, ...patch } : v)) }));
+  // One price for every variant in a market (red, blue, pink… usually cost the same).
+  const setAllPrices = (mid: string, amount: string) =>
+    setF((cur) => ({ ...cur, variants: cur.variants.map((v) => ({ ...v, prices: { ...v.prices, [mid]: { ...(v.prices[mid] ?? {}), amount } } })) }));
   const setPrice = (i: number, mid: string, key: keyof PriceForm, val: string) =>
     setF((cur) => ({
       ...cur,
@@ -247,7 +250,12 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
         return { ...v, prices: { ...v.prices, [mid]: { ...prev, [key]: val } } };
       }),
     }));
-  const setOptions = (options: OptionDef[]) => setF((cur) => ({ ...cur, options, variants: syncVariants(cur.variants, options) }));
+  const setOptions = (options: OptionDef[]) => setF((cur) => {
+    let variants = syncVariants(cur.variants, options);
+    // The count typed on the plain product can't be split between new variants: each one starts empty and gets its own quantity.
+    if (cur.variants.every((v) => !Object.keys(v.options).length) && variants.some((v) => Object.keys(v.options).length)) variants = variants.map((v) => ({ ...v, inventory: "", stock: {} }));
+    return { ...cur, options, variants };
+  });
   const toggleMarket = (id: string) => set("marketIds", f.marketIds.includes(id) ? f.marketIds.filter((x) => x !== id) : [...f.marketIds, id]);
 
   // switching unit converts what's typed so the weight stays the same
@@ -314,11 +322,14 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
   return (
     <>
       <div className="crumbbar"><button className="link crumb" onClick={onDone}><ArrowLeft />Products</button></div>
-      <div className="pagehead">
-        <h2>{f.id ? "Edit product" : "Add product"}</h2>
+      <div className="pe-bar">
+        <div className="pe-title">
+          <h2>{f.id ? (f.title || "Edit product") : "Add product"}</h2>
+          <span className={`pe-status ${f.status}`}>{f.status === "active" ? "Active" : f.status === "draft" ? "Draft" : "Archived"}</span>
+        </div>
         <div className="headtools">
           <button onClick={onDone}>Discard</button>
-          <button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button>
+          <button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : f.id ? "Save changes" : "Save product"}</button>
         </div>
       </div>
       {err && <div className="error">{err}</div>}
@@ -331,6 +342,32 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
           </div>
 
           <ImageManager productId={f.id} images={f.images} onImages={(images) => setF((cur) => ({ ...cur, images }))} pending={pending} onPending={setPending} />
+
+          {hasOptions && (
+            <div className="card">
+              <h3>Pricing</h3>
+              {!selected.length ? (
+                <p className="muted">Choose the markets you sell in (right side) to set a price for each.</p>
+              ) : (
+                <>
+                  <div className="row">
+                    {selected.map((m) => {
+                      const vals = f.variants.map((v) => v.prices[m.id]?.amount ?? "");
+                      const same = vals.every((x) => x === vals[0]);
+                      return (
+                        <div key={m.id} className="field">
+                          <label htmlFor={`all-${m.id}`}>{m.code} price ({m.currency})</label>
+                          <input id={`all-${m.id}`} type="number" step="0.01" min={0} placeholder={same ? "0.00" : "Mixed prices"} value={same ? vals[0] : ""} onChange={(e) => setAllPrices(m.id, e.target.value)} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="muted" style={{ marginTop: 0 }}>This price is used for all {f.variants.length} variants. To give one variant a different price, open it in the Variants section below.</p>
+                </>
+              )}
+              <div className="toggleline"><Switch checked={f.chargeTax} onChange={(v) => set("chargeTax", v)} label="Charge tax on this product" /><span>Charge tax on this product</span></div>
+            </div>
+          )}
 
           {!hasOptions && (
             <>
@@ -352,13 +389,14 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
                 <div className="toggleline"><Switch checked={f.chargeTax} onChange={(v) => set("chargeTax", v)} label="Charge tax on this product" /><span>Charge tax on this product</span></div>
               </div>
               <div className="card">
-                <div className="cardhead"><h3>Inventory</h3><span className="toggleline"><span className="muted">Inventory tracked</span><Switch checked={f.trackInventory} onChange={(v) => set("trackInventory", v)} label="Inventory tracked" /></span></div>
-                {f.trackInventory && stockFields(0, single)}
+                <div className="cardhead"><div><h3>Inventory</h3><div className="muted pe-sub">Count stock and set product codes.</div></div><span className="toggleline"><span className="muted">Track quantity</span><Switch checked={f.trackInventory} onChange={(v) => set("trackInventory", v)} label="Inventory tracked" /></span></div>
+                {f.trackInventory && <div className="inv-sec"><div className="inv-sec-h">Stock</div>{stockFields(0, single)}</div>}
+                <div className="inv-sec"><div className="inv-sec-h">Product codes</div>
                 <div className="row">
-                  <div className="field"><div className="genrow"><label htmlFor="sku-0">SKU (stock keeping unit)</label><span className="acts"><button className="link" type="button" onClick={() => generate("sku", [0])}>Generate</button></span></div><input id="sku-0" value={single.sku} onChange={(e) => setVariant(0, { sku: e.target.value })} {...val.props("sku:0")} /><FieldError k="sku:0" msg={val.err("sku:0")} /></div>
-                  <div className="field"><div className="genrow"><label htmlFor="bc-0">Barcode (ISBN, UPC, GTIN…)</label><span className="acts"><button className="link" type="button" onClick={() => generate("barcode", [0])}>Generate</button><button className="link" type="button" disabled={!single.sku.trim() && !single.barcode.trim()} onClick={() => setCodesFor(0)}>Preview</button></span></div><input id="bc-0" value={single.barcode} onChange={(e) => setVariant(0, { barcode: e.target.value })} {...val.props("barcode:0")} /><FieldError k="barcode:0" msg={val.err("barcode:0")} /></div>
-                </div>
-                {f.trackInventory && <label className="check"><input type="checkbox" checked={f.continueSelling} onChange={(e) => set("continueSelling", e.target.checked)} />Continue selling when out of stock</label>}
+                  <div className="field"><div className="genrow"><label htmlFor="sku-0">SKU</label><span className="acts"><button className="link" type="button" onClick={() => generate("sku", [0])}>Generate</button></span></div><input id="sku-0" placeholder="Stock keeping unit" value={single.sku} onChange={(e) => setVariant(0, { sku: e.target.value })} {...val.props("sku:0")} /><FieldError k="sku:0" msg={val.err("sku:0")} /></div>
+                  <div className="field"><div className="genrow"><label htmlFor="bc-0">Barcode</label><span className="acts"><button className="link" type="button" onClick={() => generate("barcode", [0])}>Generate</button><button className="link" type="button" disabled={!single.sku.trim() && !single.barcode.trim()} onClick={() => setCodesFor(0)}>Preview</button></span></div><input id="bc-0" placeholder="ISBN, UPC, GTIN…" value={single.barcode} onChange={(e) => setVariant(0, { barcode: e.target.value })} {...val.props("barcode:0")} /><FieldError k="barcode:0" msg={val.err("barcode:0")} /></div>
+                </div></div>
+                {f.trackInventory && <label className="check pe-continue"><input type="checkbox" checked={f.continueSelling} onChange={(e) => set("continueSelling", e.target.checked)} /><span><b>Continue selling when out of stock</b><span className="muted" style={{ display: "block" }}>Customers can still order after the count reaches zero.</span></span></label>}
               </div>
             </>
           )}
@@ -383,7 +421,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
           <div className="card">
             <h3>Variants</h3>
             {!hasOptions ? (
-              <button onClick={() => setOptions([{ name: "Size", values: [] }])}><Plus />Add options like size or color</button>
+              <button onClick={() => setOptions([{ name: "", values: [] }])}><Plus />Add options like size or color</button>
             ) : (
               <>
                 {f.options.map((o, i) => (
@@ -423,7 +461,7 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
                                 <FieldError small k={`price:${i}:${m.id}`} msg={val.err(`price:${i}:${m.id}`)} /></div>
                               {f.trackInventory && <>
                                 <div className="field"><label htmlFor={`st-${i}-${m.id}`}>Quantity</label>
-                                  <input id={`st-${i}-${m.id}`} type="number" min={0} placeholder="0" value={ls?.qty ?? ""} onChange={(e) => patchLoc(i, m.id, { qty: e.target.value })} {...val.props(`qty:${i}:${m.id}`)} />
+                                  <input id={`st-${i}-${m.id}`} type="number" min={0} placeholder="Enter quantity" value={ls?.qty ?? ""} onChange={(e) => patchLoc(i, m.id, { qty: e.target.value })} {...val.props(`qty:${i}:${m.id}`)} />
                                   <FieldError small k={`qty:${i}:${m.id}`} msg={val.err(`qty:${i}:${m.id}`)} /></div>
                                 <div className="field"><label htmlFor={`ls-${i}-${m.id}`}>SKU</label>
                                   <input id={`ls-${i}-${m.id}`} value={ls?.sku ?? ""} onChange={(e) => patchLoc(i, m.id, { sku: e.target.value })} {...val.props(`lsku:${i}:${m.id}`)} />

@@ -27,7 +27,7 @@ export function AddToCart({ product, market, highlight }: { product: StoreProduc
             style={{ flex: "none" }}
             disabled={!v.inStock || v.price == null}
             onClick={() => {
-              add({ variantId: v.id, title: v.title === "Default" ? product.title : `${product.title} — ${v.title}` });
+              add({ variantId: v.id, title: v.title === "Default" ? product.title : `${product.title} — ${v.title}`, image: v.imageUrl ?? product.images[0]?.thumbUrl });
               setAdded(v.id);
               track("add_to_cart", { data: { currency: product.currency, value: (v.price ?? 0) / 100, items: [{ item_id: v.id, item_name: product.title, price: (v.price ?? 0) / 100, quantity: 1 }] } });
             }}

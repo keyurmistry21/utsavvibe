@@ -222,12 +222,13 @@ async function priceCart(d: z.infer<typeof cartInput>) {
   const region = d.region?.toUpperCase();
   if (region && market.regions.length && !market.regions.some((r) => r.code === region)) throw bad(`unknown region ${region}`);
   const lines = [];
+  const images: Record<string, string> = {}; // variantId -> thumbnail for the cart
   const units: { productId: string; unitPrice: number; quantity: number }[] = []; // for buy-X-get-Y codes
   const stock: { variantId: string; title: string; requested: number; available: number | null; ok: boolean }[] = [];
   for (const it of d.items) {
     const v = await prisma.variant.findUnique({
       where: { id: it.variantId },
-      include: { product: { include: { markets: true } }, prices: { where: { marketId: market.id } } },
+      include: { product: { include: { markets: true, images: { orderBy: { position: "asc" }, take: 1, select: { id: true } } } }, prices: { where: { marketId: market.id } } },
     });
     if (!v || v.product.status !== "active" || !v.product.markets.some((m) => m.marketId === market.id) || !v.prices[0])
       throw bad(`item not available in ${market.name}`);
@@ -237,6 +238,8 @@ async function priceCart(d: z.infer<typeof cartInput>) {
     const have = await onHand(prisma, v.id, market.id);
     const unlimited = !v.product.trackInventory || v.product.continueSelling;
     stock.push({ variantId: v.id, title: v.title === "Default" ? v.product.title : `${v.product.title} — ${v.title}`, requested: it.quantity, available: unlimited ? null : Math.max(0, have), ok: canSell(v.product, have, it.quantity) });
+    const img = v.imageId ?? v.product.images[0]?.id;
+    if (img) images[v.id] = imageUrls(img).thumbUrl;
     units.push({ productId: v.productId, unitPrice: v.prices[0].amount, quantity: it.quantity });
     lines.push({
       variantId: v.id,
@@ -260,7 +263,7 @@ async function priceCart(d: z.infer<typeof cartInput>) {
   const shipping = lines.some((l) => l.physical) ? (dc?.freeShipping ? 0 : ship.amount) : 0;
   let { tax, total } = priceTotals({ subtotal, taxableSubtotal, discount, taxRateBps, inclusive: market.taxInclusive, shipping });
   let taxCalcId: string | null = null;
-  if (!discount && d.address && JSON.parse(market.countries).includes(d.address.country.toUpperCase())) {
+  if (!discount && d.address?.postcode && d.address.line1 && JSON.parse(market.countries).includes(d.address.country.toUpperCase())) {
     const st = await stripeTax({ currency: market.currency, inclusive: market.taxInclusive, lines, shipping, address: { ...d.address, country: d.address.country.toUpperCase(), region: d.address.region ?? region } });
     if (st) {
       tax = st.tax;
@@ -270,7 +273,7 @@ async function priceCart(d: z.infer<typeof cartInput>) {
   }
   const freeOver = ship.rate?.freeOverAmount ?? null;
   const freeShippingRemaining = freeOver != null && lines.some((l) => l.physical) && subtotal < freeOver ? freeOver - subtotal : null;
-  return { market, region, taxRateBps, lines, stock, dc, discount, subtotal, tax, shipping, shippingRate: ship.rate, total, taxCalcId, freeShippingRemaining };
+  return { market, region, taxRateBps, lines, images, stock, dc, discount, subtotal, tax, shipping, shippingRate: ship.rate, total, taxCalcId, freeShippingRemaining };
 }
 
 // Gift card for this cart, or null. Gift cards can't pay for gift cards (keeps card-to-card laundering and fee dodging out).
@@ -292,7 +295,7 @@ storeRouter.post("/quote", async (req, res) => {
   const d = cartInput.parse(req.body);
   const q = await priceCart(d);
   const gc = await giftCardFor(q, d.giftCardCode, req.ip);
-  res.json({ discount: q.discount, discountCode: q.dc?.code ?? null, discountLabel: q.dc?.label ?? null, stock: q.stock, currency: q.market.currency, taxInclusive: q.market.taxInclusive, taxRateBps: q.taxRateBps, region: q.region ?? null, taxSource: q.taxCalcId ? "stripe" : "market", freeShippingRemaining: q.freeShippingRemaining, lines: q.lines, subtotal: q.subtotal, tax: q.tax, taxBreakdown: parseJson<{ name: string; amount: number }[]>(taxBreakdownFor(q.market, q.region, q.tax) ?? "[]", []), shipping: q.shipping, total: q.total, giftCardApplied: gc?.applied ?? 0, amountDue: q.total - (gc?.applied ?? 0), giftCardBalance: gc?.card.balance ?? null });
+  res.json({ images: q.images, discount: q.discount, discountCode: q.dc?.code ?? null, discountLabel: q.dc?.label ?? null, stock: q.stock, currency: q.market.currency, taxInclusive: q.market.taxInclusive, taxRateBps: q.taxRateBps, region: q.region ?? null, taxSource: q.taxCalcId ? "stripe" : "market", freeShippingRemaining: q.freeShippingRemaining, lines: q.lines, subtotal: q.subtotal, tax: q.tax, taxBreakdown: parseJson<{ name: string; amount: number }[]>(taxBreakdownFor(q.market, q.region, q.tax) ?? "[]", []), shipping: q.shipping, total: q.total, giftCardApplied: gc?.applied ?? 0, amountDue: q.total - (gc?.applied ?? 0), giftCardBalance: gc?.card.balance ?? null });
 });
 
 storeRouter.post("/checkout", async (req, res) => {
@@ -302,7 +305,8 @@ storeRouter.post("/checkout", async (req, res) => {
       name: z.string().min(1),
       phone: z.string().optional(),
       marketing: z.boolean().optional(), // ticked "email me reminders"
-      address: z.object({ line1: z.string(), line2: z.string().optional(), city: z.string(), region: z.string().optional(), postcode: z.string(), country: z.string().length(2) }),
+      embedded: z.boolean().optional(), // pay on our page with Stripe's secure card fields instead of redirecting
+      address: z.object({ line1: z.string().default(""), line2: z.string().optional(), city: z.string().default(""), region: z.string().optional(), postcode: z.string().default(""), country: z.string().length(2) }), // no delivery: only country (+ province for tax) is needed
     })
     .parse(req.body);
   const q = await priceCart({ ...d, region: d.address.region });
@@ -374,6 +378,27 @@ storeRouter.post("/checkout", async (req, res) => {
     return void res.json({ url: `${process.env.STOREFRONT_URL}/${q.market.code.toLowerCase()}/order/${order.number}`, orderNumber: order.number });
   }
 
+  if (d.embedded) {
+    // Card details are typed into Stripe's own fields (Payment Element), so card numbers never reach this server.
+    try {
+      const pi = await stripe().paymentIntents.create({
+        amount: q.total - applied,
+        currency: q.market.currency.toLowerCase(),
+        automatic_payment_methods: { enabled: true },
+        receipt_email: d.email,
+        description: `Order #${order.number}`,
+        metadata: { orderId: order.id, orderNumber: String(order.number), marketCode: q.market.code },
+      }, { idempotencyKey: `pi-${order.id}` });
+      await prisma.order.update({ where: { id: order.id }, data: { stripePaymentIntentId: pi.id } });
+      return void res.json({ clientSecret: pi.client_secret, orderNumber: order.number, returnUrl: `${process.env.STOREFRONT_URL}/${q.market.code.toLowerCase()}/order/${order.number}` });
+    } catch (e) {
+      await prisma.order.update({ where: { id: order.id }, data: { paymentStatus: "failed", status: "cancelled" } });
+      await releaseForOrder(order.id);
+      await releaseDiscount(order.id);
+      throw e;
+    }
+  }
+
   let session: Stripe.Checkout.Session;
   try {
     session = await createCheckoutSession({
@@ -383,7 +408,7 @@ storeRouter.post("/checkout", async (req, res) => {
       currency: q.market.currency,
       taxInclusive: q.market.taxInclusive,
       taxRateBps: q.taxRateBps,
-      lines: q.lines,
+      lines: q.lines.map((l) => ({ ...l, imageUrl: q.images[l.variantId] ? `${process.env.STOREFRONT_URL}${q.images[l.variantId].replace('-thumb', '')}` : undefined })),
       tax: q.tax,
       discount: q.discount + applied,
       discountNote: q.discount && applied ? "Discount code + gift card" : q.discount ? `Code ${q.dc?.code}` : applied ? "Gift card" : undefined,
@@ -400,6 +425,11 @@ storeRouter.post("/checkout", async (req, res) => {
   }
   await prisma.order.update({ where: { id: order.id }, data: { stripeSessionId: session.id } });
   res.json({ url: session.url, orderNumber: order.number });
+});
+
+// Public Stripe key for the card fields on the cart page (safe to expose; the secret key never leaves the server).
+storeRouter.get("/payment-config", (_req, res) => {
+  res.json({ publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || null });
 });
 
 /**
@@ -476,6 +506,11 @@ export async function stripeWebhook(req: Request, res: Response) {
         await settlePaidOrder(orderId, typeof s.payment_intent === "string" ? s.payment_intent : null);
       }
     }
+  }
+  // Embedded card form: the PaymentIntent carries the order id. A failed attempt leaves the order pending so the shopper can retry.
+  if (event.type === "payment_intent.succeeded") {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    if (pi.metadata?.orderId) await settlePaidOrder(pi.metadata.orderId, pi.id);
   }
   if (event.type === "charge.refunded") {
     const ch = event.data.object as Stripe.Charge;

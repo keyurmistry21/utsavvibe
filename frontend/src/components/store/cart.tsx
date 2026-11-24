@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-export type CartLine = { variantId: string; title: string; quantity: number };
+export type CartLine = { variantId: string; title: string; quantity: number; image?: string };
 type CartCtx = {
   lines: CartLine[];
   count: number;

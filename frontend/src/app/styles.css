@@ -1563,3 +1563,91 @@ a.hm-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0
 .filedrop{border:2px dashed var(--line,#d8d8d8);border-radius:12px;padding:16px;text-align:center;color:#666;margin:6px 0 14px}
 .filetype{display:grid;place-items:center;font-size:10px;font-weight:700;color:#555}
 .admin tr.dirty td{background:#fffbe6}
+
+/* inventory */
+.admin .inv-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.admin .inv-tile{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;text-align:left;box-shadow:none;height:auto;font-weight:400}
+.admin .inv-tile span{color:var(--muted);font-size:12.5px}
+.admin .inv-tile b{font-size:26px;font-weight:650;letter-spacing:-.02em}
+.admin button.inv-tile{cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.admin button.inv-tile:hover{border-color:#bbb}
+.admin .inv-tile.warn b{color:#b45309}.admin .inv-tile.bad b{color:#b91c1c}
+.admin .inv-tile.on{border-color:#303030;box-shadow:0 0 0 1px #303030}
+.admin .inv-card{padding:0;overflow:hidden}
+.admin .inv-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--border)}
+.admin .inv-toolbar .searchfield{position:relative;flex:1;min-width:200px;max-width:340px}
+.admin .inv-toolbar .searchfield input{width:100%;padding-left:32px}
+.admin .inv-chips{display:flex;gap:4px;background:#efefef;border-radius:9px;padding:3px}
+.admin .inv-chips button{box-shadow:none;background:transparent;border:0;padding:4px 12px;border-radius:7px;color:var(--muted);height:auto}
+.admin .inv-chips button.on{background:#fff;color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.admin .inv-hint{margin-left:auto;font-size:12px}
+.admin .inv-scroll{overflow:auto;max-height:calc(100vh - 340px)}
+.admin .inv-table th{position:sticky;top:0;z-index:1}
+.admin .inv-table td{padding:10px 12px;vertical-align:middle}
+.admin .inv-table tbody tr:hover td{background:#fafafa}
+.admin .invprod{display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none;min-width:220px}
+.admin .invprod:hover b{text-decoration:underline}
+.admin .invprod img,.admin .invthumb{width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);background:#eee;flex:none;display:block}
+.admin .invvar{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.admin .inv-sku{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted)}
+.admin .inv-empty{text-align:center;color:var(--muted);padding:36px 12px}
+.admin .pill{display:inline-block;min-width:34px;text-align:center;padding:2px 10px;border-radius:999px;font-weight:600;font-size:13px}
+.admin .pill.ok{background:#e4f5ea;color:#166534}.admin .pill.low{background:#fef3c7;color:#92400e}.admin .pill.out{background:#fee2e2;color:#991b1b}
+.admin .stepper{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:#fff}
+.admin .stepper button{box-shadow:none;border:0;background:#f5f5f5;width:28px;height:30px;padding:0;border-radius:0;font-size:16px;line-height:1;color:#444;cursor:pointer}
+.admin .stepper button:hover:not(:disabled){background:#e8e8e8}
+.admin .stepper button:disabled{opacity:.35;cursor:default}
+.admin .stepper input{width:52px;height:30px;border:0;border-radius:0;text-align:center;font-weight:600;box-shadow:none;padding:0;-moz-appearance:textfield}
+.admin .stepper input::-webkit-outer-spin-button,.admin .stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.admin .stepper.low input{background:#fffbeb;color:#92400e}.admin .stepper.out input{background:#fef2f2;color:#991b1b}
+@media(max-width:760px){.admin .inv-tiles{grid-template-columns:repeat(2,1fr)}.admin .inv-hint{display:none}}
+
+/* product editor */
+.admin .pe-bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 -4px 18px;padding:12px 4px;background:rgba(241,241,241,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+.admin .pe-title{display:flex;align-items:center;gap:10px;min-width:0}
+.admin .pe-title h2{margin:0;font-size:22px;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46vw}
+.admin .pe-status{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:#e4f5ea;color:#166534}
+.admin .pe-status.draft{background:#fef3c7;color:#92400e}.admin .pe-status.archived{background:#e5e5e5;color:#555}
+.admin .pe-bar .headtools{display:flex;gap:8px;align-items:center}
+.admin .cols:has(> .sideform) > div > .card,.admin .cols:has(> .sideform) > .sideform > .card{border-radius:14px;border:1px solid var(--border);box-shadow:0 1px 2px rgba(0,0,0,.04);padding:20px;margin-bottom:16px}
+.admin .cols:has(> .sideform) .card > h3,.admin .cols:has(> .sideform) .cardhead h3{font-size:14px;font-weight:650;letter-spacing:.01em;margin:0 0 14px}
+.admin .cols:has(> .sideform) .cardhead h3{margin:0}
+.admin .cols:has(> .sideform) .card:focus-within{border-color:#b9b9b9;box-shadow:0 0 0 3px rgba(0,91,211,.08)}
+.admin .cols:has(> .sideform) .field input,.admin .cols:has(> .sideform) .field textarea{border-radius:9px}
+#pe-title{font-size:16px;padding:10px 12px}
+@media(min-width:901px){.admin .sideform{position:sticky;top:76px;max-height:calc(100vh - 92px);overflow:auto;padding-right:2px}}
+@media(max-width:600px){.admin .pe-title h2{max-width:60vw;font-size:18px}.admin .pe-bar .headtools{width:100%}.admin .pe-bar .headtools .primary{flex:1}}
+
+/* inventory block in product editor */
+.admin .pe-sub{margin:2px 0 0;font-size:12.5px}
+.admin .cardhead .pe-sub{margin-top:2px}
+.admin .inv-sec{margin-top:18px;padding-top:16px;border-top:1px solid var(--border)}
+.admin .inv-sec:first-of-type{margin-top:8px}
+.admin .inv-sec-h{font-size:12px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:12px}
+.admin .locstock{display:flex;flex-direction:column;gap:12px}
+.admin .locrow{border:1px solid var(--border);border-radius:12px;background:#fafafa;padding:12px 14px}
+.admin .locrow-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.admin .locrow-h .acts{display:flex;gap:14px;font-size:13px}
+.admin .locrow-g{display:grid;grid-template-columns:110px 1fr 1fr;gap:12px}
+.admin .locrow-g .field{margin:0;min-width:0}
+.admin .locstock > .muted{font-size:13px}
+.admin .pe-continue{align-items:flex-start;margin-top:18px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#fafafa}
+.admin .pe-continue input{margin-top:3px}
+@media(max-width:600px){.admin .locrow-g{grid-template-columns:1fr 1fr}.admin .locrow-g .field:first-child{grid-column:1/-1}}
+
+.admin .genrow label{white-space:nowrap}
+.admin .genrow .acts{flex:none;white-space:nowrap}
+.admin .inv-sec .row{align-items:flex-start}
+.admin .inv-sec > .field{max-width:220px}
+
+.admin .allprice{border:1px solid var(--border);background:#fafafa;border-radius:12px;padding:14px 16px;margin:14px 0}
+.admin .allprice .muted{display:block;margin-top:2px}
+.admin .allprice-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
+.admin .allprice-row .field{margin:0;min-width:160px;flex:1}
+
+/* option rows: aligned fields, errors don't shift neighbours */
+.admin .optionrow{align-items:flex-start;gap:16px}
+.admin .optionrow .field{flex:0 0 200px;min-width:0}
+.admin .optionrow .field.grow{flex:1 1 auto}
+.admin .optionrow > button.link{margin:30px 0 0;flex:none}
+@media(max-width:700px){.admin .optionrow .field{flex:1 1 auto}.admin .optionrow > button.link{margin:0 0 12px}}

@@ -1,7 +1,7 @@
 import type Stripe from "stripe";
 import { stripe } from "./stripe.js";
 
-type Line = { title: string; quantity: number; unitPrice: number };
+type Line = { title: string; quantity: number; unitPrice: number; imageUrl?: string }; // imageUrl: absolute https URL (Stripe fetches it)
 
 // Shared by storefront checkout and admin draft payment links.
 export async function createCheckoutSession(o: {
@@ -23,7 +23,7 @@ export async function createCheckoutSession(o: {
   const currency = o.currency.toLowerCase();
   const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = o.lines.map((l) => ({
     quantity: l.quantity,
-    price_data: { currency, unit_amount: l.unitPrice, product_data: { name: l.title } },
+    price_data: { currency, unit_amount: l.unitPrice, product_data: { name: l.title, ...(l.imageUrl ? { images: [l.imageUrl] } : {}) } },
   }));
   if (!o.taxInclusive && o.tax > 0)
     line_items.push({ quantity: 1, price_data: { currency, unit_amount: o.tax, product_data: { name: `Tax (${o.taxRateBps / 100}%)` } } });

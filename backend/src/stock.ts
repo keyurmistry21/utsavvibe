@@ -30,6 +30,16 @@ export async function setLevels(db: Tx, variantId: string, stock: Record<string,
     await db.inventoryLevel.upsert({ where: { variantId_marketId: { variantId, marketId } }, create: { variantId, marketId, ...data }, update: data });
   }
   await db.variant.update({ where: { id: variantId }, data: { inventory: Object.values(stock).reduce((a, b) => a + b.quantity, 0) } });
+  // Keep the Inventory page in step with the product page: a market served by exactly one location holds all of its stock there.
+  const locs = await db.location.findMany({ where: { active: true }, select: { id: true, marketId: true, country: true } });
+  const byMarket = new Map<string, string[]>();
+  for (const l of locs) { const m = await marketOfLocation(db, l); if (m) byMarket.set(m, [...(byMarket.get(m) ?? []), l.id]); }
+  for (const [marketId, ids] of byMarket) {
+    if (ids.length !== 1) continue; // several locations: the owner splits it on the Inventory page
+    const qty = stock[marketId]?.quantity;
+    if (qty === undefined) await db.locationStock.deleteMany({ where: { variantId, locationId: ids[0] } });
+    else await db.locationStock.upsert({ where: { variantId_locationId: { variantId, locationId: ids[0] } }, create: { variantId, locationId: ids[0], quantity: qty }, update: { quantity: qty } });
+  }
 }
 
 /** On-hand units a market can sell: its own level when it has one, else the variant total. */
