@@ -26,7 +26,7 @@ const Sub = ({ open, children }: { open: boolean; children: React.ReactNode }) =
 );
 const SUBS: Record<string, (path: string) => boolean> = {
   "Online Store": (p) => p.startsWith("/admin/online-store"),
-  Products: (p) => p.startsWith("/admin/products") || p.startsWith("/admin/collections") || p.startsWith("/admin/gift-cards"),
+  Products: (p) => p.startsWith("/admin/products") || p.startsWith("/admin/collections") || p.startsWith("/admin/gift-cards") || p.startsWith("/admin/reviews"),
   Orders: (p) => p.startsWith("/admin/orders"),
 };
 const Chevron = ({ open }: { open: boolean }) => (
@@ -101,7 +101,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    auth<AdminUser>("/me").then(setUser).catch(() => setUser(null));
+    auth<AdminUser>("/me").then((u) => { setUser(u); try { localStorage.setItem("uv_me_cache", JSON.stringify(u)); } catch { /* private mode */ } }).catch((e) => {
+      // No connection (not a 401): the in-store till may keep working offline with the last signed-in user. Everything is re-checked by the API when sales sync.
+      if (e instanceof TypeError && location.pathname.startsWith("/admin/sell")) { try { const c = localStorage.getItem("uv_me_cache"); if (c) return setUser(JSON.parse(c) as AdminUser); } catch { /* fall through */ } }
+      setUser(null);
+    });
     const out = () => setUser(null); // any admin call returning 401 drops back to the login screen
     window.addEventListener("admin:unauthorized", out);
     const key = (e: KeyboardEvent) => {
@@ -181,6 +185,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Sub open={!inSettings && path.startsWith("/admin/online-store")}>
                   <Link href="/admin/online-store/pages" className={path.startsWith("/admin/online-store/pages") ? "active" : ""}>Pages</Link>
                   <Link href="/admin/online-store/blog" className={path.startsWith("/admin/online-store/blog") ? "active" : ""}>Blog posts</Link>
+                  <Link href="/admin/online-store/redirects" className={path.startsWith("/admin/online-store/redirects") ? "active" : ""}>Redirects</Link>
                   <Link href="/admin/online-store/preferences" className={path.startsWith("/admin/online-store/preferences") ? "active" : ""}>Preferences</Link>
                   <a href="/uk" target="_blank" rel="noreferrer">View your store ↗</a>
                 </Sub>
@@ -190,6 +195,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <Link href="/admin/products" className={path.startsWith("/admin/products") && !path.startsWith("/admin/products/import") ? "active" : ""}>All products</Link>
                   {can("products.view") && <Link href="/admin/collections" className={path.startsWith("/admin/collections") ? "active" : ""}>Collections</Link>}
                   {can("gift_cards.view") && <Link href="/admin/gift-cards" className={path.startsWith("/admin/gift-cards") ? "active" : ""}>Gift cards</Link>}
+                  {can("products.view") && <Link href="/admin/reviews" className={path.startsWith("/admin/reviews") ? "active" : ""}>Reviews</Link>}
                   {can("products.manage") && <Link href="/admin/products/import" className={path.startsWith("/admin/products/import") ? "active" : ""}>Import from Shopify</Link>}
                 </Sub>
               )}
@@ -208,7 +214,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             compact={inSettings}
             name={name}
             role={user.role}
-            onLogout={async () => { await auth("/logout", { method: "POST" }).catch(() => {}); setUser(null); }}
+            onLogout={async () => { await auth("/logout", { method: "POST" }).catch(() => {}); try { localStorage.removeItem("uv_me_cache"); } catch { /* ignore */ } setUser(null); }}
           />
           </div>
         </nav>

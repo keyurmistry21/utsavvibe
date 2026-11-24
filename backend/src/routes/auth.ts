@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { permsOf } from "../permissions.js";
-import { createSession, currentUser, destroySession, hashPassword, marketScope, requireAdmin, usesApiKey, verifyPassword, workingMarket } from "../auth.js";
+import { createSession, currentUser, destroySession, hashPassword, marketScope, locationScope, requireAdmin, usesApiKey, verifyPassword, workingMarket } from "../auth.js";
 import { audit } from "../audit.js";
 import { decrypt, encrypt } from "../secrets.js";
 import { newSecret, otpauthUri, verifyTotp } from "../totp.js";
@@ -26,8 +26,8 @@ const fail = (k: string) => {
 // Hash for a dummy password so unknown emails cost the same time as wrong passwords.
 const dummy = hashPassword("not-a-real-password");
 
-type U = { id: string; email: string; name: string; totpEnabled?: boolean; preferredMarket?: string | null; allowedMarkets?: string | null; role?: { id: string; name: string; isSystem: boolean; permissions: string } | null };
-const publicUser = (u: U) => ({ id: u.id, email: u.email, name: u.name, role: u.role?.name ?? null, owner: permsOf(u.role).owner, permissions: [...permsOf(u.role).set], twoFactor: !!u.totpEnabled, preferredMarket: workingMarket(u), allowedMarkets: marketScope(u) });
+type U = { id: string; email: string; name: string; totpEnabled?: boolean; preferredMarket?: string | null; allowedMarkets?: string | null; allowedLocations?: string | null; role?: { id: string; name: string; isSystem: boolean; permissions: string } | null };
+const publicUser = (u: U) => ({ id: u.id, email: u.email, name: u.name, role: u.role?.name ?? null, owner: permsOf(u.role).owner, permissions: [...permsOf(u.role).set], twoFactor: !!u.totpEnabled, preferredMarket: workingMarket(u), allowedMarkets: marketScope(u), allowedLocations: locationScope(u) });
 
 authRouter.post("/login", async (req, res) => {
   const { email, password, code } = z.object({ email: z.string().email(), password: z.string().min(1).max(200), code: z.string().max(10).optional() }).parse(req.body);

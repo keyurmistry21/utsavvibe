@@ -11,6 +11,7 @@ export type EmailOrder = {
   discount: number;
   discountNote: string | null;
   tax: number;
+  taxBreakdown?: string | null; // JSON [{name, amount}]: GST / PST / HST / QST shown on separate lines
   shipping: number;
   total: number;
   shippingName: string;
@@ -57,6 +58,16 @@ ${opts.body}
 </table></td></tr></table></body></html>`;
 }
 
+const taxParts = (o: EmailOrder): { name: string; amount: number }[] => { try { const p = JSON.parse(o.taxBreakdown ?? "[]"); return Array.isArray(p) ? p : []; } catch { return []; } };
+const taxRowsHtml = (o: EmailOrder, row: (l: string, v: string) => string) => {
+  const parts = taxParts(o), incl = o.market.taxInclusive ? " (included)" : "";
+  return parts.length ? parts.map((p) => row(`${esc(p.name)}${incl}`, fmt(p.amount, o.currency))).join("\n") : row(o.market.taxInclusive ? "Tax (included)" : "Tax", fmt(o.tax, o.currency));
+};
+const taxLinesText = (o: EmailOrder) => {
+  const parts = taxParts(o), incl = o.market.taxInclusive ? " (included)" : "";
+  return parts.length ? parts.map((p) => `${p.name}${incl}: ${fmt(p.amount, o.currency)}`) : [`${o.market.taxInclusive ? "Tax (included)" : "Tax"}: ${fmt(o.tax, o.currency)}`];
+};
+
 function summary(o: EmailOrder) {
   const row = (l: string, v: string, bold = false) =>
     `<tr><td style="padding:5px 0;color:${bold ? COLORS.ink : COLORS.muted};${bold ? "font-weight:700;" : ""}">${l}</td><td align="right" style="padding:5px 0;${bold ? "font-weight:700;" : ""}">${v}</td></tr>`;
@@ -68,7 +79,7 @@ function summary(o: EmailOrder) {
 ${row("Subtotal", fmt(o.subtotal, o.currency))}
 ${o.discount > 0 ? row(`Discount${o.discountNote ? ` (${esc(o.discountNote)})` : ""}`, `−${fmt(o.discount, o.currency)}`) : ""}
 ${row("Shipping", o.shipping ? fmt(o.shipping, o.currency) : "Free")}
-${row(o.market.taxInclusive ? "Tax (included)" : "Tax", fmt(o.tax, o.currency))}
+${taxRowsHtml(o, row)}
 <tr><td colspan="2" style="border-top:1px solid ${COLORS.line};padding-top:4px"></td></tr>
 ${row("Total", `${fmt(o.total, o.currency)} ${esc(o.currency)}`, true)}
 </table>`;
@@ -87,7 +98,7 @@ const textSummary = (o: EmailOrder) =>
     `Subtotal: ${fmt(o.subtotal, o.currency)}`,
     o.discount > 0 ? `Discount: -${fmt(o.discount, o.currency)}` : "",
     `Shipping: ${o.shipping ? fmt(o.shipping, o.currency) : "Free"}`,
-    `${o.market.taxInclusive ? "Tax (included)" : "Tax"}: ${fmt(o.tax, o.currency)}`,
+    ...taxLinesText(o),
     `Total: ${fmt(o.total, o.currency)} ${o.currency}`,
     "",
     addressLines(o).length ? `Shipping to:\n${addressLines(o).join("\n")}` : "",

@@ -30,6 +30,7 @@ export default async function MarketHome({ params }: { params: Promise<{ market:
   const free = current.shippingRates[0]?.freeOverAmount;
 
   const origin = siteOrigin(site.publicUrl);
+  const ig: { id: string; permalink: string; image: string; caption: string }[] = await fetch(`${process.env.BACKEND_URL ?? "http://localhost:4000"}/api/store/instagram`, { next: { revalidate: 300 } }).then((r) => (r.ok ? r.json() : { posts: [] })).then((d) => d.posts ?? []).catch(() => []);
   return (
     <>
       <JsonLd data={[
@@ -70,6 +71,18 @@ export default async function MarketHome({ params }: { params: Promise<{ market:
           </div>
         )}
       </section>
+      {ig.length > 0 && (
+        <section className="sf-insta" aria-label="Instagram">
+          <h2>From Instagram</h2>
+          <div className="igrid">
+            {ig.map((p) => (
+              <a key={p.id} href={p.permalink} target="_blank" rel="noreferrer noopener" aria-label={p.caption || "Instagram post"}>
+                <img src={p.image} alt={p.caption || "Instagram post"} width={300} height={300} loading="lazy" referrerPolicy="no-referrer" />
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
     </>
   );
 }

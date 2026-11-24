@@ -199,7 +199,7 @@ analyticsRouter.get("/traffic", async (req, res) => {
     where: { createdAt: { gte: from, lte: to }, ...(marketCode ? { market: marketCode } : scope ? { market: { in: scope } } : {}) },
     orderBy: { createdAt: "asc" }, take: 200_000,
   });
-  type S = { source: string; medium: string; campaign: string; steps: Set<string>; last: string };
+  type S = { source: string; medium: string; campaign: string; steps: Set<string>; last: string; orderNo?: number };
   const sessions = new Map<string, S>();
   const pages: Record<string, { path: string; title: string; views: number; secs: number; timed: number; exits: number }> = {};
   const page = (p: string, t: string) => (pages[p] ??= { path: p, title: t, views: 0, secs: 0, timed: 0, exits: 0 });
@@ -208,15 +208,21 @@ analyticsRouter.get("/traffic", async (req, res) => {
     sessions.set(e.sessionId, s);
     if (e.type === "page_view") { s.steps.add("page_view"); s.last = e.path; page(e.path, e.title).views++; }
     else if (e.type === "page_leave") { const p = page(e.path, e.title); if (e.durationSec != null) { p.secs += e.durationSec; p.timed++; } }
-    else s.steps.add(e.type);
+    else { s.steps.add(e.type); if (e.type === "purchase") { const m = e.path.match(/\/order\/(\d+)$/); if (m) s.orderNo = Number(m[1]); } }
   }
   const funnel = { sessions: sessions.size, view_item: 0, add_to_cart: 0, begin_checkout: 0, purchase: 0 };
-  const src: Record<string, { source: string; medium: string; campaign: string; sessions: number; add_to_cart: number; purchase: number }> = {};
+  // revenue per source: the purchase event carries the order number in its path, so look those orders up (paid only, net of tax)
+  const nums = [...sessions.values()].map((x) => x.orderNo).filter((n): n is number => !!n);
+  const paidOrders = nums.length ? await prisma.order.findMany({ where: { number: { in: nums }, paymentStatus: "paid" }, select: { number: true, total: true, tax: true, currency: true } }) : [];
+  const byNo = new Map(paidOrders.map((o) => [o.number, o]));
+  const src: Record<string, { source: string; medium: string; campaign: string; sessions: number; add_to_cart: number; purchase: number; revenue: Record<string, number> }> = {};
   for (const s of sessions.values()) {
     for (const k of ["view_item", "add_to_cart", "begin_checkout", "purchase"] as const) if (s.steps.has(k)) funnel[k]++;
     if (s.last && !s.steps.has("purchase")) page(s.last, "").exits++;
     const k = `${s.source}|${s.medium}|${s.campaign}`;
-    const r = (src[k] ??= { source: s.source, medium: s.medium, campaign: s.campaign, sessions: 0, add_to_cart: 0, purchase: 0 });
+    const r = (src[k] ??= { source: s.source, medium: s.medium, campaign: s.campaign, sessions: 0, add_to_cart: 0, purchase: 0, revenue: {} });
+    const po = s.orderNo ? byNo.get(s.orderNo) : undefined;
+    if (po) r.revenue[po.currency] = (r.revenue[po.currency] ?? 0) + po.total - po.tax;
     r.sessions++; if (s.steps.has("add_to_cart")) r.add_to_cart++; if (s.steps.has("purchase")) r.purchase++;
   }
   const rows = Object.values(pages).map((p) => ({ path: p.path, title: p.title, views: p.views, avgSeconds: p.timed ? Math.round(p.secs / p.timed) : null, exits: p.exits, exitRate: p.views ? Math.round((p.exits / p.views) * 100) : 0 }));
@@ -281,4 +287,29 @@ analyticsRouter.get("/home", async (req, res) => {
     stock: [...out, ...lowStock].slice(0, 6).map((l) => ({ product: l.variant.product.title, variant: l.variant.title === "Default" ? "" : l.variant.title, sku: l.sku || l.variant.sku, market: l.market.code, quantity: l.quantity })),
     visitors: { sessions, purchases: buyers.length, conversion: sessions ? Math.round((buyers.length / sessions) * 1000) / 10 : 0, today: visitors.filter((v) => v.createdAt >= today).length },
   });
+});
+
+// ---- Tax collected by province / state (for filing): paid orders, per currency, grouped by the delivery region ----
+analyticsRouter.get("/tax", async (req, res) => {
+  const { from, to } = range(req.query);
+  const marketCode = req.query.market ? String(req.query.market).toUpperCase() : null;
+  const where = await scopeWhere(req, marketCode);
+  const orders = await prisma.order.findMany({ where: { paymentStatus: "paid", createdAt: { gte: from, lte: to }, ...where }, select: { tax: true, taxBreakdown: true, total: true, refundedAmount: true, currency: true, shippingAddress: true, locationName: true, channel: true, market: { select: { code: true, regions: { select: { code: true, name: true } } } } } });
+  const rows: Record<string, { currency: string; market: string; region: string; orders: number; sales: number; tax: number; parts: Record<string, number> }> = {};
+  for (const o of orders) {
+    let code = "";
+    try { code = String((JSON.parse(o.shippingAddress) as { region?: string }).region ?? "").toUpperCase(); } catch { /* no address */ }
+    const name = o.market.regions.find((r) => r.code === code)?.name ?? (code || (o.channel === "in_store" ? `In-store${o.locationName ? ` (${o.locationName})` : ""}` : "No region"));
+    const k = `${o.market.code}|${name}`;
+    const r = (rows[k] ??= { currency: o.currency, market: o.market.code, region: name, orders: 0, sales: 0, tax: 0, parts: {} });
+    // refunds reduce the sale pro rata, so the report matches what was really kept
+    const kept = o.total ? 1 - o.refundedAmount / o.total : 1;
+    r.orders++; r.sales += Math.round((o.total - o.tax) * kept); r.tax += Math.round(o.tax * kept);
+    // GST / PST / HST / QST separately (what the tax return asks for); orders without a split count under "Tax"
+    let parts: { name: string; amount: number }[] = [];
+    try { const p = JSON.parse(o.taxBreakdown ?? "[]"); if (Array.isArray(p)) parts = p; } catch { /* none */ }
+    if (!parts.length && o.tax) parts = [{ name: "Tax", amount: o.tax }];
+    for (const p of parts) r.parts[p.name] = (r.parts[p.name] ?? 0) + Math.round(p.amount * kept);
+  }
+  res.json(Object.values(rows).sort((a, b) => a.market.localeCompare(b.market) || b.tax - a.tax));
 });

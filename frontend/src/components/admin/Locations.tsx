@@ -10,14 +10,15 @@ import { Switch } from "./Switch";
 import { Select } from "../Select";
 import { useApi } from "./hooks";
 
-type Loc = { id?: string; name: string; company: string; line1: string; line2: string; city: string; region: string; postcode: string; country: string; phone: string; active: boolean; isDefault?: boolean };
+type Loc = { id?: string; name: string; company: string; line1: string; line2: string; city: string; region: string; postcode: string; country: string; phone: string; active: boolean; isDefault?: boolean; marketId?: string | null };
 const blank = (country = ""): Loc => ({ name: "", company: "", line1: "", line2: "", city: "", region: "", postcode: "", country, phone: "", active: true });
 
 function LocationEditor({ initial, countries, onDone }: { initial: Loc; countries: string[]; onDone: () => void }) {
   const [f, setF] = useState(initial);
+  const { data: markets = [] } = useApi<Market[]>("/markets");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const set = (k: keyof Loc, v: string | boolean) => setF((c) => ({ ...c, [k]: v }));
+  const set = (k: keyof Loc, v: string | boolean | null) => setF((c) => ({ ...c, [k]: v }));
   const val = useValidation({
     name: required(f.name, "Enter a location name") || maxLen(f.name, 100, "The name"),
     line1: required(f.line1, "Enter a street address") || maxLen(f.line1, 200, "The address"),
@@ -47,6 +48,13 @@ function LocationEditor({ initial, countries, onDone }: { initial: Loc; countrie
       {err && <div className="error">{err}</div>}
       <div className="card" style={{ maxWidth: 720 }}>
         {text("name", "Location name", { autoFocus: true, placeholder: "e.g. Toronto warehouse" })}
+        <div className="field"><label>Market this location serves</label>
+          <Select value={f.marketId ?? ""} onChange={(e) => set("marketId", e.target.value || null)}>
+            <option value="">Automatic (the market that sells to its country)</option>
+            {(markets ?? []).map((m) => <option key={m.id} value={m.id}>{m.name} ({m.currency})</option>)}
+          </Select>
+          <div className="muted">Its stock counts toward this market, and online orders from this market are picked from here.</div>
+        </div>
         <div className="field"><label>Country</label>
           <Select value={f.country} onChange={(e) => set("country", e.target.value)} {...val.props("country")}>
             <option value="">Choose a country…</option>

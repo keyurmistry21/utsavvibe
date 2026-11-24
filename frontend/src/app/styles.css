@@ -1413,3 +1413,68 @@ a.hm-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0
 .admin > form.login .brand .logo { width: 34px !important; height: 34px !important; border-radius: 10px !important; }
 .admin > form.login h2 { font-size: 26px; margin-bottom: 18px; }
 .admin > form.login button.primary { width: 100%; height: 42px; font-size: 15px; margin-top: 6px; }
+
+/* in-store basket */
+.admin .sellbasket { list-style: none; margin: 0 0 14px; padding: 0; }
+.admin .sellbasket li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f1ec; }
+.admin .sellbasket li:last-child { border-bottom: 0; }
+.admin .sellbasket img, .admin .sellbasket .ph { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background: #eef0e9; flex: none; }
+.admin .sb-info { flex: 1; min-width: 0; display: grid; gap: 1px; font-size: 13px; }
+.admin .sb-qty { display: flex; align-items: center; gap: 8px; }
+.admin .sb-qty button { width: 30px; height: 30px; padding: 0; }
+.admin .sb-price { min-width: 70px; text-align: right; font-variant-numeric: tabular-nums; }
+.admin .refundlist { list-style: none; margin: 8px 0 0; padding: 0; }
+.admin .refundlist li { padding: 8px 0; border-top: 1px solid #f0f1ec; font-size: 13.5px; }
+.admin .refundform { margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f1ec; }
+.store .discrow { color: #1b6b3a; font-weight: 600; }
+
+/* storefront search */
+.store .sf-search { flex: 1; max-width: 260px; margin: 0 14px; }
+.store .sf-search input { width: 100%; height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line, #eadfd3); background: #fff; font: inherit; }
+.store .sf-searchform { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0; }
+.store .sf-searchform input[name=q] { flex: 1; min-width: 220px; }
+.store .sf-searchform input, .store .sf-searchform select { height: 42px; padding: 0 12px; border: 1px solid var(--line, #eadfd3); border-radius: 10px; background: #fff; font: inherit; }
+.store .sf-narrow { width: 110px; }
+.store .sf-check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.store .sf-check input { width: 16px; height: 16px; }
+@media (max-width: 700px) { .store .sf-search { display: none; } }
+
+/* cookie consent */
+.consent-bar { position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 90; max-width: 760px; margin: 0 auto; background: #fff; color: #2b2118; border-radius: 16px; padding: 16px 18px; box-shadow: 0 18px 50px rgba(0,0,0,.22), 0 0 0 1px rgba(0,0,0,.08); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; font-size: 14px; line-height: 1.45; }
+.consent-bar p { flex: 1 1 320px; margin: 0; }
+.consent-actions { display: flex; gap: 8px; flex: none; }
+.consent-actions button { height: 40px; padding: 0 18px; border-radius: 999px; font: inherit; font-weight: 650; cursor: pointer; }
+.consent-primary { background: var(--accent, #b4491f); color: #fff; border: 0; }
+.consent-secondary { background: #fff; color: #2b2118; border: 1px solid #d9cdbd; }
+.store .linklike { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
+
+/* order tracking */
+.store .trackform { display: grid; gap: 12px; max-width: 420px; margin: 18px 0; }
+.store .trackcard { max-width: 560px; }
+.store .trackstatus { font-size: 20px; font-weight: 700; margin: 8px 0 12px; }
+.store .tracksteps { display: flex; list-style: none; padding: 0; margin: 0 0 14px; gap: 6px; }
+.store .tracksteps li { flex: 1; text-align: center; padding: 8px 4px; border-radius: 999px; background: #f0e8dc; color: #8a7a68; font-size: 13px; font-weight: 600; }
+.store .tracksteps li.on { background: var(--accent, #b4491f); color: #fff; }
+.store .trackitems { margin: 10px 0 0; padding-left: 18px; }
+.store .sf-searchform input[name=q] { flex: 1 1 100%; }
+.store .sf-searchform select { width: 210px; flex: 0 0 auto; }
+.store .sf-searchform .sf-check input { width: 16px; height: 16px; padding: 0; }
+.admin .lowtag { color: #8a5a00; font-weight: 700; }
+
+/* reviews + account */
+.store .stars { color: #e0a100; letter-spacing: 1px; } .store .stars i { font-style: normal; color: #d9cdbd; }
+.store .ratingline { display: inline-flex; gap: 6px; align-items: center; color: inherit; text-decoration: none; margin: 4px 0 10px; }
+.store .reviews { max-width: 760px; margin: 40px auto 0; }
+.store .reviewlist { list-style: none; padding: 0; margin: 14px 0; }
+.store .reviewlist li { padding: 14px 0; border-top: 1px solid var(--line, #eadfd3); }
+.store .reviewlist p { margin: 6px 0; }
+.store .reviewbtn { height: 42px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--accent, #b4491f); color: var(--accent, #b4491f); background: #fff; font: inherit; font-weight: 650; cursor: pointer; }
+.store .reviewform { display: grid; gap: 12px; max-width: 520px; margin-top: 12px; }
+.store .reviewform textarea, .store .reviewform select, .store .reviewform input { width: 100%; padding: 10px 12px; border: 1px solid var(--line, #eadfd3); border-radius: 10px; font: inherit; background: #fff; }
+.store .sf-acct { font-weight: 600; padding: 0 8px; }
+
+/* instagram strip */
+.store .sf-insta { margin: 48px 0 0; }
+.store .igrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; }
+.store .igrid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; display: block; }
+.admin .offlinebox ul { margin: 6px 0 10px; padding-left: 18px; }

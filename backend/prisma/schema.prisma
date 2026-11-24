@@ -33,6 +33,7 @@ model MarketRegion {
   code       String
   name       String
   taxRateBps Int    @default(0)
+  components String? @db.Text // JSON [{name, bps}] splitting taxRateBps, e.g. GST 500 + PST 700 (shown separately on receipts and in the tax report)
 
   @@unique([marketId, code])
 }
@@ -189,6 +190,13 @@ model Order {
   salespersonName String?     // name kept on the order so reports survive staff deletion
   locationId      String?     // store location of an in-store sale
   locationName    String?
+  taxBreakdown    String?     @db.Text // JSON [{name, amount}] of `tax` by component (GST, PST, ...), set when the order is placed
+  discountCode    String?     @db.VarChar(40) // storefront discount code applied (amount is in `discount`)
+  clientRef       String?     @unique @db.VarChar(40) // id made by the till for a sale taken offline, so syncing it twice can't create two orders
+  metaConsent     Boolean     @default(false) // the shopper accepted marketing cookies at checkout: allows the server-side Meta Conversions API purchase event
+  discountReleased Boolean    @default(false) // the code's use was given back (payment failed or expired)
+  refundedAmount  Int         @default(0) // minor units refunded so far (paymentStatus becomes `refunded` once it equals total)
+  refunds         OrderRefund[]
   tags            String @db.Text
   notes           String @db.Text
   createdAt       DateTime    @default(now())
@@ -232,6 +240,7 @@ model AdminUser {
   totpSecret   String?   @db.Text // AES-GCM encrypted (see src/secrets.ts); set while enrolling
   totpEnabled  Boolean   @default(false)
   preferredMarket String? @db.VarChar(8) // market code this staff member works in; null = all markets
+  allowedLocations String? @db.Text // JSON array of location ids this staff member may sell from and move stock at; null/empty = all
   allowedMarkets  String? @db.Text // JSON array of market codes an admin lets them work in (sell, create orders, record expenses); null/empty = all
   sessions     Session[]
 }
@@ -262,6 +271,7 @@ model Session {
 model Location {
   id        String   @id @default(cuid())
   name      String
+  marketId  String?  // market whose stock and orders this location serves (null = the market that sells in its country)
   company   String   @default("")
   line1     String   @default("")
   line2     String   @default("")
@@ -490,4 +500,139 @@ model TrackEvent {
   @@index([createdAt])
   @@index([sessionId])
   @@index([type, createdAt])
+}
+
+// One refund against an order: money handed back (Stripe or manually) and, optionally, items returned to stock.
+model OrderRefund {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount         Int
+  method         String   @db.VarChar(16) // stripe | manual
+  reason         String   @default("") @db.VarChar(300)
+  restocked      String   @db.Text // JSON [{title, quantity}]
+  stripeRefundId String?  @db.VarChar(80)
+  createdByEmail String   @default("") @db.VarChar(190)
+  createdAt      DateTime @default(now())
+
+  @@index([orderId])
+}
+
+// Storefront discount codes: percent off the items, a fixed amount off, or free shipping.
+model DiscountCode {
+  id          String    @id @default(cuid())
+  code        String    @unique @db.VarChar(40)
+  kind        String    @db.VarChar(16) // percent | fixed | free_shipping | buy_x_get_y
+  value       Int       @default(0) // percent: 1-100; fixed: minor units; free_shipping: 0
+  currency    String?   @db.VarChar(3) // fixed codes only work in markets with this currency
+  minSubtotal Int       @default(0) // minor units of the items before the code
+  startsAt    DateTime?
+  endsAt      DateTime?
+  buyQty      Int       @default(0) // buy_x_get_y: units that must be bought ...
+  getQty      Int       @default(0) // ... to get this many more units
+  getPercent  Int       @default(100) // percent off those units (100 = free)
+  productId   String?   @db.VarChar(40) // buy_x_get_y: only this product counts (null = any product)
+  usageLimit  Int?
+  usedCount   Int       @default(0)
+  active      Boolean   @default(true)
+  note        String    @default("") @db.VarChar(200)
+  createdAt   DateTime  @default(now())
+}
+
+// Old URL -> new URL (e.g. pages from the previous Shopify store), served as 301 by the storefront proxy.
+model Redirect {
+  id        String   @id @default(cuid())
+  fromPath  String   @unique @db.VarChar(300)
+  toPath    String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+}
+
+// Stock of one variant at one location. The market's InventoryLevel is always >= the sum of its locations' counts;
+// the difference is "unassigned" stock (counted per market before locations existed).
+model LocationStock {
+  variantId  String
+  locationId String
+  quantity   Int    @default(0)
+
+  @@id([variantId, locationId])
+  @@index([locationId])
+}
+
+// Moving stock between locations: units leave the source when the transfer is created and arrive when it is received.
+model StockTransfer {
+  id             String   @id @default(cuid())
+  fromLocationId String
+  toLocationId   String
+  status         String   @default("in_transit") @db.VarChar(16) // in_transit | received | cancelled
+  note           String   @default("") @db.VarChar(300)
+  createdByEmail String   @default("") @db.VarChar(190)
+  createdAt      DateTime @default(now())
+  receivedAt     DateTime?
+  items          StockTransferItem[]
+
+  @@index([status])
+}
+
+model StockTransferItem {
+  id         String        @id @default(cuid())
+  transferId String
+  transfer   StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  variantId  String
+  title      String        @db.VarChar(250)
+  quantity   Int
+}
+
+// Storefront customer sign-in without passwords: a 6-digit code emailed to the customer, then a session cookie.
+model CustomerLogin {
+  id        String   @id @default(cuid())
+  email     String   @db.VarChar(190)
+  codeHash  String   @db.VarChar(64)
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+}
+
+model CustomerSession {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique @db.VarChar(64)
+  customerId String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
+}
+
+// Product reviews. Verified buyers (signed in, with a paid order containing the product) are approved at once; everyone else waits for moderation.
+model ProductReview {
+  id         String   @id @default(cuid())
+  productId  String
+  customerId String?
+  name       String   @db.VarChar(80)
+  rating     Int
+  title      String   @default("") @db.VarChar(120)
+  body       String   @db.Text
+  status     String   @default("pending") @db.VarChar(12) // pending | approved | rejected
+  verified   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([productId, status])
+  @@unique([productId, customerId])
+}
+
+// Marketing campaign to customers who opted in (CASL): email to acceptsEmail, SMS to acceptsSms.
+model Campaign {
+  id          String    @id @default(cuid())
+  name        String    @db.VarChar(120)
+  channel     String    @db.VarChar(8) // email | sms
+  subject     String    @default("") @db.VarChar(200)
+  body        String    @db.Text // plain text; paragraphs separated by a blank line
+  audience    String    @default("all") @db.VarChar(60) // all | buyers | tag:<tag> | market:<CODE>
+  status      String    @default("draft") @db.VarChar(10) // draft | sending | sent
+  sentCount   Int       @default(0)
+  failedCount Int       @default(0)
+  createdBy   String    @default("") @db.VarChar(190)
+  createdAt   DateTime  @default(now())
+  sentAt      DateTime?
 }

@@ -38,3 +38,26 @@ export function taxRateFor(market: { taxRateBps: number; regions: { code: string
   const r = region && market.regions.find((x) => x.code.toUpperCase() === region.toUpperCase());
   return r ? r.taxRateBps : market.taxRateBps;
 }
+
+export type TaxComponent = { name: string; bps: number };
+
+/** Split `tax` (minor units) across components in proportion to their rates; the rounding remainder goes to the largest parts so the lines add up exactly. */
+export function splitTax(tax: number, components: TaxComponent[]): { name: string; amount: number }[] {
+  const total = components.reduce((a, c) => a + c.bps, 0);
+  if (!components.length || total <= 0 || tax <= 0) return [];
+  const raw = components.map((c) => ({ name: c.name, exact: (tax * c.bps) / total }));
+  const parts = raw.map((r) => ({ name: r.name, amount: Math.floor(r.exact), frac: r.exact - Math.floor(r.exact) }));
+  let left = tax - parts.reduce((a, p) => a + p.amount, 0);
+  for (const p of [...parts].sort((a, b) => b.frac - a.frac)) { if (left <= 0) break; p.amount++; left--; }
+  return parts.map(({ name, amount }) => ({ name, amount }));
+}
+
+/** JSON for Order.taxBreakdown: the region's components when it has them (Canada), else null so the receipt shows one tax line. */
+export function taxBreakdownFor(market: { regions: { code: string; components?: string | null }[] }, region: string | null | undefined, tax: number): string | null {
+  const r = region ? market.regions.find((x) => x.code.toUpperCase() === region.toUpperCase()) : undefined;
+  if (!r?.components) return null;
+  let comps: TaxComponent[] = [];
+  try { comps = JSON.parse(r.components); } catch { return null; }
+  const parts = splitTax(tax, comps);
+  return parts.length ? JSON.stringify(parts) : null;
+}

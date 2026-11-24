@@ -5,13 +5,15 @@ const dev = process.env.NODE_ENV !== "production";
 // no framing, no plugins, forms only to ourselves or Stripe Checkout, XHR only to our own origin (the /api proxy).
 // Google Analytics 4 is allowed only when NEXT_PUBLIC_GA_ID is set.
 const ga = !!process.env.NEXT_PUBLIC_GA_ID;
+const px = !!process.env.NEXT_PUBLIC_META_PIXEL_ID; // Meta Pixel: allowed only when configured
 const csp = [
   "default-src 'self'",
   "img-src 'self' data: blob: https:",
   "style-src 'self' 'unsafe-inline'",
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}${ga ? " https://www.googletagmanager.com" : ""}`,
-  `connect-src 'self'${dev ? " ws: wss:" : ""}${ga ? " https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com" : ""}`,
+  `script-src 'self' 'unsafe-inline' https://js.stripe.com${dev ? " 'unsafe-eval'" : ""}${ga ? " https://www.googletagmanager.com" : ""}${px ? " https://connect.facebook.net" : ""}`,
+  `connect-src 'self' https://api.stripe.com https://*.stripe-terminal-local-reader.net https://js.stripe.com${dev ? " ws: wss:" : ""}${ga ? " https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com" : ""}${px ? " https://www.facebook.com https://connect.facebook.net" : ""}`,
   "font-src 'self' data:",
+  "frame-src https://js.stripe.com", // Stripe Terminal (card reader) SDK
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self' https://checkout.stripe.com",

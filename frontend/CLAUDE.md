@@ -104,3 +104,8 @@ Never use a native `<select>` (the browser draws its list and it can't be styled
 - Login (`app/admin/layout.tsx`): a 401 containing "6-digit" or "code is not right" reveals the code field (`autocomplete="one-time-code"`) and resubmits with `code`.
 - Orders: `Order.riskLevel/riskNote` drive a banner on `OrderDetail` (medium amber, high red, confirm before fulfilling a high-risk order) and a "Review" / "High risk" badge in the orders list.
 - Shared: `CopyBox.tsx` (read-only text + Copy). The role `Select` is the custom dropdown (not a native `<select>`), so UI tests click the trigger then `[role=option]`.
+
+## Newer admin and storefront pieces
+- Admin: `Home.tsx` (today/yesterday/7-day sales, to-do chips, recent orders, visitors, stock), `AnalyticsTabs` -> `Dashboard` (Earnings) + `Insights` (sales insights, traffic, tax by province), `Sell.tsx` (`/admin/sell[/<code>]`, basket + card/cash), `Discounts.tsx`, `Redirects.tsx`, `RefundCard.tsx` (on the order page). The sidebar sub-menus are `Sub` accordions in `app/admin/layout.tsx`; Settings link + store menu are pinned in `.sidefoot`.
+- Storefront: `[market]/search` (server-side filter/sort of the market's products), `[market]/track-order`, header search box, `ConsentBanner` (choice in `localStorage` key `uv_consent`, see `lib/consent.ts`), `Tracker` (first-party events always; Google Analytics 4 via `NEXT_PUBLIC_GA_ID` and Meta Pixel via `NEXT_PUBLIC_META_PIXEL_ID` only after "Accept all"; CSP allows those hosts only when the ids are set), `lib/track.ts`. The cart shows live stock and a discount code box.
+- Styling: one admin design layer at the end of `styles.css` (tokens `--brand` dark green, white cards, uppercase table headers, segmented `.tabs`); Earnings/Home share the `ep-*` classes.

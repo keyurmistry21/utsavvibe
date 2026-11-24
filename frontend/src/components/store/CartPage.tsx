@@ -7,12 +7,14 @@ import { Select } from "../Select";
 import { email as emailErr, maxLen, phone as phoneErr, postcode as postcodeErr, required } from "@/lib/validators";
 import { FieldError, useValidation } from "../admin/validation";
 import { track } from "@/lib/track";
+import { getConsent } from "@/lib/consent";
 
 type Quote = {
   currency: string; taxInclusive: boolean; region: string | null;
   lines: { variantId: string; title: string; quantity: number; unitPrice: number }[];
   subtotal: number; tax: number; shipping: number; total: number; taxSource?: "stripe" | "market"; freeShippingRemaining?: number | null;
   giftCardApplied: number; amountDue: number; giftCardBalance: number | null;
+  discount?: number; discountCode?: string | null; discountLabel?: string | null; taxBreakdown?: { name: string; amount: number }[];
   stock?: { variantId: string; title: string; requested: number; available: number | null; ok: boolean }[];
 };
 
@@ -33,6 +35,9 @@ export function CartPage({ market, country, regions }: { market: string; country
   const [giftInput, setGiftInput] = useState("");
   const [giftCode, setGiftCode] = useState(""); // applied code; the server re-checks it on every quote and at checkout
   const [giftErr, setGiftErr] = useState("");
+  const [discInput, setDiscInput] = useState("");
+  const [discCode, setDiscCode] = useState(""); // discount code the shopper applied; re-checked by the server on every quote and at checkout
+  const [discErr, setDiscErr] = useState("");
   const [f, setF] = useState({ name: "", email: "", phone: "", line1: "", line2: "", city: "", region: "", postcode: "" });
   const [marketing, setMarketing] = useState(false);
   const [debounced, setDebounced] = useState<{ line1: string; city: string; postcode: string } | null>(null);
@@ -76,14 +81,24 @@ export function CartPage({ market, country, regions }: { market: string; country
   useEffect(() => {
     if (!lines.length) return setQuote(null);
     setErr("");
-    post<Quote>("/quote", { marketCode: market.toUpperCase(), region: region || undefined, giftCardCode: giftCode || undefined, address: taxAddress, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) })
+    post<Quote>("/quote", { marketCode: market.toUpperCase(), region: region || undefined, giftCardCode: giftCode || undefined, discountCode: discCode || undefined, address: taxAddress, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) })
       .then(setQuote)
-      .catch((e) => { setErr(e.message); if (giftCode) { setGiftCode(""); setGiftErr(e.message); } });
-  }, [lines, market, region, giftCode, recheck, taxAddress?.postcode, taxAddress?.line1, taxAddress?.city]);
+      .catch((e) => { if (discCode && /discount|code/i.test(e.message)) { setDiscCode(""); setDiscErr(e.message); return; } setErr(e.message); if (giftCode) { setGiftCode(""); setGiftErr(e.message); } });
+  }, [lines, market, region, giftCode, discCode, recheck, taxAddress?.postcode, taxAddress?.line1, taxAddress?.city]);
 
   // Stock is re-read from the server every time the cart opens or changes; checkout stays off while any line can't be fulfilled.
   const issues = (quote?.stock ?? []).filter((x) => !x.ok);
   const fixCart = () => { for (const x of issues) setQty(x.variantId, x.available ?? 0); };
+
+  const applyDiscount = async () => {
+    setDiscErr("");
+    const code = discInput.trim();
+    if (!code) return setDiscErr("Enter your discount code");
+    try {
+      await post<Quote>("/quote", { marketCode: market.toUpperCase(), region: region || undefined, discountCode: code, items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) });
+      setDiscCode(code); setDiscInput("");
+    } catch (e) { setDiscErr((e as Error).message); }
+  };
 
   const applyGift = async () => {
     setGiftErr("");
@@ -116,6 +131,8 @@ export function CartPage({ market, country, regions }: { market: string; country
       const { url } = await post<{ url: string }>("/checkout", {
         marketCode: market.toUpperCase(),
         giftCardCode: giftCode || undefined,
+        discountCode: discCode || undefined,
+        consent: getConsent() === "all",
         items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
         name: f.name, email: f.email, phone: f.phone || undefined, marketing,
         address: { line1: f.line1, line2: f.line2 || undefined, city: f.city, region: region || f.region || undefined, postcode: f.postcode, country },
@@ -159,8 +176,11 @@ export function CartPage({ market, country, regions }: { market: string; country
         {quote && (
           <div className="carttotals">
             <div><span>Subtotal</span><span>{money(quote.subtotal, quote.currency)}</span></div>
+            {!!quote.discount && <div className="discrow"><span>Discount ({quote.discountCode})</span><span>−{money(quote.discount, quote.currency)}</span></div>}
             <div><span>Shipping</span><span>{quote.shipping ? money(quote.shipping, quote.currency) : "Free"}</span></div>
-            <div className="taxrow"><span>{quote.taxInclusive ? "Includes tax" : "Tax"}{quote.region ? ` (${regions.find((r) => r.code === quote.region)?.name})` : ""}{quote.taxSource === "stripe" ? " for your address" : ""}</span><span>{money(quote.tax, quote.currency)}</span></div>
+            {quote.taxBreakdown?.length ? quote.taxBreakdown.map((t) => <div key={t.name} className="taxrow"><span>{t.name}{quote.taxInclusive ? " (included)" : ""}</span><span>{money(t.amount, quote.currency)}</span></div>) : (
+              <div className="taxrow"><span>{quote.taxInclusive ? "Includes tax" : "Tax"}{quote.region ? ` (${regions.find((r) => r.code === quote.region)?.name})` : ""}{quote.taxSource === "stripe" ? " for your address" : ""}</span><span>{money(quote.tax, quote.currency)}</span></div>
+            )}
             {!!regions.length && !quote.region && <div className="muted">Select your province to see exact tax.</div>}
             <div className="grand"><span>Total</span><b>{money(quote.total, quote.currency)}</b></div>
             {quote.giftCardApplied > 0 && <>
@@ -169,6 +189,19 @@ export function CartPage({ market, country, regions }: { market: string; country
             </>}
           </div>
         )}
+        <div className="giftbox">
+          {discCode ? (
+            <p className="giftok">Code <b>{quote?.discountCode ?? discCode}</b> applied{quote?.discountLabel ? ` (${quote.discountLabel})` : ""}. <button className="link" onClick={() => { setDiscCode(""); setDiscErr(""); }}>Remove</button></p>
+          ) : (
+            <>
+              <div className="giftrow">
+                <input aria-label="Discount code" placeholder="Discount code" value={discInput} onChange={(e) => setDiscInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") applyDiscount(); }} autoComplete="off" />
+                <button onClick={applyDiscount}>Apply</button>
+              </div>
+              {discErr && <div className="error" style={{ marginTop: 8 }}>{discErr}</div>}
+            </>
+          )}
+        </div>
         <div className="giftbox">
           {giftCode ? (
             <p className="giftok">Gift card applied{quote?.giftCardBalance != null ? ` (balance ${money(quote.giftCardBalance, quote.currency)})` : ""}. <button className="link" onClick={() => { setGiftCode(""); setGiftErr(""); }}>Remove</button></p>

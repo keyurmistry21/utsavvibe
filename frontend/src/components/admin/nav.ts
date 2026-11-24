@@ -22,6 +22,9 @@ export const icons = {
   shield: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4",
   cart: "M3 4h2l2 11h11l2-8H6M9 20h.01M17 20h.01",
   receipt: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6",
+  box: "M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8",
+  mail: "M3 6h18v12H3zM3 7l9 6 9-6",
+  tag: "M3 12l9-9h8v8l-9 9zM15.5 8.5h.01M7 12l5 5",
   search: "M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.3-4.3",
 } as const;
 
@@ -30,10 +33,13 @@ export const links = [
   { href: "/admin/orders", label: "Orders", icon: icons.orders, perm: "orders.view" },
   { href: "/admin/sell", label: "Sell in store", icon: icons.cart, perm: "orders.manage" },
   { href: "/admin/products", label: "Products", icon: icons.products, perm: "products.view" },
+  { href: "/admin/inventory", label: "Inventory", icon: icons.box, perm: "products.view" },
   { href: "/admin/customers", label: "Customers", icon: icons.customers, perm: "customers.view" },
   { href: "/admin/expenses", label: "Expenses", icon: icons.receipt, perm: "expenses.view" },
   { href: "/admin/markets", label: "Markets", icon: icons.markets, perm: "markets.manage" },
+  { href: "/admin/discounts", label: "Discounts", icon: icons.tag, perm: "integrations.manage" },
   { href: "/admin/marketing", label: "Marketing", icon: icons.megaphone, perm: "integrations.manage" },
+  { href: "/admin/campaigns", label: "Campaigns", icon: icons.mail, perm: "integrations.manage" },
   { href: "/admin/analytics", label: "Earnings", icon: icons.analytics, perm: "analytics.view" },
   { href: "/admin/online-store", label: "Online Store", icon: icons.store, perm: "online_store.manage" },
 ] as const;

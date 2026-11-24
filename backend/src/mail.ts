@@ -15,7 +15,7 @@ function transport(): Transporter {
   }));
 }
 
-export type MailKind = "order_confirmation" | "payment_link" | "gift_card" | "abandoned_checkout" | "fraud_alert" | "test";
+export type MailKind = "order_confirmation" | "payment_link" | "gift_card" | "abandoned_checkout" | "fraud_alert" | "low_stock" | "login_code" | "campaign" | "test";
 export type SendResult = { status: "sent" | "failed" | "skipped"; error?: string };
 
 // Never throws: callers (webhooks, admin actions) must not fail because an email did.

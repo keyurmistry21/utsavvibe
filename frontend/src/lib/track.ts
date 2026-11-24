@@ -47,4 +47,8 @@ export function track(type: TrackType, extra: { seconds?: number; data?: Record<
   try { fetch("/api/store/track", { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => {}); } catch { /* never break the page */ }
   const gt = (window as unknown as { gtag?: Gtag }).gtag;
   if (gt && type !== "page_leave") gt("event", type, { ...extra.data, page_path: path });
+  // Meta Pixel (only present when the visitor accepted): same funnel under Meta's standard event names
+  const fb = (window as unknown as { fbq?: (...a: unknown[]) => void }).fbq;
+  const META: Partial<Record<TrackType, string>> = { view_item: "ViewContent", add_to_cart: "AddToCart", begin_checkout: "InitiateCheckout", purchase: "Purchase" };
+  if (fb && META[type]) fb("track", META[type], { currency: extra.data?.currency, value: extra.data?.value }, type === "purchase" && extra.data?.transaction_id ? { eventID: `order-${extra.data.transaction_id}` } : undefined);
 }

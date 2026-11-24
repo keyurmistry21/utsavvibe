@@ -3,27 +3,31 @@ import { z } from "zod";
 import { prisma, parseJson } from "../db.js";
 import { previewEmail, sendOrderConfirmation } from "../orderEmails.js";
 import { releaseForOrder } from "../giftCards.js";
-import { orderScopeParam, scopeCodes } from "../auth.js";
+import { orderScopeParam, scopeCodes, scopeLocations } from "../auth.js";
 import { emitOrder } from "../webhooks.js";
 import { audit } from "../audit.js";
+import { stripe } from "../stripe.js";
+import { adjustStock, adjustLocationStock } from "../stock.js";
 
 export const ordersRouter = Router();
 ordersRouter.param("id", orderScopeParam);
 
-const include = { items: true, customer: true, market: { include: { regions: true } } } as const;
+const include = { items: true, customer: true, market: { include: { regions: true } }, refunds: { orderBy: { createdAt: "desc" } } } as const;
 const shape = (o: any) => ({
   ...o,
   tags: parseJson<string[]>(o.tags, []),
   shippingAddress: parseJson(o.shippingAddress, {}),
+  taxBreakdown: parseJson<{ name: string; amount: number }[]>(o.taxBreakdown ?? "[]", []),
   market: o.market && { ...o.market, countries: parseJson(o.market.countries, []) },
 });
 
 ordersRouter.get("/", async (req, res) => {
-  const { status, paymentStatus, marketId, market } = req.query as Record<string, string | undefined>;
+  const { status, paymentStatus, marketId, market, channel } = req.query as Record<string, string | undefined>;
   const scope = scopeCodes(req); // staff limited to some markets only ever see those
+  const locScope = scopeLocations(req); // ... and counter staff only see in-store sales from their own locations (online orders stay visible)
   const orders = await prisma.order.findMany({
     // drafts live under /drafts or ?status=draft; they are not orders yet
-    where: { status: status ? status : { not: "draft" }, ...(paymentStatus && { paymentStatus }), ...(marketId && { marketId }), ...(market ? { market: { code: scope && !scope.includes(market.toUpperCase()) ? "-" : market.toUpperCase() } } : scope ? { market: { code: { in: scope } } } : {}) },
+    where: { status: status ? status : { not: "draft" }, ...(paymentStatus && { paymentStatus }), ...((channel === "online" || channel === "in_store") && { channel }), ...(locScope ? { OR: [{ channel: "online" }, { locationId: { in: locScope } }] } : {}), ...(marketId && { marketId }), ...(market ? { market: { code: scope && !scope.includes(market.toUpperCase()) ? "-" : market.toUpperCase() } } : scope ? { market: { code: { in: scope } } } : {}) },
     include,
     orderBy: { createdAt: "desc" },
     take: 200,
@@ -93,4 +97,58 @@ ordersRouter.patch("/:id", async (req, res) => {
   }
   if (d.status === "fulfilled" && current.status !== "fulfilled") void emitOrder("order.fulfilled", o.id);
   res.json(shape(o));
+});
+
+// ---- Refunds and returns ----
+// Stripe-paid orders are refunded through Stripe (the money goes back to the card); cash, bank transfer and gift card orders
+// are recorded as a manual refund (staff hand the money back). Items can be returned to stock in the same step.
+const refundInput = z.object({
+  amount: z.number().int().min(1),
+  reason: z.string().trim().max(300).default(""),
+  restock: z.array(z.object({ itemId: z.string(), quantity: z.number().int().min(1).max(999) })).default([]),
+});
+
+ordersRouter.post("/:id/refund", async (req, res) => {
+  const d = refundInput.parse(req.body);
+  const o = await prisma.order.findUnique({ where: { id: req.params.id }, include: { items: true, customer: true, market: true } });
+  if (!o) return void res.status(404).json({ error: "not found" });
+  if (o.paymentStatus !== "paid") return void res.status(409).json({ error: o.paymentStatus === "refunded" ? "This order is already fully refunded" : "Only paid orders can be refunded" });
+  const left = o.total - o.refundedAmount;
+  if (d.amount > left) return void res.status(400).json({ error: `You can refund at most ${(left / 100).toFixed(2)} ${o.currency}` });
+
+  // returning items: only lines of this order, never more than were bought
+  const back: { itemId: string; title: string; quantity: number; variantId: string; track: boolean }[] = [];
+  for (const r of d.restock) {
+    const it = o.items.find((i) => i.id === r.itemId);
+    if (!it || !it.variantId) return void res.status(400).json({ error: "That item can't be returned to stock" });
+    if (r.quantity > it.quantity) return void res.status(400).json({ error: `Only ${it.quantity} of ${it.title} were bought` });
+    const v = await prisma.variant.findUnique({ where: { id: it.variantId }, include: { product: { select: { trackInventory: true } } } });
+    back.push({ itemId: it.id, title: it.title, quantity: r.quantity, variantId: it.variantId, track: !!v?.product.trackInventory });
+  }
+
+  let stripeRefundId: string | null = null;
+  const viaStripe = o.paymentMethod === "stripe" && !!o.stripePaymentIntentId;
+  if (viaStripe) {
+    const stripeShare = o.total - o.giftCardAmount; // the part of the total that was charged to the card
+    if (d.amount + o.refundedAmount > stripeShare && o.giftCardAmount > 0) return void res.status(400).json({ error: "Part of this order was paid by gift card. Refund the card part here and adjust the gift card under Gift cards." });
+    try {
+      const r = await stripe().refunds.create({ payment_intent: o.stripePaymentIntentId!, amount: d.amount, reason: "requested_by_customer", metadata: { orderId: o.id } }, { idempotencyKey: `refund-${o.id}-${o.refundedAmount}-${d.amount}` });
+      stripeRefundId = r.id;
+    } catch (e) {
+      return void res.status(502).json({ error: `Stripe could not refund: ${(e as Error).message}` });
+    }
+  }
+
+  const user = (req as any).user as { email: string } | undefined;
+  const full = o.refundedAmount + d.amount >= o.total;
+  await prisma.$transaction(async (tx) => {
+    await tx.orderRefund.create({ data: { orderId: o.id, amount: d.amount, method: viaStripe ? "stripe" : "manual", reason: d.reason, restocked: JSON.stringify(back.map((b) => ({ title: b.title, quantity: b.quantity }))), stripeRefundId, createdByEmail: user?.email ?? "" } });
+    await tx.order.update({ where: { id: o.id }, data: { refundedAmount: { increment: d.amount }, ...(full ? { paymentStatus: "refunded" } : {}) } });
+    // returned items go back to the location that sent them out (else just to the market)
+    for (const b of back) if (b.track) { if (o.locationId) await adjustLocationStock(tx, b.variantId, o.locationId, b.quantity); else await adjustStock(tx, b.variantId, o.marketId, b.quantity); }
+  });
+  await audit(req, "order_refunded", `order #${o.number} ${(d.amount / 100).toFixed(2)} ${o.currency}${viaStripe ? " via Stripe" : " manually"}`);
+  if (full) void emitOrder("order.refunded", o.id);
+  const fresh = await prisma.order.findUnique({ where: { id: o.id }, include });
+  res.json(shape(fresh));
 });

@@ -17,6 +17,12 @@ for (const { ship, countries, ...m } of markets) {
 console.log("seeded markets");
 
 // Canadian combined sales tax by province (GST/HST/PST/QST), in basis points. Verify with your accountant before relying on these.
+// How each province's total splits (GST federal, PST provincial, HST combined, QST Quebec). Shown separately on receipts and the tax report.
+const CA_PARTS: Record<string, { name: string; bps: number }[]> = {
+  AB: [{ name: "GST", bps: 500 }], BC: [{ name: "GST", bps: 500 }, { name: "PST", bps: 700 }], MB: [{ name: "GST", bps: 500 }, { name: "PST", bps: 700 }],
+  NB: [{ name: "HST", bps: 1500 }], NL: [{ name: "HST", bps: 1500 }], NS: [{ name: "HST", bps: 1400 }], NT: [{ name: "GST", bps: 500 }], NU: [{ name: "GST", bps: 500 }],
+  ON: [{ name: "HST", bps: 1300 }], PE: [{ name: "HST", bps: 1500 }], QC: [{ name: "GST", bps: 500 }, { name: "QST", bps: 998 }], SK: [{ name: "GST", bps: 500 }, { name: "PST", bps: 600 }], YT: [{ name: "GST", bps: 500 }],
+};
 const caRegions: [string, string, number][] = [
   ["AB", "Alberta", 500], ["BC", "British Columbia", 1200], ["MB", "Manitoba", 1200], ["NB", "New Brunswick", 1500],
   ["NL", "Newfoundland and Labrador", 1500], ["NS", "Nova Scotia", 1400], ["NT", "Northwest Territories", 500],
@@ -26,7 +32,7 @@ const caRegions: [string, string, number][] = [
 const ca = await prisma.market.findUnique({ where: { code: "CA" } });
 if (ca) {
   for (const [code, name, taxRateBps] of caRegions) {
-    await prisma.marketRegion.upsert({ where: { marketId_code: { marketId: ca.id, code } }, create: { marketId: ca.id, code, name, taxRateBps }, update: {} });
+    await prisma.marketRegion.upsert({ where: { marketId_code: { marketId: ca.id, code } }, create: { marketId: ca.id, code, name, taxRateBps, components: JSON.stringify(CA_PARTS[code] ?? []) }, update: { components: JSON.stringify(CA_PARTS[code] ?? []) } });
   }
   console.log("seeded CA provinces");
 }

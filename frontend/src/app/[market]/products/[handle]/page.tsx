@@ -7,6 +7,7 @@ import { htmlToText } from "@/lib/text";
 import { JsonLd } from "@/components/store/JsonLd";
 import { AddToCart } from "@/components/store/AddToCart";
 import { Gallery } from "@/components/store/Gallery";
+import { Reviews, type ReviewData } from "@/components/store/Reviews";
 
 type Props = { params: Promise<{ market: string; handle: string }>; searchParams?: Promise<{ variant?: string }> };
 
@@ -48,6 +49,8 @@ export default async function ProductPage({ params, searchParams }: Props) {
     ...(v.barcode ? { gtin: v.barcode } : {}),
   }));
   const first = p.variants[0];
+  // approved reviews (fresh: a moderator can hide one at any time)
+  const rv: ReviewData | null = await fetch(`${process.env.BACKEND_URL ?? "http://localhost:4000"}/api/store/reviews/${encodeURIComponent(handle)}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
 
   return (
     <>
@@ -63,6 +66,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
           ...(first?.sku ? { sku: first.sku } : {}),
           ...(first?.barcode ? { gtin: first.barcode } : {}),
           offers,
+          ...(rv?.count && rv.average ? { aggregateRating: { "@type": "AggregateRating", ratingValue: rv.average, reviewCount: rv.count } } : {}),
         },
         {
           "@context": "https://schema.org",
@@ -78,6 +82,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
         <Gallery images={p.images} title={p.title} />
         <div>
           <h1>{p.title}</h1>
+          {rv?.count ? <a href="#reviews" className="ratingline" aria-label={`${rv.average} out of 5 stars, ${rv.count} reviews`}><span className="stars" aria-hidden="true">{"★★★★★".slice(0, Math.round(rv.average ?? 0))}<i>{"★★★★★".slice(Math.round(rv.average ?? 0))}</i></span> {rv.average} ({rv.count})</a> : null}
           <AddToCart product={p} market={market.toLowerCase()} highlight={variant} />
           {/* sanitized by the API when the product is saved */}
           <div className="desc" dangerouslySetInnerHTML={{ __html: p.descriptionHtml }} />
@@ -90,6 +95,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
           <div className="tags">{p.tags.filter((t) => t !== "demo").map((t) => <span key={t} className="chip">{t}</span>)}</div>
         </div>
       </div>
+      <Reviews handle={handle} data={rv} />
     </>
   );
 }

@@ -5,6 +5,7 @@ import { CartProvider } from "@/components/store/cart";
 import { CartLink } from "@/components/store/CartLink";
 import { MarketSwitcher } from "@/components/store/MarketSwitcher";
 import { Tracker } from "@/components/store/Tracker";
+import { ConsentBanner, CookieSettingsLink } from "@/components/store/ConsentBanner";
 
 export default async function MarketLayout({ children, params }: { children: React.ReactNode; params: Promise<{ market: string }> }) {
   const { market } = await params;
@@ -16,6 +17,7 @@ export default async function MarketLayout({ children, params }: { children: Rea
   return (
     <CartProvider market={code}>
       <Tracker />
+      <ConsentBanner />
       <div className="store sf">
         <div className="announce">{site.announcement || <>Free shipping on orders over {current.shippingRates[0]?.freeOverAmount != null ? new Intl.NumberFormat("en", { style: "currency", currency: current.currency, maximumFractionDigits: 0 }).format(current.shippingRates[0].freeOverAmount / 100) : "—"} · Shipping to {current.name}</>}</div>
         <header className="sf-head">
@@ -23,8 +25,12 @@ export default async function MarketLayout({ children, params }: { children: Rea
           <nav>
             {site.headerMenu.map((m, i) => <Link key={i} href={menuHref(code, m.url)}>{m.label}</Link>)}
           </nav>
+          <form action={`/${code}/search`} method="get" className="sf-search" role="search">
+            <input name="q" placeholder="Search" aria-label="Search products" />
+          </form>
           <div className="sf-right">
             <MarketSwitcher current={{ code: current.code, currency: current.currency }} markets={markets.map((m) => ({ id: m.id, code: m.code, name: m.name, currency: m.currency, on: m.id === current.id }))} />
+            <Link href={`/${code}/account`} className="sf-acct">Account</Link>
             <CartLink market={code} />
           </div>
         </header>
@@ -37,7 +43,7 @@ export default async function MarketLayout({ children, params }: { children: Rea
           </div>
           {policies.length > 0 && <ul className="sf-footnav sf-policies">{policies.map((p) => <li key={p.key}><Link href={`/${code}/policies/${p.key}`}>{p.title}</Link></li>)}</ul>}
           <div className="muted">
-            Secure payments by Stripe · {current.taxInclusive ? "Prices include tax" : "Tax added at checkout"}
+            <Link href={`/${code}/track-order`}>Track your order</Link> · <CookieSettingsLink /> · Secure payments by Stripe · {current.taxInclusive ? "Prices include tax" : "Tax added at checkout"}
           </div>
         </footer>
       </div>

@@ -17,6 +17,7 @@ const input = z.object({
   country: z.string().trim().toUpperCase().length(2, "Choose a country"),
   phone: z.string().trim().max(30).default(""),
   active: z.boolean().default(true),
+  marketId: z.string().max(40).nullable().optional(),
 });
 
 /** The sender address for labels: the default location, else the legacy ship-from setting. */

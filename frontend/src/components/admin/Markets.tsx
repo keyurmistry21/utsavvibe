@@ -31,6 +31,7 @@ function MarketEditor({ initial, onDone }: { initial: Draft; onDone: () => void 
     E[`rc${i}`] = !r.code.trim() ? "Enter a code" : m.regions.some((o, j) => j < i && o.code === r.code) ? "Duplicate code" : "";
     E[`rn${i}`] = required(r.name, "Enter a name");
     E[`rt${i}`] = r.taxRateBps < 0 || r.taxRateBps > 10000 ? "Between 0 and 100" : "";
+    E[`rp${i}`] = r.components?.length && r.components.reduce((a, c) => a + c.bps, 0) !== r.taxRateBps ? "Parts must add up to the total" : "";
   });
   m.shippingRates.forEach((r, i) => {
     E[`sn${i}`] = required(r.name, "Enter a rate name");
@@ -78,6 +79,7 @@ function MarketEditor({ initial, onDone }: { initial: Draft; onDone: () => void 
           {f(`rc${i}`, "Code", <input id={`mk-rc${i}`} value={r.code} maxLength={8} onChange={(e) => setRegion(i, { code: e.target.value.toUpperCase() })} {...val.props(`rc${i}`)} />)}
           {f(`rn${i}`, "Name", <input id={`mk-rn${i}`} value={r.name} onChange={(e) => setRegion(i, { name: e.target.value })} {...val.props(`rn${i}`)} />)}
           {f(`rt${i}`, "Total tax %", <input id={`mk-rt${i}`} type="number" step="0.001" value={r.taxRateBps / 100} onChange={(e) => setRegion(i, { taxRateBps: Math.round(parseFloat(e.target.value || "0") * 100) })} {...val.props(`rt${i}`)} />)}
+          {f(`rp${i}`, "Parts (optional)", <input id={`mk-rp${i}`} placeholder="GST 5 + PST 7" defaultValue={(r.components ?? []).map((c) => `${c.name} ${c.bps / 100}`).join(" + ")} onChange={(e) => setRegion(i, { components: parseParts(e.target.value) })} {...val.props(`rp${i}`)} />)}
           <div className="field" style={{ flex: "none", minWidth: 0 }}><button className="link" onClick={() => setM({ ...m, regions: m.regions.filter((_, j) => j !== i) })}>Remove</button></div>
         </div>
       ))}
@@ -99,6 +101,9 @@ function MarketEditor({ initial, onDone }: { initial: Draft; onDone: () => void 
     </div>
   );
 }
+
+// "GST 5 + PST 7" -> [{name: GST, bps: 500}, {name: PST, bps: 700}]; empty = no split
+const parseParts = (t: string) => { const out = t.split(/[+,]/).map((x) => x.trim().match(/^([A-Za-z]{2,10})\s+([\d.]+)%?$/)).filter(Boolean).map((m) => ({ name: m![1].toUpperCase(), bps: Math.round(parseFloat(m![2]) * 100) })); return out.length ? out : null; };
 
 export function Markets() {
   const { data, error, reload } = useApi<Market[]>("/markets");

@@ -8,6 +8,7 @@ import { carriers, trackingUrl } from "@/lib/carriers";
 import { Badge } from "./hooks";
 import { OrderEmails } from "./OrderEmails";
 import { ShippingLabel } from "./ShippingLabel";
+import { RefundCard } from "./RefundCard";
 import { External } from "../Icons";
 import { Select } from "../Select";
 
@@ -78,7 +79,7 @@ export function OrderDetail({ id }: { id: string }) {
               <div><span>Subtotal</span><span>{money(o.subtotal, o.currency)}</span></div>
               {o.discount > 0 && <div><span>Discount{o.discountNote ? ` (${o.discountNote})` : ""}</span><span>−{money(o.discount, o.currency)}</span></div>}
               <div><span>Shipping</span><span>{o.shipping ? money(o.shipping, o.currency) : "Free"}</span></div>
-              <div><span>{o.market.taxInclusive ? "Tax (included)" : "Tax"}{region ? ` · ${region}` : ""}</span><span>{money(o.tax, o.currency)}</span></div>
+              {o.taxBreakdown?.length ? o.taxBreakdown.map((t) => <div key={t.name}><span>{t.name}{o.market.taxInclusive ? " (included)" : ""}{region ? ` · ${region}` : ""}</span><span>{money(t.amount, o.currency)}</span></div>) : <div><span>{o.market.taxInclusive ? "Tax (included)" : "Tax"}{region ? ` · ${region}` : ""}</span><span>{money(o.tax, o.currency)}</span></div>}
               <div className="grand"><span>Total</span><span>{money(o.total, o.currency)}</span></div>
               {!!o.giftCardAmount && <div><span>Paid by gift card</span><span>{money(o.giftCardAmount, o.currency)}</span></div>}
             </div>
@@ -145,6 +146,8 @@ export function OrderDetail({ id }: { id: string }) {
           )}
 
           {!isDraft && paid && o.status !== "cancelled" && o.items.some((i) => i.physical) && <ShippingLabel orderId={id} weightG={ship.weight} tick={emailTick} onChanged={(m) => run(async () => {}, m)} />}
+
+          {!isDraft && <RefundCard order={o} onDone={() => run(async () => {}, "Refund recorded")} />}
 
           <OrderEmails orderId={id} paid={paid} hasEmail={!!o.customer?.email} tick={emailTick} onChanged={() => setEmailTick((t) => t + 1)} />
         </div>

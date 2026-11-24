@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { actor, actorPerms, hashPassword, marketScope } from "../auth.js";
+import { actor, actorPerms, hashPassword, marketScope, locationScope } from "../auth.js";
 import { audit } from "../audit.js";
 import { has, OWNER, PERMISSION_GROUPS, permsOf, validPermissions } from "../permissions.js";
 
@@ -9,8 +9,8 @@ import { has, OWNER, PERMISSION_GROUPS, permsOf, validPermissions } from "../per
 export const usersRouter = Router();
 const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { status });
 
-const publicUser = (u: { allowedMarkets?: string | null; id: string; email: string; name: string; active: boolean; lastLoginAt: Date | null; createdAt: Date; role: { id: string; name: string } | null }) => ({
-  id: u.id, email: u.email, name: u.name, active: u.active, lastLoginAt: u.lastLoginAt, createdAt: u.createdAt, allowedMarkets: (() => { try { const a = JSON.parse(u.allowedMarkets ?? "[]"); return Array.isArray(a) ? a : []; } catch { return []; } })(), role: u.role ? { id: u.role.id, name: u.role.name } : null,
+const publicUser = (u: { allowedMarkets?: string | null; allowedLocations?: string | null; id: string; email: string; name: string; active: boolean; lastLoginAt: Date | null; createdAt: Date; role: { id: string; name: string } | null }) => ({
+  id: u.id, email: u.email, name: u.name, active: u.active, lastLoginAt: u.lastLoginAt, createdAt: u.createdAt, allowedMarkets: (() => { try { const a = JSON.parse(u.allowedMarkets ?? "[]"); return Array.isArray(a) ? a : []; } catch { return []; } })(), allowedLocations: (() => { try { const a = JSON.parse(u.allowedLocations ?? "[]"); return Array.isArray(a) ? a : []; } catch { return []; } })(), role: u.role ? { id: u.role.id, name: u.role.name } : null,
 });
 const include = { role: { select: { id: true, name: true } } } as const;
 const password = z.string().min(10, "Use at least 10 characters").max(200);
@@ -53,18 +53,26 @@ usersRouter.get("/", async (_req, res) => {
   res.json(users.map(publicUser));
 });
 
+/** Only real, active location ids are stored. */
+async function checkLocations(ids: string[]) {
+  if (!ids.length) return [];
+  const found = await prisma.location.findMany({ where: { id: { in: ids } }, select: { id: true } });
+  if (found.length !== new Set(ids).size) throw bad("Unknown location");
+  return found.map((l) => l.id);
+}
+
 usersRouter.post("/", async (req, res) => {
-  const d = z.object({ email: z.string().trim().toLowerCase().email(), name: z.string().trim().min(1, "Enter a name").max(100), roleId: z.string(), password, allowedMarkets: marketList }).parse(req.body);
+  const d = z.object({ email: z.string().trim().toLowerCase().email(), name: z.string().trim().min(1, "Enter a name").max(100), roleId: z.string(), password, allowedMarkets: marketList, allowedLocations: z.array(z.string().max(40)).max(50).default([]) }).parse(req.body);
   await assertCanGrant(req, d.roleId);
   const markets = await checkMarkets(req, d.allowedMarkets);
   if (await prisma.adminUser.findUnique({ where: { email: d.email } })) throw bad("A staff member with this email already exists", 409);
-  const u = await prisma.adminUser.create({ data: { email: d.email, name: d.name, roleId: d.roleId, allowedMarkets: markets.length ? JSON.stringify(markets) : null, passwordHash: await hashPassword(d.password) }, include });
+  const u = await prisma.adminUser.create({ data: { email: d.email, name: d.name, roleId: d.roleId, allowedMarkets: markets.length ? JSON.stringify(markets) : null, allowedLocations: (await checkLocations(d.allowedLocations)).length ? JSON.stringify(await checkLocations(d.allowedLocations)) : null, passwordHash: await hashPassword(d.password) }, include });
   await audit(req, "staff_created", `${u.email} as ${u.role?.name}`);
   res.status(201).json(publicUser(u));
 });
 
 usersRouter.put("/:id", async (req, res) => {
-  const d = z.object({ name: z.string().trim().min(1).max(100), roleId: z.string(), active: z.boolean(), allowedMarkets: marketList.optional() }).parse(req.body);
+  const d = z.object({ name: z.string().trim().min(1).max(100), roleId: z.string(), active: z.boolean(), allowedMarkets: marketList.optional(), allowedLocations: z.array(z.string().max(40)).max(50).optional() }).parse(req.body);
   const cur = await prisma.adminUser.findUnique({ where: { id: req.params.id }, include: { role: true } });
   if (!cur) throw bad("User not found", 404);
   const me = actor(req);
@@ -85,7 +93,15 @@ usersRouter.put("/:id", async (req, res) => {
     if (changed && cur.id === me.id) throw bad("You can't change your own markets. Ask another admin.");
     if (changed) { marketsData = { allowedMarkets: markets.length ? JSON.stringify(markets) : null }; await audit(req, "staff_markets_changed", `${cur.email}: ${markets.length ? markets.join(", ") : "all markets"}`); }
   }
-  const u = await prisma.adminUser.update({ where: { id: cur.id }, data: { name: d.name, roleId: d.roleId, active: d.active, ...marketsData }, include });
+  let locData: { allowedLocations: string | null } | Record<string, never> = {};
+  if (d.allowedLocations) {
+    const locs = await checkLocations(d.allowedLocations);
+    const before = locationScope(cur) ?? [];
+    const changed = JSON.stringify([...before].sort()) !== JSON.stringify([...locs].sort());
+    if (changed && cur.id === me.id) throw bad("You can't change your own locations. Ask another admin.");
+    if (changed) { locData = { allowedLocations: locs.length ? JSON.stringify(locs) : null }; await audit(req, "staff_locations_changed", `${cur.email}: ${locs.length ? locs.length + " location(s)" : "all locations"}`); }
+  }
+  const u = await prisma.adminUser.update({ where: { id: cur.id }, data: { name: d.name, roleId: d.roleId, active: d.active, ...marketsData, ...locData }, include });
   if (!d.active) await prisma.session.deleteMany({ where: { userId: cur.id } });
   if (cur.roleId !== d.roleId || cur.active !== d.active) await audit(req, "staff_changed", `${cur.email}: role ${cur.role?.name} -> ${u.role?.name}, active ${d.active}`);
   res.json(publicUser(u));

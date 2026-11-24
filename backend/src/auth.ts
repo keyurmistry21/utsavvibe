@@ -107,6 +107,17 @@ export function marketScope(u: { allowedMarkets?: string | null; role?: { name: 
     return Array.isArray(a) && a.length ? a.map(String) : null;
   } catch { return null; }
 }
+/** Locations an admin limited this staff member to (sell from, move stock at). null = unrestricted (owners, and anyone left on "all"). */
+export function locationScope(u: { allowedLocations?: string | null; role?: { name: string; isSystem: boolean; permissions: string } | null }): string[] | null {
+  if (permsOf(u.role).owner) return null;
+  try { const a = JSON.parse(u.allowedLocations ?? "[]"); return Array.isArray(a) && a.length ? a.map(String) : null; } catch { return null; }
+}
+export const scopeLocations = (req: Request) => locationScope((req as Request & { user: Parameters<typeof locationScope>[0] }).user);
+/** 403 unless this staff member may work at the location. */
+export function assertLocationAllowed(req: Request, locationId: string) {
+  const s = scopeLocations(req);
+  if (s && !s.includes(locationId)) throw Object.assign(new Error("An admin hasn't given you access to that location."), { status: 403 });
+}
 export const scopeCodes = (req: Request) => marketScope((req as Request & { user: Parameters<typeof marketScope>[0] }).user);
 /** The market they work in: their pick if allowed, else their first allowed one. null = all markets. */
 export function workingMarket(u: { preferredMarket?: string | null; allowedMarkets?: string | null; role?: Parameters<typeof marketScope>[0]["role"] }): string | null {

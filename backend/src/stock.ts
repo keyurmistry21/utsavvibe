@@ -49,3 +49,64 @@ export async function reservedUnits(db: Tx, variantId: string, marketId: string)
   });
   return r._sum.quantity ?? 0;
 }
+
+// ---------------- per-location stock ----------------
+type Loc = { id: string; marketId: string | null; country: string };
+
+/** The market a location serves: its own marketId, else the market that sells to its country, else the first market. */
+export async function marketOfLocation(db: Tx, loc: Loc): Promise<string | null> {
+  if (loc.marketId) return loc.marketId;
+  const markets = await db.market.findMany({ where: { active: true }, select: { id: true, countries: true }, orderBy: { code: "asc" } });
+  return markets.find((m) => { try { return (JSON.parse(m.countries) as string[]).includes(loc.country.toUpperCase()); } catch { return false; } })?.id ?? markets[0]?.id ?? null;
+}
+
+async function locationsOfMarket(db: Tx, marketId: string) {
+  const locs = await db.location.findMany({ where: { active: true }, select: { id: true, marketId: true, country: true } });
+  const out: string[] = [];
+  for (const l of locs) if ((await marketOfLocation(db, l)) === marketId) out.push(l.id);
+  return out;
+}
+
+/** Stock arrives at (+) or leaves (-) a location: its own count and the market/variant totals move together. */
+export async function adjustLocationStock(db: Tx, variantId: string, locationId: string, delta: number) {
+  const loc = await db.location.findUnique({ where: { id: locationId }, select: { id: true, marketId: true, country: true } });
+  if (!loc) throw Object.assign(new Error("unknown location"), { status: 400 });
+  const marketId = await marketOfLocation(db, loc);
+  const row = await db.locationStock.findUnique({ where: { variantId_locationId: { variantId, locationId } } });
+  if ((row?.quantity ?? 0) + delta < 0) throw Object.assign(new Error(`Only ${row?.quantity ?? 0} at that location`), { status: 409 });
+  await db.locationStock.upsert({ where: { variantId_locationId: { variantId, locationId } }, create: { variantId, locationId, quantity: delta }, update: { quantity: { increment: delta } } });
+  await adjustStock(db, variantId, marketId, delta);
+}
+
+/** Move market stock that has no location yet onto a location (nothing is added or removed overall). */
+export async function assignUnassigned(db: Tx, variantId: string, locationId: string, quantity: number) {
+  const loc = await db.location.findUnique({ where: { id: locationId }, select: { id: true, marketId: true, country: true } });
+  if (!loc) throw Object.assign(new Error("unknown location"), { status: 400 });
+  const marketId = await marketOfLocation(db, loc);
+  if (!marketId) throw Object.assign(new Error("That location has no market"), { status: 400 });
+  const level = await db.inventoryLevel.findUnique({ where: { variantId_marketId: { variantId, marketId } } });
+  const ids = await locationsOfMarket(db, marketId);
+  const assigned = (await db.locationStock.aggregate({ _sum: { quantity: true }, where: { variantId, locationId: { in: ids } } }))._sum.quantity ?? 0;
+  const free = (level?.quantity ?? 0) - assigned;
+  if (quantity > free) throw Object.assign(new Error(`Only ${Math.max(0, free)} unassigned in that market`), { status: 409 });
+  await db.locationStock.upsert({ where: { variantId_locationId: { variantId, locationId } }, create: { variantId, locationId, quantity }, update: { quantity: { increment: quantity } } });
+}
+
+/**
+ * A sale took `qty` from the market's stock (the market count is already reduced): take the same units from location counts.
+ * The location rule: the preferred location first (the counter that made an in-store sale), then the location holding the most.
+ * Returns the location that supplied most, for the order record. Missing location counts are fine (unassigned stock covers them).
+ */
+export async function allocateSale(db: Tx, variantId: string, qty: number, marketId: string, prefer?: string | null) {
+  const ids = await locationsOfMarket(db, marketId);
+  const rows = (await db.locationStock.findMany({ where: { variantId, locationId: { in: ids }, quantity: { gt: 0 } } })).sort((a, b) => (a.locationId === prefer ? -1 : b.locationId === prefer ? 1 : b.quantity - a.quantity));
+  let left = qty, first: string | null = null;
+  for (const r of rows) {
+    if (left <= 0) break;
+    const take = Math.min(left, r.quantity);
+    await db.locationStock.update({ where: { variantId_locationId: { variantId, locationId: r.locationId } }, data: { quantity: { decrement: take } } });
+    first ??= r.locationId;
+    left -= take;
+  }
+  return first;
+}

@@ -24,7 +24,7 @@ type Insights = {
 type Traffic = {
   funnel: { sessions: number; view_item: number; add_to_cart: number; begin_checkout: number; purchase: number };
   conversionRate: number;
-  sources: { source: string; medium: string; campaign: string; sessions: number; add_to_cart: number; purchase: number }[];
+  sources: { source: string; medium: string; campaign: string; sessions: number; add_to_cart: number; purchase: number; revenue?: Record<string, number> }[];
   topPages: { path: string; title: string; views: number; avgSeconds: number | null; exits: number; exitRate: number }[];
   exitPages: { path: string; title: string; views: number; exits: number; exitRate: number }[];
 };
@@ -58,6 +58,7 @@ export function Insights() {
   const qs = `from=${range?.from ?? ago(29)}&to=${range?.to ?? today()}${market ? `&market=${market}` : ""}`;
   const { data, error } = useApi<Insights>(`/analytics/insights?${qs}`);
   const { data: tr } = useApi<Traffic>(`/analytics/traffic?${qs}`);
+  const { data: tax } = useApi<{ currency: string; market: string; region: string; orders: number; sales: number; tax: number; parts?: Record<string, number> }[]>(`/analytics/tax?${qs}`);
   const [hourlyView, setHourlyView] = useState(false);
   const mf = (cur: string) => (n: number) => money(n, cur);
 
@@ -132,6 +133,13 @@ export function Insights() {
           {!data.totals.length && <div className="card ep-empty"><b>No paid orders in this period</b><span>Refunded and unpaid orders are not counted.</span></div>}
 
           <div className="ep-panel">
+            <div className="ep-panel-head"><h4>Tax collected by province or state</h4><span>Paid orders, after refunds. Give this to your accountant.</span></div>
+            <table className="ep-table"><thead><tr><th>Market</th><th>Province / state</th><th className="r">Orders</th><th className="r">Sales (net)</th><th>Parts</th><th className="r">Tax collected</th></tr></thead>
+              <tbody>{tax?.map((t, i) => <tr key={i}><td>{t.market}</td><td>{t.region}</td><td className="r">{t.orders}</td><td className="r">{money(t.sales, t.currency)}</td><td className="dim">{Object.entries(t.parts ?? {}).map(([n, a]) => `${n} ${money(a, t.currency)}`).join(" · ") || "–"}</td><td className="r strong">{money(t.tax, t.currency)}</td></tr>)}
+                {tax && !tax.length && <tr><td colSpan={6} className="ep-none">No paid orders in this period.</td></tr>}</tbody></table>
+          </div>
+
+          <div className="ep-panel">
             <div className="ep-panel-head"><h4>Low stock</h4><span>Tracked variants with 5 or fewer left, per market</span></div>
             <table className="ep-table"><thead><tr><th>Product</th><th>SKU</th><th>Market</th><th className="r">Left</th></tr></thead>
               <tbody>{data.lowStock.map((l, i) => <tr key={i}><td>{l.product}{l.variant ? ` — ${l.variant}` : ""}</td><td>{l.sku ?? "–"}</td><td>{l.market}</td><td className="r strong">{l.quantity}</td></tr>)}
@@ -152,9 +160,9 @@ export function Insights() {
           <div className="ep-two even">
             <div className="ep-panel">
               <div className="ep-panel-head"><h4>Traffic sources</h4><span>UTM links (Instagram bio, ads) are split out</span></div>
-              <table className="ep-table"><thead><tr><th>Source / medium / campaign</th><th className="r">Visits</th><th className="r">Carts</th><th className="r">Orders</th></tr></thead>
-                <tbody>{tr.sources.map((s, i) => <tr key={i}><td>{s.source}{s.medium ? ` / ${s.medium}` : ""}{s.campaign ? ` / ${s.campaign}` : ""}</td><td className="r">{s.sessions}</td><td className="r">{s.add_to_cart}</td><td className="r strong">{s.purchase}</td></tr>)}
-                  {!tr.sources.length && <tr><td colSpan={4} className="ep-none">No visits recorded yet.</td></tr>}</tbody></table>
+              <table className="ep-table"><thead><tr><th>Source / medium / campaign</th><th className="r">Visits</th><th className="r">Carts</th><th className="r">Orders</th><th className="r">Sales</th></tr></thead>
+                <tbody>{tr.sources.map((s, i) => <tr key={i}><td>{s.source}{s.medium ? ` / ${s.medium}` : ""}{s.campaign ? ` / ${s.campaign}` : ""}</td><td className="r">{s.sessions}</td><td className="r">{s.add_to_cart}</td><td className="r strong">{s.purchase}</td><td className="r">{Object.entries(s.revenue ?? {}).map(([c, a]) => money(a, c)).join(" · ") || "–"}</td></tr>)}
+                  {!tr.sources.length && <tr><td colSpan={5} className="ep-none">No visits recorded yet.</td></tr>}</tbody></table>
             </div>
             <div className="ep-panel">
               <div className="ep-panel-head"><h4>Exit pages</h4><span>Last page before leaving without buying</span></div>
