@@ -63,7 +63,7 @@ export function ProductList({ onAdd, onEdit }: { onAdd: () => void; onEdit: (han
   const setView = (v: View) => { setViewState(v); setPage(0); saveView(KEY, v); };
 
   const { market } = useAdminMarket();
-  const loadStats = useCallback(() => { api<Stats>("/products/stats").then(setStats).catch(() => {}); }, []);
+  const loadStats = useCallback(() => { api<Stats>(`/products/stats${market ? `?market=${market}` : ""}`).then(setStats).catch(() => {}); }, [market]);
   const load = useCallback(() => {
     const my = ++seq.current;
     const qs = new URLSearchParams({ q, status, filter: filter === "any" ? "all" : filter, sort: view.sort, dir: view.dir, limit: String(PAGE), offset: String(page * PAGE), ...(market ? { market } : {}) });

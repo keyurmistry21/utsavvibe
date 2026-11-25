@@ -1,5 +1,6 @@
 "use client";
 
+import { useDirty, useUnsavedGuard } from "./unsaved";
 import { useState } from "react";
 import { api, type Market } from "@/lib/api";
 import { countryName, dialCodes } from "@/lib/countries";
@@ -10,7 +11,7 @@ import { Switch } from "./Switch";
 import { Select } from "../Select";
 import { useApi } from "./hooks";
 
-type Loc = { id?: string; name: string; company: string; line1: string; line2: string; city: string; region: string; postcode: string; country: string; phone: string; active: boolean; isDefault?: boolean; marketId?: string | null };
+type Loc = { id?: string; name: string; company: string; line1: string; line2: string; city: string; region: string; postcode: string; country: string; phone: string; active: boolean; regionCode?: string | null; isDefault?: boolean; marketId?: string | null };
 const blank = (country = ""): Loc => ({ name: "", company: "", line1: "", line2: "", city: "", region: "", postcode: "", country, phone: "", active: true });
 
 function LocationEditor({ initial, countries, onDone }: { initial: Loc; countries: string[]; onDone: () => void }) {
@@ -18,6 +19,7 @@ function LocationEditor({ initial, countries, onDone }: { initial: Loc; countrie
   const { data: markets = [] } = useApi<Market[]>("/markets");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const effMarket = (markets ?? []).find((m) => m.id === f.marketId) ?? (markets ?? []).find((m) => m.countries.includes(f.country));
   const set = (k: keyof Loc, v: string | boolean | null) => setF((c) => ({ ...c, [k]: v }));
   const val = useValidation({
     name: required(f.name, "Enter a location name") || maxLen(f.name, 100, "The name"),
@@ -28,33 +30,46 @@ function LocationEditor({ initial, countries, onDone }: { initial: Loc; countrie
     country: f.country ? "" : "Choose a country",
     phone: phoneErr(f.phone),
   });
-  const save = async () => {
-    if (!val.submit()) return;
+  const { dirty } = useDirty(f);
+  const save = async (): Promise<boolean> => {
+    if (!val.submit()) return false;
     setBusy(true); setErr("");
-    try { await api(f.id ? `/locations/${f.id}` : "/locations", { method: f.id ? "PUT" : "POST", json: f }); onDone(); }
-    catch (e) { setErr((e as Error).message); setBusy(false); }
+    try { await api(f.id ? `/locations/${f.id}` : "/locations", { method: f.id ? "PUT" : "POST", json: f }); allow(); onDone(); return true; }
+    catch (e) { setErr((e as Error).message); setBusy(false); return false; }
   };
+  const { guard, allow } = useUnsavedGuard(dirty, save);
+  const cancel = () => { if (dirty && !confirm("Discard your changes?")) return; allow(); onDone(); };
   const remove = async () => {
     if (!f.id || !confirm(`Delete "${f.name}"?`)) return;
-    try { await api(`/locations/${f.id}`, { method: "DELETE" }); onDone(); } catch (e) { setErr((e as Error).message); }
+    try { await api(`/locations/${f.id}`, { method: "DELETE" }); allow(); onDone(); } catch (e) { setErr((e as Error).message); }
   };
   const text = (k: "name" | "company" | "line1" | "line2" | "city" | "region" | "postcode" | "phone", label: string, extra?: React.InputHTMLAttributes<HTMLInputElement>) => (
     <div className="field"><label htmlFor={`lc-${k}`}>{label}</label><input id={`lc-${k}`} value={f[k]} onChange={(e) => set(k, e.target.value)} {...extra} {...val.props(k)} /><FieldError k={k} msg={val.err(k)} /></div>
   );
   return (
     <>
-      <div className="crumbbar"><button className="link crumb" onClick={onDone}><ArrowLeft />Locations</button></div>
+      {guard}
+      <div className="crumbbar"><button className="link crumb" onClick={cancel}><ArrowLeft />Locations</button></div>
       <div className="pagehead"><h2>{f.id ? f.name : "Add location"}</h2></div>
       {err && <div className="error">{err}</div>}
       <div className="card" style={{ maxWidth: 720 }}>
         {text("name", "Location name", { autoFocus: true, placeholder: "e.g. Toronto warehouse" })}
         <div className="field"><label>Market this location serves</label>
-          <Select value={f.marketId ?? ""} onChange={(e) => set("marketId", e.target.value || null)}>
+          <Select value={f.marketId ?? ""} onChange={(e) => setF((c) => ({ ...c, marketId: e.target.value || null, regionCode: null }))}>
             <option value="">Automatic (the market that sells to its country)</option>
             {(markets ?? []).map((m) => <option key={m.id} value={m.id}>{m.name} ({m.currency})</option>)}
           </Select>
           <div className="muted">Its stock counts toward this market, and online orders from this market are picked from here.</div>
         </div>
+        {effMarket && effMarket.regions.length > 0 && (
+          <div className="field"><label>{effMarket.code === "US" ? "State" : "Province / region"} in {effMarket.name}</label>
+            <Select value={f.regionCode ?? ""} onChange={(e) => { const code = e.target.value || null; const r = effMarket.regions.find((x) => x.code === code); setF((c) => ({ ...c, regionCode: code, ...(r && !c.region.trim() ? { region: r.name } : {}) })); }}>
+              <option value="">Not tied to one {effMarket.code === "US" ? "state" : "province"}</option>
+              {effMarket.regions.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}
+            </Select>
+            <div className="muted">Stock is grouped Market → {effMarket.code === "US" ? "State" : "Province"} → Location, the same places that carry tax and price. You can have several locations in one place.</div>
+          </div>
+        )}
         <div className="field"><label>Country</label>
           <Select value={f.country} onChange={(e) => set("country", e.target.value)} {...val.props("country")}>
             <option value="">Choose a country…</option>
@@ -74,7 +89,7 @@ function LocationEditor({ initial, countries, onDone }: { initial: Loc; countrie
       <div className="savebar">
         {f.id && !f.isDefault && <button className="danger" onClick={remove}>Delete location</button>}
         <span style={{ flex: 1 }} />
-        <button onClick={onDone}>Discard</button>
+        <button onClick={cancel}>Discard</button>
         <button className="primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button>
       </div>
     </>

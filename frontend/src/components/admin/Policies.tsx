@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { ArrowLeft } from "../Icons";
 import { RichTextEditor } from "./RichTextEditor";
 import { useApi } from "./hooks";
+import { useUnsavedGuard } from "./unsaved";
 
 type Row = { key: string; title: string; published: boolean; updatedAt: string | null };
 
@@ -26,24 +27,28 @@ function PolicyEditor({ row, onDone }: { row: Row; onDone: () => void }) {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const value = content ?? data?.content ?? "";
-  const save = async () => {
+  const dirty = content !== null && !!data && content !== data.content;
+  const save = async (): Promise<boolean> => {
     setBusy(true); setErr("");
-    try { await api(`/policies/${row.key}`, { method: "PUT", json: { content: value } }); onDone(); } catch (e) { setErr((e as Error).message); setBusy(false); }
+    try { await api(`/policies/${row.key}`, { method: "PUT", json: { content: value } }); allow(); onDone(); return true; } catch (e) { setErr((e as Error).message); setBusy(false); return false; }
   };
+  const { guard, allow } = useUnsavedGuard(dirty, save);
+  const discard = () => { if (dirty && !confirm("Discard your changes?")) return; allow(); onDone(); };
   const useTemplate = () => {
     if (value.replace(/<[^>]*>/g, "").trim() && !confirm("Replace what you have written with the starter template?")) return;
     setContent(TEMPLATES[row.key] ?? ""); setReset((n) => n + 1);
   };
   return (
     <>
-      <div className="crumbbar"><button className="link crumb" onClick={onDone}><ArrowLeft />Policies</button></div>
+      {guard}
+      <div className="crumbbar"><button className="link crumb" onClick={discard}><ArrowLeft />Policies</button></div>
       <div className="pagehead"><h2>{row.title}</h2><div className="headtools"><button onClick={useTemplate}>Use starter template</button></div></div>
       {err && <div className="error">{err}</div>}
       <div className="card" style={{ maxWidth: 820 }}>
         {data ? <RichTextEditor value={value} onChange={setContent} resetKey={`${row.key}-${reset}-${data ? "1" : "0"}`} placeholder="Write the policy…" /> : <p className="muted">Loading…</p>}
         <p className="muted" style={{ marginBottom: 0 }}>Leave it empty to unpublish. Published policies are linked in the footer of your online store. Templates contain [brackets] you must fill in, and aren't legal advice.</p>
       </div>
-      <div className="savebar"><span style={{ flex: 1 }} /><button onClick={onDone}>Discard</button><button className="primary" disabled={busy || !data} onClick={save}>{busy ? "Saving…" : "Save"}</button></div>
+      <div className="savebar"><span style={{ flex: 1 }} /><button onClick={discard}>Discard</button><button className="primary" disabled={busy || !data} onClick={save}>{busy ? "Saving…" : "Save"}</button></div>
     </>
   );
 }

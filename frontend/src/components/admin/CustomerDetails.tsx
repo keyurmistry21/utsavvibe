@@ -1,5 +1,6 @@
 "use client";
 
+import { useUnsavedGuard } from "./unsaved";
 import { useState } from "react";
 import { api, money, type CustomerRow } from "@/lib/api";
 import Link from "next/link";
@@ -17,23 +18,30 @@ export function CustomerDetails({ customer, onSaved, onClose }: { customer: Cust
   const { data: purchases } = useApi<Purchase[]>(`/customers/${customer.id}/purchases`);
   const spent = Object.entries(customer.spent).map(([cur, v]) => money(v, cur)).join(" + ") || "—";
 
-  const save = async () => {
+  const dirty = tags !== customer.tags.join(", ") || notes !== customer.notes || taxExempt !== customer.taxExempt;
+  const save = async (): Promise<boolean> => {
     setSaving(true); setErr("");
     try {
       await api(`/customers/${customer.id}`, { method: "PATCH", json: { tags: tags.split(",").map((t) => t.trim()).filter(Boolean), notes, taxExempt } });
+      allow();
       onSaved();
-    } catch (e) { setErr((e as Error).message); setSaving(false); }
+      return true;
+    } catch (e) { setErr((e as Error).message); setSaving(false); return false; }
   };
+  const { guard, allow } = useUnsavedGuard(dirty, save);
+  const close = () => { if (dirty && !confirm("Discard your changes?")) return; allow(); onClose(); };
 
   return (
+    <>
+    {guard}
     <Drawer
       title={customer.name || customer.email || customer.phone || "Customer"}
-      onClose={onClose}
+      onClose={close}
       dismissOnScrim={false}
       footer={
         <>
           {err ? <span className="error" style={{ margin: 0 }}>{err}</span> : <span />}
-          <span style={{ display: "flex", gap: 12 }}><button onClick={onClose}>Close</button><button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button></span>
+          <span style={{ display: "flex", gap: 12 }}><button onClick={close}>Close</button><button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button></span>
         </>
       }
     >
@@ -67,5 +75,6 @@ export function CustomerDetails({ customer, onSaved, onClose }: { customer: Cust
         <div className="field"><label>Notes</label><textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
       </div>
     </Drawer>
+    </>
   );
 }

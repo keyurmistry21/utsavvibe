@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, toMajor, toMinor, type Market, type Region, type ShippingRate } from "@/lib/api";
 import { useApi } from "./hooks";
+import { useDirty, useUnsavedGuard } from "./unsaved";
 import { FieldError, useValidation } from "./validation";
 import { Plus } from "../Icons";
 import { required } from "@/lib/validators";
@@ -46,21 +47,28 @@ function MarketEditor({ initial, onDone }: { initial: Draft; onDone: () => void 
     <div className="field"><label htmlFor={`mk-${k}`}>{label}</label>{ctl}<FieldError k={k} msg={val.err(k)} small /></div>
   );
 
-  const save = async () => {
-    if (!val.submit()) return;
+  const { dirty } = useDirty(m);
+  const save = async (): Promise<boolean> => {
+    if (!val.submit()) return false;
     setErr("");
     try {
       const { id, ...body } = m;
       body.shippingRates = body.shippingRates.map(({ id: _i, ...r }) => r) as ShippingRate[];
       await api(id ? `/markets/${id}` : "/markets", { method: id ? "PUT" : "POST", json: body });
+      allow();
       onDone();
+      return true;
     } catch (e) {
       setErr((e as Error).message);
+      return false;
     }
   };
+  const { guard, allow } = useUnsavedGuard(dirty, save);
+  const cancel = () => { if (dirty && !confirm("Discard your changes?")) return; allow(); onDone(); };
 
   return (
     <div className="card">
+      {guard}
       <div className="row">
         {f("code", "Code", <input id="mk-code" value={m.code} disabled={!!m.id} onChange={(e) => setM({ ...m, code: e.target.value.toUpperCase() })} {...val.props("code")} />)}
         {f("name", "Name", <input id="mk-name" value={m.name} onChange={(e) => setM({ ...m, name: e.target.value })} {...val.props("name")} />)}
@@ -103,7 +111,7 @@ function MarketEditor({ initial, onDone }: { initial: Draft; onDone: () => void 
       <button onClick={() => setM({ ...m, shippingRates: [...m.shippingRates, { name: "", amount: 0, freeOverAmount: null, minDays: null, maxDays: null }] })}><Plus />Add rate</button>
       <FieldError k="rates" msg={val.err("rates")} />
       {err && <div className="error">{err}</div>}
-      <p><button className="primary" onClick={save}>Save market</button> <button onClick={onDone}>Cancel</button></p>
+      <p><button className="primary" onClick={save}>Save market</button> <button onClick={cancel}>Cancel</button></p>
     </div>
   );
 }

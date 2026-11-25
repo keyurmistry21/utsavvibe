@@ -1,3 +1,4 @@
+import { toast } from "./toast";
 export type ShippingRate = { id?: string; name: string; amount: number; freeOverAmount: number | null; minDays: number | null; maxDays: number | null };
 export type Region = { code: string; name: string; taxRateBps: number; components?: { name: string; bps: number }[] | null };
 export type Market = {
@@ -8,14 +9,14 @@ export type Market = {
 export type Price = { amount: number; compareAt?: number | null };
 export type Variant = {
   id?: string; title: string; options: Record<string, string>; sku?: string | null; qrActive?: boolean;
-  inventory: number; stock?: Record<string, { quantity: number; sku?: string | null; barcode?: string | null }>; weightG: number; barcode?: string | null; costPerItem?: number | null; prices: Record<string, Price>;
+  inventory: number; stock?: Record<string, { quantity: number; sku?: string | null; barcode?: string | null }>; locationStock?: Record<string, number>; weightG: number; barcode?: string | null; costPerItem?: number | null; prices: Record<string, Price>;
 };
 export type ProductImage = { id: string; url: string; thumbUrl: string; alt: string; position: number; width: number; height: number };
 export type Product = {
   images: ProductImage[];
   id: string; title: string; handle: string; description: string; status: "draft" | "active" | "archived"; vendor: string; productType: string;
   trackInventory: boolean; continueSelling: boolean; physical: boolean; chargeTax: boolean; isGiftCard?: boolean; seoTitle: string; seoDescription: string;
-  tags: string[]; notes: string; marketIds: string[]; regions: Record<string, string[]>; variants: Variant[];
+  tags: string[]; notes: string; marketIds: string[]; collectionIds?: string[]; regions: Record<string, string[]>; variants: Variant[];
 };
 export type Order = {
   id: string; number: number; currency: string; subtotal: number; tax: number; shipping: number; total: number;
@@ -45,7 +46,10 @@ export type CustHit = { id: string; name: string; email: string | null; phone: s
 export class UnauthorizedError extends Error {}
 
 // Session lives in an httpOnly cookie set by the API; the browser sends it automatically (same origin via the Next proxy).
-async function request<T>(url: string, init?: RequestInit & { json?: unknown }): Promise<T> {
+// POSTs that only look something up: never worth a toast
+const LOOKUP = /\/(codes\/taken|shipping\/rates|quote|preview|connection-token)$/;
+const SAID: Record<string, string> = { POST: "Done", PUT: "Saved", PATCH: "Saved", DELETE: "Deleted" };
+async function request<T>(url: string, init?: RequestInit & { json?: unknown; toast?: string | false }): Promise<T> {
   const res = await fetch(url, {
     ...init,
     credentials: "same-origin",
@@ -57,7 +61,14 @@ async function request<T>(url: string, init?: RequestInit & { json?: unknown }):
     window.dispatchEvent(new Event("admin:unauthorized"));
     throw new UnauthorizedError("Session expired");
   }
-  if (!res.ok) throw new Error(data.error === "validation" ? data.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join("; ") : data.error ?? res.statusText);
+  const method = (init?.method ?? "GET").toUpperCase();
+  const tell = method !== "GET" && url.startsWith("/api/admin") && !LOOKUP.test(url.split("?")[0]) && init?.toast !== false; // admin changes tell the user what happened
+  if (!res.ok) {
+    const msg = data.error === "validation" ? data.issues.map((i: any) => `${i.path.join(".")}: ${i.message}`).join("; ") : data.error ?? res.statusText;
+    if (tell) toast.error(msg);
+    throw new Error(msg);
+  }
+  if (tell) toast.success(typeof init?.toast === "string" ? init.toast : SAID[method] ?? "Done");
   return data as T;
 }
 
@@ -74,7 +85,7 @@ export async function uploadImage(productId: string, file: File, alt = ""): Prom
   return data;
 }
 
-export const api = <T>(path: string, init?: RequestInit & { json?: unknown }) => request<T>(`/api/admin${path}`, init);
+export const api = <T>(path: string, init?: RequestInit & { json?: unknown; toast?: string | false }) => request<T>(`/api/admin${path}`, init);
 export const auth = <T>(path: string, init?: RequestInit & { json?: unknown }) => request<T>(`/api/auth${path}`, init);
 export type AdminUser = { id: string; email: string; name: string; role: string | null; owner: boolean; permissions: string[]; preferredMarket?: string | null; allowedMarkets?: string[] | null; allowedLocations?: string[] | null; twoFactor?: boolean };
 

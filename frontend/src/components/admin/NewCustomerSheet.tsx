@@ -1,5 +1,6 @@
 "use client";
 
+import { useDirty, useUnsavedGuard } from "./unsaved";
 import { useEffect, useState } from "react";
 import { api, hasAddress, type Address, type Customer, type Market } from "@/lib/api";
 import { countryName } from "@/lib/countries";
@@ -52,18 +53,24 @@ export function NewCustomerSheet({ markets, query = "", backLabel = "Back", onCr
   };
   const val = useValidation(E);
 
-  const save = async () => {
-    if (!val.submit()) return;
+  const { dirty } = useDirty({ f, address, tags });
+  const save = async (): Promise<boolean> => {
+    if (!val.submit()) return false;
     setErr(""); setSaving(true);
     try {
       const c = await api<Customer>("/customers", { method: "POST", json: { ...f, address, tags } });
+      allow();
       onCreated(c);
+      return true;
     } catch (e) {
       const msg = (e as Error).message;
       if (/email/i.test(msg)) setSrvEmail(msg); else setErr(msg);
       setSaving(false);
+      return false;
     }
   };
+  const { guard, allow } = useUnsavedGuard(dirty, save);
+  const cancel = () => { if (dirty && !confirm("Discard your changes?")) return; allow(); onClose(); };
 
   useEffect(() => { document.querySelector("main.content")?.scrollTo({ top: 0 }); }, []);
 
@@ -72,7 +79,8 @@ export function NewCustomerSheet({ markets, query = "", backLabel = "Back", onCr
 
   return (
     <>
-      <div className="crumbbar"><button className="link crumb" onClick={onClose}><ArrowLeft />{backLabel}</button></div>
+      {guard}
+      <div className="crumbbar"><button className="link crumb" onClick={cancel}><ArrowLeft />{backLabel}</button></div>
       <div className="pagehead"><h2>New customer</h2></div>
       {err && <div className="error">{err}</div>}
       <div className="cols">
@@ -145,7 +153,7 @@ export function NewCustomerSheet({ markets, query = "", backLabel = "Back", onCr
 
       <div className="savebar">
         <span style={{ flex: 1 }} />
-        <button onClick={onClose}>Discard</button>
+        <button onClick={cancel}>Discard</button>
         <button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button>
       </div>
       {addrOpen && (

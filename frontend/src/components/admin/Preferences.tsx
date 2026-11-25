@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { maxLen, required } from "@/lib/validators";
 import { FieldError, useValidation } from "./validation";
 import { useApi } from "./hooks";
+import { useDirty, useUnsavedGuard } from "./unsaved";
 import { MenuCard, urlErr, type Item } from "./Menus";
 
 type Prefs = { storeName: string; announcement: string; tagline: string; metaTitle: string; metaDescription: string; publicUrl: string; headerMenu: Item[]; footerMenu: Item[]; popup: { enabled: boolean; title: string; text: string } };
@@ -30,15 +31,19 @@ export function Preferences() {
     metaTitle: p ? maxLen(p.metaTitle, 70, "The title") : "",
     metaDescription: p ? maxLen(p.metaDescription, 320, "The description") : "",
   });
-  const save = async () => {
-    if (!p || !val.submit()) return;
+  const { dirty, markSaved } = useDirty(p, !!p);
+  const save = async (): Promise<boolean> => {
+    if (!p || !val.submit()) return false;
     setSaving(true); setMsg(null);
+    let ok = false;
     try {
       const clean = (m: Item[]) => m.map((x) => ({ label: x.label.trim(), url: x.url.trim(), ...(x.children?.length ? { children: x.children.map((c) => ({ label: c.label.trim(), url: c.url.trim() })) } : {}) }));
-      await api("/online-store/preferences", { method: "PUT", json: { ...p, headerMenu: clean(p.headerMenu), footerMenu: clean(p.footerMenu) } }); setMsg({ ok: true, text: "Preferences saved. The storefront updates within a few seconds." }); }
+      await api("/online-store/preferences", { method: "PUT", json: { ...p, headerMenu: clean(p.headerMenu), footerMenu: clean(p.footerMenu) } }); setMsg({ ok: true, text: "Preferences saved. The storefront updates within a few seconds." }); markSaved(); ok = true; }
     catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
     setSaving(false);
+    return ok;
   };
+  const { guard } = useUnsavedGuard(dirty, save);
   const { data: pages } = useApi<{ handle: string; title: string; visible: boolean }[]>("/online-store/pages");
   const { data: colls } = useApi<{ handle: string; title: string; visible: boolean }[]>("/collections");
   const quick = [
@@ -58,6 +63,7 @@ export function Preferences() {
   );
   return (
     <>
+      {guard}
       <div className="pagehead"><h2>Preferences</h2></div>
       {error && <div className="error">{error}</div>}
       {p && (

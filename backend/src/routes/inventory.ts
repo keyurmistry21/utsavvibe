@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { actor, assertLocationAllowed, scopeLocations } from "../auth.js";
+import { actor, assertLocationAllowed, scopeCodes, scopeLocations } from "../auth.js";
 import { audit } from "../audit.js";
 import { imageUrls } from "../storage.js";
-import { adjustLocationStock, assignUnassigned, marketOfLocation } from "../stock.js";
+import { adjustLocationStock, assignUnassigned, logMovement, marketOfLocation, restoreMovement, restorePriceChange } from "../stock.js";
 
 // Stock by location (warehouse, shop): counts, adjustments, assigning legacy per-market stock, and transfers between locations.
 export const inventoryRouter = Router();
@@ -16,6 +16,7 @@ async function visibleLocations(req: Parameters<typeof scopeLocations>[0]) {
 }
 
 // One row per variant: count at each visible location, units with no location yet, and the total.
+// Locations are grouped Market → Region (state/province) → Location, so the same places carry price, tax and stock.
 inventoryRouter.get("/", async (req, res) => {
   const locs = await visibleLocations(req);
   const allLocs = await prisma.location.findMany({ where: { active: true } });
@@ -36,16 +37,23 @@ inventoryRouter.get("/", async (req, res) => {
     // unassigned = market counts minus what the locations of that market hold
     let unassigned = 0;
     for (const lv of v.levels) unassigned += lv.quantity - mine.filter((s) => marketOf.get(s.locationId) === lv.marketId).reduce((a, s) => a + s.quantity, 0);
-    return { variantId: v.id, productId: v.product.id, thumbUrl: (v.imageId ?? v.product.images[0]?.id) ? imageUrls((v.imageId ?? v.product.images[0]?.id)!).thumbUrl : null, product: v.product.title, variant: v.title === "Default" ? "" : v.title, sku: v.sku, tracked: v.product.trackInventory, byLocation, unassigned: Math.max(0, unassigned), total: v.inventory };
+    const imgId = v.imageId ?? v.product.images[0]?.id;
+    return { variantId: v.id, productId: v.product.id, thumbUrl: imgId ? imageUrls(imgId).thumbUrl : null, product: v.product.title, variant: v.title === "Default" ? "" : v.title, sku: v.sku, tracked: v.product.trackInventory, byLocation, unassigned: Math.max(0, unassigned), total: v.inventory };
   });
-  res.json({ locations: locs.map((l) => ({ id: l.id, name: l.name, marketId: l.marketId, isDefault: l.isDefault })), rows });
+  const markets = await prisma.market.findMany({ where: { active: true }, include: { regions: true }, orderBy: { code: "asc" } });
+  const mk = new Map(markets.map((m) => [m.id, m]));
+  res.json({
+    locations: locs.map((l) => { const mid = marketOf.get(l.id) ?? null; const m = mid ? mk.get(mid) : undefined; return { id: l.id, name: l.name, marketId: mid, marketCode: m?.code ?? "", marketName: m?.name ?? "", regionCode: l.regionCode, regionName: l.regionCode ? m?.regions.find((r) => r.code === l.regionCode)?.name ?? l.regionCode : "", isDefault: l.isDefault }; }),
+    rows,
+  });
 });
 
 // Receive new stock at a location (+) or write stock off (-).
 inventoryRouter.post("/adjust", async (req, res) => {
   const d = z.object({ variantId: z.string(), locationId: z.string(), delta: z.number().int().min(-100000).max(100000).refine((n) => n !== 0, "Enter a quantity"), reason: z.string().trim().max(200).default("") }).parse(req.body);
   assertLocationAllowed(req, d.locationId);
-  await prisma.$transaction((tx) => adjustLocationStock(tx, d.variantId, d.locationId, d.delta));
+  const loc = await prisma.location.findUnique({ where: { id: d.locationId } });
+  await prisma.$transaction(async (tx) => { await adjustLocationStock(tx, d.variantId, d.locationId, d.delta); await logMovement(tx, { variantId: d.variantId, locationId: d.locationId, marketId: loc ? await marketOfLocation(tx, loc) : null, delta: d.delta, source: "inventory", reason: d.reason, actorEmail: actor(req).email }); });
   await audit(req, "stock_adjusted", `${d.delta > 0 ? "+" : ""}${d.delta} at location ${d.locationId} (${d.reason || "no reason"})`);
   res.json({ ok: true });
 });
@@ -80,6 +88,35 @@ inventoryRouter.post("/assign-all", async (req, res) => {
   });
   await audit(req, "stock_assigned_all", `${moved} units to ${loc.name}`);
   res.json({ moved });
+});
+
+// ---- history: every manual stock change, with a way to put a wrong one back ----
+inventoryRouter.get("/history", async (req, res) => {
+  const scope = scopeLocations(req);
+  const moves = await prisma.stockMovement.findMany({ where: scope ? { OR: [{ locationId: { in: scope } }, { locationId: null }] } : {}, orderBy: { createdAt: "desc" }, take: 200 });
+  const prices = await prisma.priceChange.findMany({ orderBy: { createdAt: "desc" }, take: 200 });
+  const variants = await prisma.variant.findMany({ where: { id: { in: [...new Set([...moves.map((r) => r.variantId), ...prices.map((r) => r.variantId)])] } }, select: { id: true, title: true, product: { select: { id: true, title: true } } } });
+  const vmap = new Map(variants.map((v) => [v.id, v]));
+  const locs = new Map((await prisma.location.findMany({ select: { id: true, name: true } })).map((l) => [l.id, l.name]));
+  const mkts = new Map((await prisma.market.findMany({ select: { id: true, code: true, currency: true } })).map((m) => [m.id, m]));
+  const who = (variantId: string) => { const v = vmap.get(variantId); return { productId: v?.product.id ?? null, product: v?.product.title ?? "(deleted product)", variant: !v || v.title === "Default" ? "" : v.title }; };
+  const rows = [
+    ...moves.map((r) => ({ kind: "stock" as const, id: r.id, createdAt: r.createdAt, delta: r.delta, source: r.source, reason: r.reason, actorEmail: r.actorEmail, reverted: !!r.revertedAt, ...who(r.variantId), where: r.locationId ? locs.get(r.locationId) ?? "?" : r.marketId ? mkts.get(r.marketId)?.code ?? "?" : "" })),
+    ...prices.map((r) => ({ kind: "price" as const, id: r.id, createdAt: r.createdAt, delta: 0, source: r.source, reason: "", actorEmail: r.actorEmail, reverted: !!r.revertedAt, ...who(r.variantId), where: mkts.get(r.marketId)?.code ?? "?", currency: mkts.get(r.marketId)?.currency ?? "", oldAmount: r.oldAmount, newAmount: r.newAmount })),
+  ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 200);
+  res.json(rows);
+});
+
+inventoryRouter.post("/history/:id/restore", async (req, res) => {
+  const kind = req.query.kind === "price" ? "price" : "stock";
+  if (kind === "price") await prisma.$transaction((tx) => restorePriceChange(tx, req.params.id, actor(req).email));
+  else {
+    const mv = await prisma.stockMovement.findUnique({ where: { id: req.params.id } });
+    if (mv?.locationId) assertLocationAllowed(req, mv.locationId);
+    await prisma.$transaction((tx) => restoreMovement(tx, req.params.id, actor(req).email));
+  }
+  await audit(req, kind === "price" ? "price_change_restored" : "stock_change_restored", req.params.id);
+  res.json({ ok: true });
 });
 
 // ---- transfers ----

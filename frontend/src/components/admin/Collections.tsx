@@ -9,6 +9,7 @@ import { Modal } from "./Modal";
 import { RichTextEditor } from "./RichTextEditor";
 import { Switch } from "./Switch";
 import { useApi } from "./hooks";
+import { useDirty, useUnsavedGuard } from "./unsaved";
 import { Select } from "../Select";
 import { SearchField } from "./SearchField";
 
@@ -78,8 +79,9 @@ function Editor({ initial, onDone }: { initial: Form; onDone: () => void }) {
     return () => { if (t.current) clearTimeout(t.current); };
   }, [rulesKey, f.kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const save = async () => {
-    if (!val.submit()) return;
+  const { dirty } = useDirty(f);
+  const save = async (): Promise<boolean> => {
+    if (!val.submit()) return false;
     setErr(""); setSaving(true);
     try {
       const body = {
@@ -88,22 +90,28 @@ function Editor({ initial, onDone }: { initial: Form; onDone: () => void }) {
         productIds: f.products.map((p) => p.id),
       };
       await api(f.id ? `/collections/${f.id}` : "/collections", { method: f.id ? "PUT" : "POST", json: body });
+      allow();
       onDone();
+      return true;
     } catch (e) {
       const msg = (e as Error).message;
       if (/URL handle/i.test(msg)) { setSrv(msg); val.touch("handle"); } else setErr(msg);
       setSaving(false);
+      return false;
     }
   };
+  const { guard, allow } = useUnsavedGuard(dirty, save);
+  const cancel = () => { if (dirty && !confirm("Discard your changes?")) return; allow(); onDone(); };
   const remove = async () => {
     if (!f.id || !confirm("Delete this collection? The products stay, only the grouping is removed.")) return;
-    try { await api(`/collections/${f.id}`, { method: "DELETE" }); onDone(); } catch (e) { setErr((e as Error).message); }
+    try { await api(`/collections/${f.id}`, { method: "DELETE" }); allow(); onDone(); } catch (e) { setErr((e as Error).message); }
   };
   const move = (i: number, d: number) => setF((c) => { const n = [...c.products]; const j = i + d; if (j < 0 || j >= n.length) return c; [n[i], n[j]] = [n[j], n[i]]; return { ...c, products: n }; });
 
   return (
     <>
-      <div className="crumbbar"><button className="link crumb" onClick={onDone}><ArrowLeft />Collections</button></div>
+      {guard}
+      <div className="crumbbar"><button className="link crumb" onClick={cancel}><ArrowLeft />Collections</button></div>
       <div className="pagehead"><h2>{f.id ? f.title || "Collection" : "Create collection"}</h2></div>
       {err && <div className="error">{err}</div>}
       <div className="cols">
@@ -179,7 +187,7 @@ function Editor({ initial, onDone }: { initial: Form; onDone: () => void }) {
       <div className="savebar">
         {f.id && <button className="danger" onClick={remove}>Delete collection</button>}
         <span style={{ flex: 1 }} />
-        <button onClick={onDone}>Discard</button>
+        <button onClick={cancel}>Discard</button>
         <button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button>
       </div>
       {adding && <AddProducts have={new Set(f.products.map((p) => p.id))} onClose={() => setAdding(false)} onAdd={(ps) => { set("products", [...f.products, ...ps]); setAdding(false); }} />}

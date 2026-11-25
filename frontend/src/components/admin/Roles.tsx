@@ -1,5 +1,6 @@
 "use client";
 
+import { useDirty, useUnsavedGuard } from "./unsaved";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useCan } from "@/lib/perms";
@@ -29,20 +30,24 @@ function RoleEditor({ initial, meta, onDone }: { initial: Role; meta: Meta; onDo
     return { ...c, permissions: [...s] };
   });
 
-  const save = async () => {
-    if (!val.submit()) return;
+  const { dirty } = useDirty(f);
+  const save = async (): Promise<boolean> => {
+    if (!val.submit()) return false;
     setBusy(true); setErr("");
-    try { await api(f.id ? `/roles/${f.id}` : "/roles", { method: f.id ? "PUT" : "POST", json: { name: f.name, description: f.description, permissions: f.permissions } }); onDone(); }
-    catch (e) { const m = (e as Error).message; if (/already exists/.test(m)) setSrvName(m); else setErr(m); setBusy(false); }
+    try { await api(f.id ? `/roles/${f.id}` : "/roles", { method: f.id ? "PUT" : "POST", json: { name: f.name, description: f.description, permissions: f.permissions } }); allow(); onDone(); return true; }
+    catch (e) { const m = (e as Error).message; if (/already exists/.test(m)) setSrvName(m); else setErr(m); setBusy(false); return false; }
   };
+  const { guard, allow } = useUnsavedGuard(dirty && !locked, save);
+  const cancel = () => { if (dirty && !locked && !confirm("Discard your changes?")) return; allow(); onDone(); };
   const remove = async () => {
     if (!f.id || !confirm(`Delete the role "${f.name}"?`)) return;
-    try { await api(`/roles/${f.id}`, { method: "DELETE" }); onDone(); } catch (e) { setErr((e as Error).message); }
+    try { await api(`/roles/${f.id}`, { method: "DELETE" }); allow(); onDone(); } catch (e) { setErr((e as Error).message); }
   };
 
   return (
     <>
-      <div className="crumbbar"><button className="link crumb" onClick={onDone}><ArrowLeft />Roles and permissions</button></div>
+      {guard}
+      <div className="crumbbar"><button className="link crumb" onClick={cancel}><ArrowLeft />Roles and permissions</button></div>
       <div className="pagehead"><h2>{f.id ? f.name : "Add role"}</h2></div>
       {err && <div className="error">{err}</div>}
       {locked && <div className="okmsg">The Owner role always has full access and can't be changed.</div>}
@@ -72,7 +77,7 @@ function RoleEditor({ initial, meta, onDone }: { initial: Role; meta: Meta; onDo
       <div className="savebar">
         {f.id && !locked && <button className="danger" onClick={remove}>Delete role</button>}
         <span style={{ flex: 1 }} />
-        <button onClick={onDone}>{locked ? "Back" : "Discard"}</button>
+        <button onClick={cancel}>{locked ? "Back" : "Discard"}</button>
         {!locked && <button className="primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button>}
       </div>
     </>

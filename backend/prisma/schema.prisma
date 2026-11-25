@@ -273,6 +273,7 @@ model Location {
   id        String   @id @default(cuid())
   name      String
   marketId  String?  // market whose stock and orders this location serves (null = the market that sells in its country)
+  regionCode String? // state/province (a market region) this location is in; stock is grouped Market → Region → Location
   company   String   @default("")
   line1     String   @default("")
   line2     String   @default("")
@@ -648,4 +649,39 @@ model FileAsset {
   alt       String   @default("") @db.VarChar(200)
   createdBy String   @default("") @db.VarChar(190)
   createdAt DateTime @default(now())
+}
+
+// A manual stock change (typed on a product, set on the Inventory page, scanned): kept so a wrong one can be put back from History.
+model StockMovement {
+  id         String    @id @default(cuid())
+  variantId  String
+  marketId   String?
+  locationId String?
+  delta      Int
+  source     String    // product | inventory | scan | restore
+  reason     String    @default("")
+  actorEmail String    @default("")
+  revertedAt DateTime? // set once this change was put back (or when this row is itself a restore)
+  createdAt  DateTime  @default(now())
+
+  @@index([variantId, createdAt])
+  @@index([createdAt])
+}
+
+// A change to one variant's price in one market, kept in the Inventory history so a wrong price can be put back.
+model PriceChange {
+  id            String    @id @default(cuid())
+  variantId     String
+  marketId      String
+  oldAmount     Int
+  newAmount     Int
+  oldCompareAt  Int?
+  newCompareAt  Int?
+  source        String    // product | prices | restore
+  actorEmail    String    @default("")
+  revertedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([variantId, createdAt])
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api, toMajor, toMinor } from "@/lib/api";
 import { Switch } from "./Switch";
 import { useApi } from "./hooks";
+import { useDirty, useUnsavedGuard } from "./unsaved";
 
 type S = { automaticTax: boolean; highValueMinor: number; stripeConfigured: boolean };
 
@@ -15,15 +16,19 @@ export function CheckoutSettings() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (data) { setTax(data.automaticTax); setHigh(toMajor(data.highValueMinor)); } }, [data]);
-  const save = async () => {
+  const { dirty, markSaved } = useDirty({ tax, high }, !!data);
+  const save = async (): Promise<boolean> => {
     const n = Number(high);
-    if (!high.trim() || !Number.isFinite(n) || n < 0) return void setErr("Enter an amount of 0 or more");
+    if (!high.trim() || !Number.isFinite(n) || n < 0) { setErr("Enter an amount of 0 or more"); return false; }
     setBusy(true); setErr(""); setMsg("");
-    try { await api("/settings/checkout", { method: "PUT", json: { automaticTax: tax, highValueMinor: toMinor(high) } }); setMsg("Saved"); reload(); } catch (e) { setErr((e as Error).message); }
+    try { await api("/settings/checkout", { method: "PUT", json: { automaticTax: tax, highValueMinor: toMinor(high) } }); setMsg("Saved"); reload(); markSaved(); setBusy(false); return true; } catch (e) { setErr((e as Error).message); }
     setBusy(false);
+    return false;
   };
+  const { guard } = useUnsavedGuard(dirty, save);
   return (
     <>
+      {guard}
       <div className="pagehead"><div><h2>Checkout and tax</h2><div className="muted">How tax is worked out, and how risky orders are flagged.</div></div></div>
       {(error || err) && <div className="error">{error || err}</div>}
       {msg && <div className="okmsg">{msg}</div>}

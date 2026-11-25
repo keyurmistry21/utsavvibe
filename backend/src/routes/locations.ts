@@ -18,7 +18,16 @@ const input = z.object({
   phone: z.string().trim().max(30).default(""),
   active: z.boolean().default(true),
   marketId: z.string().max(40).nullable().optional(),
+  regionCode: z.string().trim().max(10).nullable().optional(), // state/province (a region of the location's market)
 });
+
+// A region only makes sense inside a market; clear it when the market has no such region.
+async function cleanRegion(d: z.infer<typeof input>) {
+  if (!d.regionCode) return { ...d, regionCode: null };
+  const market = d.marketId ? await prisma.market.findUnique({ where: { id: d.marketId }, include: { regions: true } }) : null;
+  if (!market || !market.regions.some((r) => r.code === d.regionCode)) throw Object.assign(new Error("Choose a market, then one of its states or provinces"), { status: 400 });
+  return d;
+}
 
 /** The sender address for labels: the default location, else the legacy ship-from setting. */
 export async function shipFromAddress() {
@@ -54,7 +63,7 @@ locationsRouter.get("/", async (_req, res) => {
 locationsRouter.post("/", async (req, res) => {
   const d = input.parse(req.body);
   const first = (await prisma.location.count()) === 0;
-  res.status(201).json(await prisma.location.create({ data: { ...d, active: first ? true : d.active, isDefault: first } }));
+  res.status(201).json(await prisma.location.create({ data: { ...(await cleanRegion(d)), active: first ? true : d.active, isDefault: first } }));
 });
 
 locationsRouter.put("/:id", async (req, res) => {
@@ -62,7 +71,7 @@ locationsRouter.put("/:id", async (req, res) => {
   const cur = await prisma.location.findUnique({ where: { id: req.params.id } });
   if (!cur) throw bad("Location not found", 404);
   if (cur.isDefault && !d.active) throw bad("The default location can't be deactivated. Make another location the default first.");
-  res.json(await prisma.location.update({ where: { id: cur.id }, data: d }));
+  res.json(await prisma.location.update({ where: { id: cur.id }, data: await cleanRegion(d) }));
 });
 
 locationsRouter.post("/:id/default", async (req, res) => {

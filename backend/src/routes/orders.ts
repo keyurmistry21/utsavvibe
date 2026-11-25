@@ -1,3 +1,4 @@
+import { csvCell } from "../csv.js";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma, parseJson } from "../db.js";
@@ -21,23 +22,55 @@ const shape = (o: any) => ({
   market: o.market && { ...o.market, countries: parseJson(o.market.countries, []) },
 });
 
-ordersRouter.get("/", async (req, res) => {
-  const { status, paymentStatus, marketId, market, channel } = req.query as Record<string, string | undefined>;
+// Same filters for the list and the CSV export: status, payment, channel, market, location, and a date range.
+function orderWhere(req: Parameters<typeof scopeCodes>[0]) {
+  const { status, paymentStatus, marketId, market, channel, location, from, to } = req.query as Record<string, string | undefined>;
   const scope = scopeCodes(req); // staff limited to some markets only ever see those
   const locScope = scopeLocations(req); // ... and counter staff only see in-store sales from their own locations (online orders stay visible)
-  const orders = await prisma.order.findMany({
+  const day = (v?: string, end = false) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T${end ? "23:59:59.999" : "00:00:00"}`) : undefined);
+  const gte = day(from), lte = day(to, true);
+  return {
     // drafts live under /drafts or ?status=draft; they are not orders yet
-    where: { status: status ? status : { not: "draft" }, ...(paymentStatus && { paymentStatus }), ...((channel === "online" || channel === "in_store") && { channel }), ...(locScope ? { OR: [{ channel: "online" }, { locationId: { in: locScope } }] } : {}), ...(marketId && { marketId }), ...(market ? { market: { code: scope && !scope.includes(market.toUpperCase()) ? "-" : market.toUpperCase() } } : scope ? { market: { code: { in: scope } } } : {}) },
-    include,
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
+    status: status ? status : { not: "draft" },
+    ...(paymentStatus && { paymentStatus }),
+    ...((channel === "online" || channel === "in_store") && { channel }),
+    ...(location && { locationId: location }),
+    ...(locScope ? { OR: [{ channel: "online" }, { locationId: { in: locScope } }] } : {}),
+    ...(marketId && { marketId }),
+    ...(market ? { market: { code: scope && !scope.includes(market.toUpperCase()) ? "-" : market.toUpperCase() } } : scope ? { market: { code: { in: scope } } } : {}),
+    ...((gte || lte) && { createdAt: { ...(gte && { gte }), ...(lte && { lte }) } }),
+  };
+}
+
+ordersRouter.get("/", async (req, res) => {
+  const orders = await prisma.order.findMany({ where: orderWhere(req), include, orderBy: { createdAt: "desc" }, take: 200 });
   res.json(orders.map(shape));
+});
+
+// Locations the signed-in staff member can filter by.
+ordersRouter.get("/locations", async (req, res) => {
+  const scope = scopeLocations(req);
+  const rows = await prisma.location.findMany({ where: { active: true, ...(scope ? { id: { in: scope } } : {}) }, orderBy: [{ isDefault: "desc" }, { name: "asc" }], select: { id: true, name: true } });
+  res.json(rows);
+});
+
+// CSV of the orders the filters match (one row per order). Amounts are in the order's own currency, never mixed.
+ordersRouter.get("/export.csv", async (req, res) => {
+  const orders = await prisma.order.findMany({ where: orderWhere(req), include, orderBy: { createdAt: "desc" }, take: 5000 });
+  const head = ["Order", "Date", "Customer", "Email", "Market", "Currency", "Channel", "Location", "Items", "Subtotal", "Discount", "Shipping", "Tax", "Total", "Refunded", "Payment", "Status", "Tags"];
+  const m = (n: number) => (n / 100).toFixed(2);
+  const lines = orders.map((o: any) => [
+    o.number, o.createdAt.toISOString(), o.customer?.name ?? "", o.customer?.email ?? "", o.market?.code ?? "", o.currency, o.channel === "in_store" ? "In-store" : "Online", o.locationName ?? "",
+    o.items.reduce((n: number, i: any) => n + i.quantity, 0), m(o.subtotal), m(o.discount ?? 0), m(o.shipping), m(o.tax), m(o.total), m(o.refundedAmount ?? 0), o.paymentStatus, o.status, parseJson<string[]>(o.tags, []).join(", "),
+  ].map(csvCell).join(","));
+  res.setHeader("content-type", "text/csv; charset=utf-8");
+  res.setHeader("content-disposition", `attachment; filename="orders-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send("\uFEFF" + [head.map(csvCell).join(","), ...lines].join("\r\n"));
 });
 
 // Numbers above the order list: orders, items, sales and refunds for a period. Sales are kept per currency, never added across markets.
 ordersRouter.get("/stats/summary", async (req, res) => {
-  const { range, market, channel } = req.query as Record<string, string | undefined>;
+  const { range, market, channel, location } = req.query as Record<string, string | undefined>;
   const scope = scopeCodes(req);
   const locScope = scopeLocations(req);
   const now = new Date();
@@ -49,6 +82,7 @@ ordersRouter.get("/stats/summary", async (req, res) => {
     where: {
       status: { notIn: ["draft"] }, createdAt: { gte: start },
       ...((channel === "online" || channel === "in_store") && { channel }),
+      ...(location && { locationId: location }),
       ...(locScope ? { OR: [{ channel: "online" }, { locationId: { in: locScope } }] } : {}),
       ...(market ? { market: { code: scope && !scope.includes(market.toUpperCase()) ? "-" : market.toUpperCase() } } : scope ? { market: { code: { in: scope } } } : {}),
     },

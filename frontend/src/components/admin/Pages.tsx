@@ -8,6 +8,7 @@ import { ArrowLeft } from "../Icons";
 import { RichTextEditor } from "./RichTextEditor";
 import { Switch } from "./Switch";
 import { useApi } from "./hooks";
+import { useDirty, useUnsavedGuard } from "./unsaved";
 
 type Row = { id: string; title: string; handle: string; visible: boolean; updatedAt: string; excerpt: string };
 const when = (iso: string) => { const d = new Date(iso); return `${d.toLocaleDateString("en", { month: "short", day: "numeric" })} at ${d.toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" }).toLowerCase()}`; };
@@ -30,28 +31,35 @@ function PageEditor({ initial, onDone }: { initial: Form; onDone: () => void }) 
     seoDescription: maxLen(f.seoDescription, 500, "The description"),
   });
 
-  const save = async () => {
-    if (!val.submit()) return;
+  const { dirty } = useDirty(f);
+  const save = async (): Promise<boolean> => {
+    if (!val.submit()) return false;
     setErr(""); setSaving(true);
     try {
       const body = { title: f.title.trim(), handle, content: f.content, visible: f.visible, seoTitle: f.seoTitle, seoDescription: f.seoDescription };
       const saved = await api<{ id: string; handle: string }>(f.id ? `/online-store/pages/${f.id}` : "/online-store/pages", { method: f.id ? "PUT" : "POST", json: body });
       setF((c) => ({ ...c, id: saved.id, handle: saved.handle, handleTouched: true }));
+      allow();
       onDone();
+      return true;
     } catch (e) {
       const msg = (e as Error).message;
       if (/URL handle/i.test(msg)) { setSrv(msg); val.touch("handle"); } else setErr(msg);
       setSaving(false);
+      return false;
     }
   };
+  const { guard, allow } = useUnsavedGuard(dirty, save);
+  const cancel = () => { if (dirty && !confirm("Discard your changes?")) return; allow(); onDone(); };
   const remove = async () => {
     if (!f.id || !confirm("Delete this page? Its link will stop working.")) return;
-    try { await api(`/online-store/pages/${f.id}`, { method: "DELETE" }); onDone(); } catch (e) { setErr((e as Error).message); }
+    try { await api(`/online-store/pages/${f.id}`, { method: "DELETE" }); allow(); onDone(); } catch (e) { setErr((e as Error).message); }
   };
 
   return (
     <>
-      <div className="crumbbar"><button className="link crumb" onClick={onDone}><ArrowLeft />Pages</button></div>
+      {guard}
+      <div className="crumbbar"><button className="link crumb" onClick={cancel}><ArrowLeft />Pages</button></div>
       <div className="pagehead"><h2>{f.id ? f.title || "Page" : "Add page"}</h2></div>
       {err && <div className="error">{err}</div>}
       <div className="cols">
@@ -84,7 +92,7 @@ function PageEditor({ initial, onDone }: { initial: Form; onDone: () => void }) 
       <div className="savebar">
         {f.id && <button className="danger" onClick={remove}>Delete page</button>}
         <span style={{ flex: 1 }} />
-        <button onClick={onDone}>Discard</button>
+        <button onClick={cancel}>Discard</button>
         <button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button>
       </div>
     </>

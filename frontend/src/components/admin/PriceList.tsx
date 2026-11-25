@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, toMajor, toMinor, type StockMarket } from "@/lib/api";
 import { useCan } from "@/lib/perms";
 import { useApi } from "./hooks";
+import { useUnsavedGuard } from "./unsaved";
 import { Select } from "../Select";
 import { ArrowLeft } from "../Icons";
 
@@ -56,17 +57,22 @@ function PriceTable({ markets }: { markets: StockMarket[] }) {
     for (const { v } of rows) next[v.id] = { ...next[v.id], amount: toMajor(Math.max(0, Math.round(toMinor(cur(v)) * (1 + p / 100)))) };
     setEdits(next); setErr(""); setMsg(`All prices changed by ${p}%. Check them and press Save.`);
   };
-  const save = async () => {
+  const dirty = changed.length > 0;
+  const save = async (): Promise<boolean> => {
     setSaving(true); setErr(""); setMsg("");
+    let ok = false;
     try {
       const r = await api<{ updated: number }>("/products/prices/list", { method: "PUT", json: { marketId, rows: changed.map(({ v }) => ({ variantId: v.id, amount: toMinor(cur(v)), compareAt: curCmp(v) ? toMinor(curCmp(v)) : null })) } });
-      setMsg(`${r.updated} price${r.updated === 1 ? "" : "s"} saved.`); setEdits({}); reload();
+      setMsg(`${r.updated} price${r.updated === 1 ? "" : "s"} saved.`); setEdits({}); reload(); ok = true;
     } catch (e) { setErr((e as Error).message); }
     setSaving(false);
+    return ok;
   };
+  const { guard } = useUnsavedGuard(dirty, save);
 
   return (
     <>
+      {guard}
       <div className="pagehead">
         <div><Link className="btn-link" href="/admin/products"><ArrowLeft /> Products</Link><h2>Prices by market</h2><div className="muted">Edit every price for one market on one screen. Each market keeps its own prices and currency.</div></div>
         {manage && <button className="primary" disabled={saving || !changed.length} onClick={save}>{saving ? "Saving…" : `Save${changed.length ? ` ${changed.length} change${changed.length === 1 ? "" : "s"}` : ""}`}</button>}

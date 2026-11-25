@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useDirty, useUnsavedGuard } from "./unsaved";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { addressFrom, api, blankAddress, hasAddress, money, toMajor, toMinor, type Address, type Customer, type CustHit, type Market, type Order, type Product } from "@/lib/api";
@@ -163,19 +164,24 @@ export function DraftEditor({ id }: { id?: string }) {
   const cval = useValidation(CE);
   const openCustom = () => { cval.reset(); setCustom(blankCustom()); };
 
-  const save = async () => {
+  const { dirty } = useDirty({ marketId, c: customer?.id ?? null, addr, lines, discount, discountNote, notes, tags, shipRateId, customShip }, markets.length > 0 && !!marketId);
+  const save = async (): Promise<boolean> => {
     if (L.discount) setShowDiscount(true);
     if (L.ship) setShowShip(true);
-    if (!val.submit()) { setErr("Some fields need attention. They are highlighted below."); return; }
+    if (!val.submit()) { setErr("Some fields need attention. They are highlighted below."); return false; }
     setErr(""); setSaving(true);
     try {
       const o = await api<Order>(id ? `/drafts/${id}` : "/drafts", { method: id ? "PUT" : "POST", json: body() });
+      allow();
       router.push(`/admin/orders/${o.id}`);
+      return true;
     } catch (e) {
       setErr((e as Error).message);
       setSaving(false);
+      return false;
     }
   };
+  const { guard, allow } = useUnsavedGuard(dirty && newCust === null, save);
 
   const canSave = !!marketId && lines.length > 0 && !saving;
   const cur = market?.currency ?? "USD";
@@ -194,6 +200,7 @@ export function DraftEditor({ id }: { id?: string }) {
 
   return (
     <>
+      {guard}
       <div className="crumbbar">
         <Link href="/admin/orders?status=draft" className="crumb"><ArrowLeft />Drafts</Link>
       </div>

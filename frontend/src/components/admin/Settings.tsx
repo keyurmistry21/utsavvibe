@@ -2,6 +2,7 @@
 
 import { PasswordInput } from "./PasswordInput";
 import { useEffect, useState } from "react";
+import { useDirty, useUnsavedGuard } from "./unsaved";
 import { api, auth } from "@/lib/api";
 import { FIELD_STYLES, getFieldStyle, setFieldStyle, type FieldStyleId } from "@/lib/fieldStyle";
 import { maxLen, phone as phoneErr, required } from "@/lib/validators";
@@ -13,7 +14,9 @@ const blankFrom = { name: "", company: "", line1: "", line2: "", city: "", regio
 export function ShipFrom() {
   const [f, setF] = useState(blankFrom);
   const [msg, setMsg] = useState("");
-  useEffect(() => { api<typeof blankFrom>("/settings/ship-from").then(setF).catch(() => {}); }, []);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { api<typeof blankFrom>("/settings/ship-from").then((x) => { setF(x); setLoaded(true); }).catch(() => setLoaded(true)); }, []);
+  const { dirty, markSaved } = useDirty(f, loaded);
   const set = (k: keyof typeof blankFrom) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   const E: Record<string, string> = {
     country: f.country && !/^[A-Z]{2}$/.test(f.country) ? "Use the 2-letter country code, like GB, US or CA" : "",
@@ -22,12 +25,14 @@ export function ShipFrom() {
     line1: maxLen(f.line1, 200, "Address"),
   };
   const val = useValidation(E);
-  const save = async () => {
-    if (!val.submit()) return;
-    try { await api("/settings/ship-from", { method: "PUT", json: f }); setMsg("Saved"); } catch (e) { setMsg((e as Error).message); }
+  const save = async (): Promise<boolean> => {
+    if (!val.submit()) return false;
+    try { await api("/settings/ship-from", { method: "PUT", json: f }); setMsg("Saved"); markSaved(); return true; } catch (e) { setMsg((e as Error).message); return false; }
   };
+  const { guard } = useUnsavedGuard(dirty, save);
   return (
     <div className="card" style={{ maxWidth: 640 }}>
+      {guard}
       <h3>Default location address</h3>
       <p className="muted">Printed as the sender on shipping labels and packing slips. This edits your default location; add more under <a className="lnk" href="/admin/settings/locations">Locations</a>.</p>
       <div className="row">

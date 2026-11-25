@@ -30,16 +30,6 @@ export async function setLevels(db: Tx, variantId: string, stock: Record<string,
     await db.inventoryLevel.upsert({ where: { variantId_marketId: { variantId, marketId } }, create: { variantId, marketId, ...data }, update: data });
   }
   await db.variant.update({ where: { id: variantId }, data: { inventory: Object.values(stock).reduce((a, b) => a + b.quantity, 0) } });
-  // Keep the Inventory page in step with the product page: a market served by exactly one location holds all of its stock there.
-  const locs = await db.location.findMany({ where: { active: true }, select: { id: true, marketId: true, country: true } });
-  const byMarket = new Map<string, string[]>();
-  for (const l of locs) { const m = await marketOfLocation(db, l); if (m) byMarket.set(m, [...(byMarket.get(m) ?? []), l.id]); }
-  for (const [marketId, ids] of byMarket) {
-    if (ids.length !== 1) continue; // several locations: the owner splits it on the Inventory page
-    const qty = stock[marketId]?.quantity;
-    if (qty === undefined) await db.locationStock.deleteMany({ where: { variantId, locationId: ids[0] } });
-    else await db.locationStock.upsert({ where: { variantId_locationId: { variantId, locationId: ids[0] } }, create: { variantId, locationId: ids[0], quantity: qty }, update: { quantity: qty } });
-  }
 }
 
 /** On-hand units a market can sell: its own level when it has one, else the variant total. */
@@ -119,4 +109,49 @@ export async function allocateSale(db: Tx, variantId: string, qty: number, marke
     left -= take;
   }
   return first;
+}
+
+/** Remember a manual stock change so a wrong one can be put back from the Inventory history. */
+export async function logMovement(db: Tx, m: { variantId: string; marketId?: string | null; locationId?: string | null; delta: number; source: "product" | "inventory" | "scan" | "restore"; reason?: string; actorEmail?: string; revertedAt?: Date }) {
+  if (!m.delta) return;
+  await db.stockMovement.create({ data: { variantId: m.variantId, marketId: m.marketId ?? null, locationId: m.locationId ?? null, delta: m.delta, source: m.source, reason: (m.reason ?? "").slice(0, 200), actorEmail: m.actorEmail ?? "", revertedAt: m.revertedAt ?? null } });
+}
+
+/** Undo one logged change: apply the opposite amount where it happened. Throws 409 when that would take stock below zero. */
+export async function restoreMovement(db: Tx, id: string, actorEmail: string) {
+  const mv = await db.stockMovement.findUnique({ where: { id } });
+  if (!mv) throw Object.assign(new Error("That change was not found"), { status: 404 });
+  if (mv.revertedAt || mv.source === "restore") throw Object.assign(new Error("That change was already put back"), { status: 409 });
+  const flip = await db.stockMovement.updateMany({ where: { id, revertedAt: null }, data: { revertedAt: new Date() } });
+  if (!flip.count) throw Object.assign(new Error("That change was just put back by someone else"), { status: 409 });
+  if (mv.locationId) await adjustLocationStock(db, mv.variantId, mv.locationId, -mv.delta);
+  else if (mv.marketId) {
+    const levels = await db.inventoryLevel.findMany({ where: { variantId: mv.variantId } });
+    const cur = levels.find((l) => l.marketId === mv.marketId)?.quantity ?? 0;
+    if (cur - mv.delta < 0) throw Object.assign(new Error(`Only ${cur} left in that market, so it can't be put back`), { status: 409 });
+    const map: Record<string, LevelInput> = Object.fromEntries(levels.map((l) => [l.marketId, { quantity: l.quantity, sku: l.sku, barcode: l.barcode }]));
+    map[mv.marketId] = { ...(map[mv.marketId] ?? {}), quantity: cur - mv.delta };
+    await setLevels(db, mv.variantId, map);
+  } else throw Object.assign(new Error("Nothing to put back"), { status: 400 });
+  await logMovement(db, { variantId: mv.variantId, marketId: mv.marketId, locationId: mv.locationId, delta: -mv.delta, source: "restore", reason: `Put back change from ${mv.createdAt.toISOString().slice(0, 10)}`, actorEmail, revertedAt: new Date() });
+  return mv;
+}
+
+/** Remember a price change (only when it really changed) so it shows in the Inventory history and can be put back. */
+export async function logPriceChange(db: Tx, c: { variantId: string; marketId: string; oldAmount: number; newAmount: number; oldCompareAt?: number | null; newCompareAt?: number | null; source: "product" | "prices" | "restore"; actorEmail?: string; revertedAt?: Date }) {
+  if (c.oldAmount === c.newAmount && (c.oldCompareAt ?? null) === (c.newCompareAt ?? null)) return;
+  await db.priceChange.create({ data: { variantId: c.variantId, marketId: c.marketId, oldAmount: c.oldAmount, newAmount: c.newAmount, oldCompareAt: c.oldCompareAt ?? null, newCompareAt: c.newCompareAt ?? null, source: c.source, actorEmail: c.actorEmail ?? "", revertedAt: c.revertedAt ?? null } });
+}
+
+/** Put a price back to what it was before the logged change. */
+export async function restorePriceChange(db: Tx, id: string, actorEmail: string) {
+  const c = await db.priceChange.findUnique({ where: { id } });
+  if (!c) throw Object.assign(new Error("That change was not found"), { status: 404 });
+  if (c.revertedAt || c.source === "restore") throw Object.assign(new Error("That change was already put back"), { status: 409 });
+  const flip = await db.priceChange.updateMany({ where: { id, revertedAt: null }, data: { revertedAt: new Date() } });
+  if (!flip.count) throw Object.assign(new Error("That change was just put back by someone else"), { status: 409 });
+  const cur = await db.variantPrice.findUnique({ where: { variantId_marketId: { variantId: c.variantId, marketId: c.marketId } } });
+  if (!cur) throw Object.assign(new Error("That product is no longer sold in this market"), { status: 409 });
+  await db.variantPrice.update({ where: { variantId_marketId: { variantId: c.variantId, marketId: c.marketId } }, data: { amount: c.oldAmount, compareAt: c.oldCompareAt } });
+  await logPriceChange(db, { variantId: c.variantId, marketId: c.marketId, oldAmount: cur.amount, newAmount: c.oldAmount, oldCompareAt: cur.compareAt, newCompareAt: c.oldCompareAt, source: "restore", actorEmail, revertedAt: new Date() });
 }

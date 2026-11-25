@@ -8,6 +8,7 @@ import { ArrowLeft } from "../Icons";
 import { RichTextEditor } from "./RichTextEditor";
 import { Switch } from "./Switch";
 import { useApi } from "./hooks";
+import { useDirty, useUnsavedGuard } from "./unsaved";
 
 type Row = { id: string; title: string; handle: string; author: string; published: boolean; publishedAt: string | null; updatedAt: string; excerpt: string };
 type Form = {
@@ -52,8 +53,9 @@ function Editor({ initial, onDone }: { initial: Form; onDone: () => void }) {
     } catch (e) { setUpErr((e as Error).message); } finally { setUploading(false); }
   };
 
-  const save = async () => {
-    if (!val.submit()) return;
+  const { dirty } = useDirty(f);
+  const save = async (): Promise<boolean> => {
+    if (!val.submit()) return false;
     setErr(""); setSaving(true);
     try {
       const body = {
@@ -61,22 +63,28 @@ function Editor({ initial, onDone }: { initial: Form; onDone: () => void }) {
         coverImage: f.coverImage, published: f.published, publishedAt: f.publishedAt ? new Date(f.publishedAt).toISOString() : null, seoTitle: f.seoTitle, seoDescription: f.seoDescription,
       };
       await api(f.id ? `/blog/posts/${f.id}` : "/blog/posts", { method: f.id ? "PUT" : "POST", json: body });
+      allow();
       onDone();
+      return true;
     } catch (e) {
       const msg = (e as Error).message;
       if (/URL handle/i.test(msg)) { setSrv(msg); val.touch("handle"); } else setErr(msg);
       setSaving(false);
+      return false;
     }
   };
+  const { guard, allow } = useUnsavedGuard(dirty, save);
+  const cancel = () => { if (dirty && !confirm("Discard your changes?")) return; allow(); onDone(); };
   const remove = async () => {
     if (!f.id || !confirm("Delete this post? Its link will stop working.")) return;
-    try { await api(`/blog/posts/${f.id}`, { method: "DELETE" }); onDone(); } catch (e) { setErr((e as Error).message); }
+    try { await api(`/blog/posts/${f.id}`, { method: "DELETE" }); allow(); onDone(); } catch (e) { setErr((e as Error).message); }
   };
   const scheduled = f.published && f.publishedAt && new Date(f.publishedAt) > new Date();
 
   return (
     <>
-      <div className="crumbbar"><button className="link crumb" onClick={onDone}><ArrowLeft />Blog posts</button></div>
+      {guard}
+      <div className="crumbbar"><button className="link crumb" onClick={cancel}><ArrowLeft />Blog posts</button></div>
       <div className="pagehead"><h2>{f.id ? f.title || "Post" : "Add blog post"}</h2></div>
       {err && <div className="error">{err}</div>}
       <div className="cols">
@@ -126,7 +134,7 @@ function Editor({ initial, onDone }: { initial: Form; onDone: () => void }) {
       <div className="savebar">
         {f.id && <button className="danger" onClick={remove}>Delete post</button>}
         <span style={{ flex: 1 }} />
-        <button onClick={onDone}>Discard</button>
+        <button onClick={cancel}>Discard</button>
         <button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button>
       </div>
     </>

@@ -13,6 +13,7 @@ import { NoAccess } from "@/components/admin/NoAccess";
 import { PermsProvider, ROUTE_PERMS } from "@/lib/perms";
 import { AdminMarketProvider } from "@/lib/adminMarket";
 import { MarketPicker } from "@/components/admin/MarketPicker";
+import { ToastHost } from "@/components/admin/ToastHost";
 
 const Icon = ({ d }: { d: string }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
@@ -234,6 +235,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
         <main className={`content ${path === "/admin" ? "is-home" : ""}`}><div className="inner">{needs && !can(needs) ? <NoAccess /> : children}</div></main>
       </div>
+      <ToastHost />
     </div>
     </AdminMarketProvider>
     </PermsProvider>
