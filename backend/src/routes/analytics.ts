@@ -289,6 +289,68 @@ analyticsRouter.get("/home", async (req, res) => {
   });
 });
 
+// ---- Home, second half: the last 30 days in more detail (mix, busiest times, customers, stock health) ----
+analyticsRouter.get("/home/extra", async (req, res) => {
+  const marketCode = req.query.market ? String(req.query.market).toUpperCase() : null;
+  const where = await scopeWhere(req, marketCode);
+  const scope = scopeCodes(req);
+  const mktCodes = marketCode ? [marketCode] : scope;
+  const DAY = 86400000;
+  const today = startOfUtcDay(new Date());
+  const d29 = new Date(today.getTime() - 29 * DAY), d59 = new Date(today.getTime() - 59 * DAY);
+
+  const [orders, newCustomers, totalCustomers, variants, cards, abandoned] = await Promise.all([
+    prisma.order.findMany({ where: { status: { not: "draft" }, createdAt: { gte: d59 }, ...where }, select: { createdAt: true, total: true, tax: true, currency: true, channel: true, status: true, paymentStatus: true, customerId: true, market: { select: { code: true } }, customer: { select: { name: true, email: true } } } }),
+    prisma.customer.count({ where: { createdAt: { gte: d29 } } }),
+    prisma.customer.count(),
+    prisma.variant.findMany({ where: { product: { status: "active", trackInventory: true, continueSelling: false, isGiftCard: false, ...(mktCodes ? { markets: { some: { market: { code: { in: mktCodes } } } } } : {}) } }, select: { inventory: true } }),
+    prisma.giftCard.findMany({ where: { active: true, balance: { gt: 0 } }, select: { currency: true, balance: true } }),
+    prisma.order.count({ where: { paymentStatus: "pending", status: { not: "cancelled" }, createdAt: { gte: new Date(Date.now() - 14 * DAY) }, ...where } }),
+  ]);
+
+  type M = { currency: string; sales30: number; sales30Prev: number; orders30: number; orders30Prev: number; daily: number[]; weekday: number[]; hour: number[] };
+  const money: Record<string, M> = {};
+  const mix = { channel: {} as Record<string, number>, status: {} as Record<string, number>, market: {} as Record<string, number> };
+  const perCust: Record<string, { name: string; email: string | null; orders: number }> = {};
+  for (const o of orders) {
+    const inWin = o.createdAt >= d29;
+    const paid = o.paymentStatus === "paid";
+    if (inWin) {
+      const st = o.status === "cancelled" ? "Cancelled" : o.paymentStatus === "refunded" ? "Refunded" : paid ? (o.status === "fulfilled" ? "Fulfilled" : "To fulfil") : "Unpaid";
+      mix.status[st] = (mix.status[st] ?? 0) + 1;
+      if (paid) {
+        mix.channel[o.channel === "in_store" ? "In-store" : "Online"] = (mix.channel[o.channel === "in_store" ? "In-store" : "Online"] ?? 0) + 1;
+        mix.market[o.market.code] = (mix.market[o.market.code] ?? 0) + 1;
+      }
+    }
+    if (!paid) continue;
+    const m = (money[o.currency] ??= { currency: o.currency, sales30: 0, sales30Prev: 0, orders30: 0, orders30Prev: 0, daily: Array(30).fill(0), weekday: Array(7).fill(0), hour: Array(24).fill(0) });
+    const net = o.total - o.tax;
+    if (inWin) {
+      m.sales30 += net; m.orders30++;
+      m.daily[Math.min(29, Math.floor((startOfUtcDay(o.createdAt).getTime() - d29.getTime()) / DAY))] += net;
+      m.weekday[(o.createdAt.getUTCDay() + 6) % 7] += net; // Monday first
+      m.hour[o.createdAt.getUTCHours()] += net;
+      if (o.customerId) { const c = (perCust[o.customerId] ??= { name: o.customer?.name || o.customer?.email || "Customer", email: o.customer?.email ?? null, orders: 0 }); c.orders++; }
+    } else { m.sales30Prev += net; m.orders30Prev++; }
+  }
+  const buyers = Object.values(perCust);
+  const returning = buyers.filter((c) => c.orders > 1).length;
+  const health = { healthy: 0, low: 0, out: 0 };
+  for (const v of variants) { if (v.inventory <= 0) health.out++; else if (v.inventory <= LOW_STOCK) health.low++; else health.healthy++; }
+  const cardBalance: Record<string, number> = {};
+  for (const c of cards) cardBalance[c.currency] = (cardBalance[c.currency] ?? 0) + c.balance;
+
+  res.json({
+    money: Object.values(money),
+    mix: { channel: Object.entries(mix.channel).map(([label, n]) => ({ label, n })), status: Object.entries(mix.status).map(([label, n]) => ({ label, n })), market: Object.entries(mix.market).map(([label, n]) => ({ label, n })) },
+    customers: { total: totalCustomers, newThisMonth: newCustomers, buyers: buyers.length, returning, top: buyers.sort((a, b) => b.orders - a.orders).slice(0, 5).map((c) => ({ name: c.name, orders: c.orders })) },
+    health,
+    giftCards: { count: cards.length, balances: Object.entries(cardBalance).map(([currency, balance]) => ({ currency, balance })) },
+    abandoned,
+  });
+});
+
 // ---- Tax collected by province / state (for filing): paid orders, per currency, grouped by the delivery region ----
 analyticsRouter.get("/tax", async (req, res) => {
   const { from, to } = range(req.query);

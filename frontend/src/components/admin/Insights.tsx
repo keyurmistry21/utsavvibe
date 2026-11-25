@@ -6,6 +6,8 @@ import { today, ymd } from "@/lib/dates";
 import { useAdminMarket } from "@/lib/adminMarket";
 import { useApi } from "./hooks";
 import { DateRangePicker } from "./DateRangePicker";
+import { Banner } from "./Banner";
+import { AreaChart, Donut, HBars, HeatStrip } from "./Charts";
 
 type Tot = { currency: string; sales: number; orders: number; aov: number };
 type Insights = {
@@ -73,6 +75,15 @@ export function Insights() {
       </div>
       {preset === "custom" && !range && <div className="error">The start date must be on or before the end date.</div>}
       {error && <div className="error">{error}</div>}
+
+      <Banner title="Visitors summary" ring={{ value: tr ? `${tr.conversionRate}%` : "–", label: "conversion", segs: [{ cls: "ok", n: tr?.funnel.purchase ?? 0 }, { cls: "arch", n: Math.max(0, (tr?.funnel.sessions ?? 0) - (tr?.funnel.purchase ?? 0)) }] }} stats={[
+        { label: "Visits", value: tr?.funnel.sessions ?? "–", tone: "arch" },
+        { label: "Viewed a product", value: tr?.funnel.view_item ?? "–", tone: "low" },
+        { label: "Added to cart", value: tr?.funnel.add_to_cart ?? "–", tone: "low" },
+        { label: "Purchased", value: tr?.funnel.purchase ?? "–", tone: "ok" },
+      ]}>
+        <span className="bn-note">Visitors in the chosen days. Conversion is the share of visits that ended in a purchase.</span>
+      </Banner>
       {!data && !error && <div className="ep-skel" aria-busy="true"><i /><i /><i /></div>}
 
       {data && (
@@ -87,7 +98,8 @@ export function Insights() {
             const oneDay = data.days <= 1;
             return (
               <section key={t.currency} className="ep-cur">
-                <div className="ep-curhead"><h3>{t.currency}</h3></div>
+                <div className="ep-banner">
+                <div className="ep-curhead"><h3>{t.currency}</h3>{range && <span className="ep-bperiod">{range.from} → {range.to}</span>}</div>
                 <div className="ep-kpis ins-kpis">
                   <div className="ep-kpi big"><div className="ep-kpi-label">Total sales<span>net of tax, paid only</span></div><div className="ep-kpi-value">{f(t.sales)}</div></div>
                   <div className="ep-kpi"><div className="ep-kpi-label">Orders<span>paid</span></div><div className="ep-kpi-value">{t.orders}</div><span className="ep-delta flat">{data.pending} pending / unpaid</span></div>
@@ -96,35 +108,31 @@ export function Insights() {
                   <div className="ep-kpi"><div className="ep-kpi-label">Top location</div><div className="ep-kpi-value sm">{topL ? topL.name : "–"}</div>{topL && <span className="ep-delta flat">{f(topL.sales)}</span>}</div>
                   <div className="ep-kpi"><div className="ep-kpi-label">Top salesperson</div><div className="ep-kpi-value sm">{topS ? topS.name : "–"}</div>{topS && <span className="ep-delta flat">{f(topS.sales)}</span>}</div>
                 </div>
+                </div>
                 <div className="card ep-card">
                   <div className="ep-panel-head"><h4>Sales over time</h4>
                     {!oneDay && <div className="ep-seg"><button className={!hourlyView ? "on" : ""} onClick={() => setHourlyView(false)}>Daily</button><button className={hourlyView ? "on" : ""} onClick={() => setHourlyView(true)}>By hour of day</button></div>}
                   </div>
-                  <Bars fmt={f} data={oneDay || hourlyView ? hours.map((v, h) => ({ label: h % 3 === 0 ? `${h}h` : "", v })) : daily.map((p) => ({ label: p.date.slice(5), v: p.sales }))} />
+                  {oneDay || hourlyView ? <HeatStrip values={hours} fmt={f} /> : <AreaChart points={daily.map((p) => ({ label: p.date.slice(5), value: p.sales }))} fmt={f} />}
                 </div>
                 <div className="ep-two even">
                   <div className="ep-panel">
                     <div className="ep-panel-head"><h4>Sales by channel</h4><span>Online vs in-store QR</span></div>
-                    <table className="ep-table"><thead><tr><th>Channel</th><th className="r">Orders</th><th className="r">Sales</th></tr></thead>
-                      <tbody>{ch.map((c) => <tr key={c.channel}><td>{CH[c.channel] ?? c.channel}</td><td className="r">{c.orders}</td><td className="r strong">{f(c.sales)}</td></tr>)}</tbody></table>
+                    <Donut slices={ch.map((c) => ({ label: CH[c.channel] ?? c.channel, value: c.sales }))} center={String(ch.reduce((a, c) => a + c.orders, 0))} sub="orders" fmt={f} />
                   </div>
                   <div className="ep-panel">
                     <div className="ep-panel-head"><h4>In-store by salesperson</h4><span>QR payments</span></div>
-                    <table className="ep-table"><thead><tr><th>Name</th><th className="r">Orders</th><th className="r">Sales</th></tr></thead>
-                      <tbody>{data.salespeople.filter((s) => s.currency === t.currency).map((s) => <tr key={s.id}><td>{s.name}</td><td className="r">{s.orders}</td><td className="r strong">{f(s.sales)}</td></tr>)}
-                        {!data.salespeople.some((s) => s.currency === t.currency) && <tr><td colSpan={3} className="ep-none">No in-store sales.</td></tr>}</tbody></table>
+                    <HBars fmt={f} empty="No in-store sales." items={data.salespeople.filter((s) => s.currency === t.currency).map((s) => ({ label: s.name, value: s.sales, note: `${s.orders} order${s.orders === 1 ? "" : "s"}` }))} />
                   </div>
                 </div>
                 <div className="ep-two even">
                   <div className="ep-panel">
                     <div className="ep-panel-head"><h4>In-store by location</h4></div>
-                    <table className="ep-table"><thead><tr><th>Location</th><th className="r">Orders</th><th className="r">Sales</th></tr></thead>
-                      <tbody>{data.locations.filter((s) => s.currency === t.currency).map((s) => <tr key={s.name}><td>{s.name}</td><td className="r">{s.orders}</td><td className="r strong">{f(s.sales)}</td></tr>)}
-                        {!data.locations.some((s) => s.currency === t.currency) && <tr><td colSpan={3} className="ep-none">No in-store sales.</td></tr>}</tbody></table>
+                    <HBars fmt={f} empty="No in-store sales." items={data.locations.filter((s) => s.currency === t.currency).map((s) => ({ label: s.name, value: s.sales, note: `${s.orders} order${s.orders === 1 ? "" : "s"}` }))} />
                   </div>
                   <div className="ep-panel">
                     <div className="ep-panel-head"><h4>Top products and variants</h4><span>By units sold</span></div>
-                    <ol className="ep-top-list">{data.topVariants.filter((v) => v.currency === t.currency).slice(0, 10).map((v, i) => <li key={v.title}><span className="rank">{i + 1}</span><span className="name">{v.title}</span><span className="qty">{v.quantity} · {f(v.revenue)}</span></li>)}</ol>
+                    <HBars empty="No sales yet." color="#f97203" items={data.topVariants.filter((v) => v.currency === t.currency).slice(0, 8).map((v) => ({ label: v.title, value: v.quantity, note: f(v.revenue) }))} />
                   </div>
                 </div>
               </section>
@@ -134,6 +142,7 @@ export function Insights() {
 
           <div className="ep-panel">
             <div className="ep-panel-head"><h4>Tax collected by province or state</h4><span>Paid orders, after refunds. Give this to your accountant.</span></div>
+            <div style={{ marginBottom: 16 }}><HBars color="#2f80ed" empty="No paid orders in this period." fmt={(n) => n.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} items={(tax ?? []).slice().sort((a, b) => b.tax - a.tax).slice(0, 8).map((t) => ({ label: `${t.market} · ${t.region}`, value: t.tax / 100, note: `${t.orders} order${t.orders === 1 ? "" : "s"} · ${t.currency}` }))} /></div>
             <table className="ep-table"><thead><tr><th>Market</th><th>Province / state</th><th className="r">Orders</th><th className="r">Sales (net)</th><th>Parts</th><th className="r">Tax collected</th></tr></thead>
               <tbody>{tax?.map((t, i) => <tr key={i}><td>{t.market}</td><td>{t.region}</td><td className="r">{t.orders}</td><td className="r">{money(t.sales, t.currency)}</td><td className="dim">{Object.entries(t.parts ?? {}).map(([n, a]) => `${n} ${money(a, t.currency)}`).join(" · ") || "–"}</td><td className="r strong">{money(t.tax, t.currency)}</td></tr>)}
                 {tax && !tax.length && <tr><td colSpan={6} className="ep-none">No paid orders in this period.</td></tr>}</tbody></table>
@@ -141,9 +150,7 @@ export function Insights() {
 
           <div className="ep-panel">
             <div className="ep-panel-head"><h4>Low stock</h4><span>Tracked variants with 5 or fewer left, per market</span></div>
-            <table className="ep-table"><thead><tr><th>Product</th><th>SKU</th><th>Market</th><th className="r">Left</th></tr></thead>
-              <tbody>{data.lowStock.map((l, i) => <tr key={i}><td>{l.product}{l.variant ? ` — ${l.variant}` : ""}</td><td>{l.sku ?? "–"}</td><td>{l.market}</td><td className="r strong">{l.quantity}</td></tr>)}
-                {!data.lowStock.length && <tr><td colSpan={4} className="ep-none">Nothing is running low.</td></tr>}</tbody></table>
+            <HBars empty="Nothing is running low." items={data.lowStock.map((l) => ({ label: `${l.product}${l.variant ? ` — ${l.variant}` : ""}`, value: l.quantity, note: `${l.market}${l.sku ? ` · ${l.sku}` : ""}`, color: l.quantity <= 2 ? "#d92d20" : "#e0a100" }))} />
           </div>
         </>
       )}
@@ -152,30 +159,36 @@ export function Insights() {
         <>
           <div className="ep-panel">
             <div className="ep-panel-head"><h4>Visitor funnel</h4><span>Sessions that reached each step</span></div>
-            <table className="ep-table"><tbody>
-              {([["Visits", tr.funnel.sessions], ["Viewed a product", tr.funnel.view_item], ["Added to cart", tr.funnel.add_to_cart], ["Started checkout", tr.funnel.begin_checkout], ["Purchased", tr.funnel.purchase]] as [string, number][]).map(([l, n]) => (
-                <tr key={l}><td>{l}</td><td className="r strong">{n}</td><td className="r dim">{tr.funnel.sessions ? `${Math.round((n / tr.funnel.sessions) * 100)}%` : "–"}</td></tr>
-              ))}</tbody></table>
+            <div className="fn">
+              {([["Visits", tr.funnel.sessions], ["Viewed a product", tr.funnel.view_item], ["Added to cart", tr.funnel.add_to_cart], ["Started checkout", tr.funnel.begin_checkout], ["Purchased", tr.funnel.purchase]] as const).map(([l, n], i, arr) => {
+                const top = Math.max(1, tr.funnel.sessions);
+                const prev = i ? arr[i - 1][1] : n;
+                return (
+                  <div key={l} className="fn-row">
+                    <div className="fn-label"><b>{l}</b>{i > 0 && <small>{prev ? `${Math.round((n / prev) * 100)}% of previous step` : "–"}</small>}</div>
+                    <div className="fn-track"><i style={{ width: `${Math.max(n ? 2 : 0, Math.round((n / top) * 100))}%` }} /></div>
+                    <div className="fn-num"><b>{n}</b><small>{tr.funnel.sessions ? `${Math.round((n / tr.funnel.sessions) * 100)}%` : "–"}</small></div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
           <div className="ep-two even">
             <div className="ep-panel">
               <div className="ep-panel-head"><h4>Traffic sources</h4><span>UTM links (Instagram bio, ads) are split out</span></div>
-              <table className="ep-table"><thead><tr><th>Source / medium / campaign</th><th className="r">Visits</th><th className="r">Carts</th><th className="r">Orders</th><th className="r">Sales</th></tr></thead>
+              <Donut slices={tr.sources.slice(0, 6).map((x) => ({ label: `${x.source}${x.medium ? ` / ${x.medium}` : ""}`, value: x.sessions }))} center={String(tr.funnel.sessions)} sub="visits" />
+              <table className="ep-table" style={{ marginTop: 18 }}><thead><tr><th>Source / medium / campaign</th><th className="r">Visits</th><th className="r">Carts</th><th className="r">Orders</th><th className="r">Sales</th></tr></thead>
                 <tbody>{tr.sources.map((s, i) => <tr key={i}><td>{s.source}{s.medium ? ` / ${s.medium}` : ""}{s.campaign ? ` / ${s.campaign}` : ""}</td><td className="r">{s.sessions}</td><td className="r">{s.add_to_cart}</td><td className="r strong">{s.purchase}</td><td className="r">{Object.entries(s.revenue ?? {}).map(([c, a]) => money(a, c)).join(" · ") || "–"}</td></tr>)}
                   {!tr.sources.length && <tr><td colSpan={5} className="ep-none">No visits recorded yet.</td></tr>}</tbody></table>
             </div>
             <div className="ep-panel">
               <div className="ep-panel-head"><h4>Exit pages</h4><span>Last page before leaving without buying</span></div>
-              <table className="ep-table"><thead><tr><th>Page</th><th className="r">Exits</th><th className="r">Exit rate</th></tr></thead>
-                <tbody>{tr.exitPages.map((p) => <tr key={p.path}><td>{p.path}</td><td className="r">{p.exits}</td><td className="r">{p.exitRate}%</td></tr>)}
-                  {!tr.exitPages.length && <tr><td colSpan={3} className="ep-none">No data yet.</td></tr>}</tbody></table>
+              <HBars color="#d92d20" empty="No data yet." items={tr.exitPages.slice(0, 8).map((p) => ({ label: p.path, value: p.exits, note: `${p.exitRate}% exit rate` }))} />
             </div>
           </div>
           <div className="ep-panel">
             <div className="ep-panel-head"><h4>Most visited pages</h4><span>Average active time on page</span></div>
-            <table className="ep-table"><thead><tr><th>Page</th><th className="r">Views</th><th className="r">Avg time</th></tr></thead>
-              <tbody>{tr.topPages.map((p) => <tr key={p.path}><td>{p.title || p.path}<span className="dim"> {p.title ? p.path : ""}</span></td><td className="r">{p.views}</td><td className="r">{secs(p.avgSeconds)}</td></tr>)}
-                {!tr.topPages.length && <tr><td colSpan={3} className="ep-none">No page views yet.</td></tr>}</tbody></table>
+            <HBars color="#27ae60" empty="No page views yet." items={tr.topPages.slice(0, 10).map((p) => ({ label: p.title || p.path, value: p.views, note: p.avgSeconds != null ? `${secs(p.avgSeconds)} on page` : undefined }))} />
           </div>
         </>
       )}

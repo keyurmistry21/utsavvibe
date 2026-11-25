@@ -59,9 +59,9 @@ export function Spark({ values }: { values: number[] }) {
   const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
   return (
     <svg className="ep-spark" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-      <defs><linearGradient id="epsg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#b9f08a" stopOpacity=".38" /><stop offset="1" stopColor="#b9f08a" stopOpacity="0" /></linearGradient></defs>
+      <defs><linearGradient id="epsg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#f97203" stopOpacity=".38" /><stop offset="1" stopColor="#f97203" stopOpacity="0" /></linearGradient></defs>
       <path d={`${line} L${W} ${H} L0 ${H} Z`} fill="url(#epsg)" />
-      <path d={line} fill="none" stroke="#b9f08a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <path d={line} fill="none" stroke="#f97203" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -172,6 +172,7 @@ export function Dashboard() {
             const p = data.previous?.[c.currency];
             return (
               <section key={c.currency} className="ep-cur">
+                <div className="ep-banner">
                 <div className="ep-curhead"><h3>{c.currency}</h3>{c.markets.map((mk) => <span key={mk} className="chip">{mk}</span>)}</div>
                 <div className="ep-kpis">
                   <Kpi big label="Total earnings" hint="paid orders incl. tax" value={money(c.revenue, c.currency)}><Delta now={c.revenue} before={p?.revenue} /><Spark values={dailySeries(data, c.currency)} /></Kpi>
@@ -179,6 +180,7 @@ export function Dashboard() {
                   <Kpi label="Net sales" hint={`after ${money(c.tax, c.currency)} tax`} value={money(c.net, c.currency)}><Delta now={c.net} before={p?.net} /></Kpi>
                   <Kpi label="Expenses" hint={c.expenseCount ? `${c.expenseCount} item${c.expenseCount === 1 ? "" : "s"}` : undefined} value={money(c.expenses, c.currency)}><Delta now={c.expenses} before={p?.expenses} goodWhenUp={false} /></Kpi>
                   <Kpi label="Profit" hint={c.net > 0 ? `${Math.round((c.profit / c.net) * 100)}% margin` : "net sales − expenses"} tone={c.profit < 0 ? "neg" : "pos"} value={money(c.profit, c.currency)}><Delta now={c.profit} before={p?.profit} /></Kpi>
+                </div>
                 </div>
                 <div className="card ep-card"><h4>Earnings over time</h4><Chart s={data} cur={c.currency} /></div>
               </section>

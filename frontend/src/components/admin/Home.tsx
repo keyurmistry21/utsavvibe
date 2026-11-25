@@ -9,6 +9,7 @@ import { useApi } from "./hooks";
 import { useAdminMarket } from "@/lib/adminMarket";
 import { actions } from "./nav";
 import { Delta, Spark } from "./Dashboard";
+import { AreaChart, Columns, Donut, HBars, HeatStrip, PALETTE } from "./Charts";
 
 type Cur = { currency: string; today: number; yesterday: number; week: number; prevWeek: number; ordersToday: number; ordersWeek: number; series: number[] };
 type Overview = {
@@ -18,6 +19,14 @@ type Overview = {
   topProducts: { title: string; quantity: number }[];
   stock: { product: string; variant: string; sku: string | null; market: string; quantity: number }[];
   visitors: { sessions: number; purchases: number; conversion: number; today: number };
+};
+type Extra = {
+  money: { currency: string; sales30: number; sales30Prev: number; orders30: number; orders30Prev: number; daily: number[]; weekday: number[]; hour: number[] }[];
+  mix: { channel: { label: string; n: number }[]; status: { label: string; n: number }[]; market: { label: string; n: number }[] };
+  customers: { total: number; newThisMonth: number; buyers: number; returning: number; top: { name: string; orders: number }[] };
+  health: { healthy: number; low: number; out: number };
+  giftCards: { count: number; balances: { currency: string; balance: number }[] };
+  abandoned: number;
 };
 type Status = { products: number; activeProducts: number; markets: number; toFulfil: number; stripeConfigured: boolean; webhookConfigured: boolean };
 
@@ -42,6 +51,7 @@ export function Home() {
   const { can } = useCan();
   const { data, error } = useApi<Overview>(`/analytics/home?x=1${market ? `&market=${market}` : ""}`);
   const { data: status } = useApi<Status>("/analytics/status");
+  const { data: ex } = useApi<Extra>(`/analytics/home/extra?x=1${market ? `&market=${market}` : ""}`);
   const [user, setUser] = useState<AdminUser | null>(null);
   const [q, setQ] = useState("");
   const [hi, setHi] = useState(0);
@@ -124,7 +134,8 @@ export function Home() {
 
           {data.currencies.map((c) => (
             <section key={c.currency} className="ep-cur">
-              <div className="ep-curhead"><h3>{c.currency}</h3><span className="muted">sales, net of tax</span></div>
+              <div className="ep-banner">
+              <div className="ep-curhead"><h3>{c.currency}</h3><span className="ep-bperiod">sales, net of tax</span></div>
               <div className="ep-kpis hm-kpis">
                 <div className="ep-kpi big">
                   <div className="ep-kpi-label">Today<span>{c.ordersToday} order{c.ordersToday === 1 ? "" : "s"} so far</span></div>
@@ -136,9 +147,86 @@ export function Home() {
                 <div className="ep-kpi"><div className="ep-kpi-label">Last 7 days<span>{c.ordersWeek} orders</span></div><div className="ep-kpi-value">{money(c.week, c.currency)}</div><Delta now={c.week} before={c.prevWeek} /></div>
                 <div className="ep-kpi"><div className="ep-kpi-label">Avg order<span>last 7 days</span></div><div className="ep-kpi-value">{money(c.ordersWeek ? Math.round(c.week / c.ordersWeek) : 0, c.currency)}</div></div>
               </div>
+              </div>
+              <div className="ep-two hm-charts">
+                <div className="ep-panel">
+                  <div className="ep-panel-head"><h4>Sales, last {c.series.length} days</h4><span>net of tax</span></div>
+                  <AreaChart fmt={(n) => money(n, c.currency)} points={c.series.map((v, i) => { const d = new Date(); d.setDate(d.getDate() - (c.series.length - 1 - i)); return { label: d.toLocaleDateString("en", { day: "numeric", month: "short" }), value: v }; })} />
+                </div>
+                <div className="ep-panel">
+                  <div className="ep-panel-head"><h4>Today against the week</h4><span>per day</span></div>
+                  <Columns fmt={(n) => money(n, c.currency)} items={[{ label: "Yesterday", value: c.yesterday, color: "#9aa0b8" }, { label: "Today", value: c.today, color: "#f97203" }, { label: "7-day avg", value: Math.round(c.week / 7), color: "#14151a" }]} />
+                </div>
+              </div>
             </section>
           ))}
           {!data.currencies.length && <div className="card ep-empty"><b>No paid orders in the last 14 days</b><span>Sales appear here as soon as a customer pays.</span></div>}
+
+          {ex && (
+            <>
+              {ex.money.map((m) => {
+                const aov = m.orders30 ? Math.round(m.sales30 / m.orders30) : 0;
+                const aovPrev = m.orders30Prev ? Math.round(m.sales30Prev / m.orders30Prev) : 0;
+                return (
+                  <section key={m.currency} className="hm-month">
+                    <div className="ep-panel">
+                      <div className="ep-panel-head"><h4>Last 30 days · {m.currency}</h4><span>net of tax, against the 30 days before</span></div>
+                      <div className="hm-mstats">
+                        <div><span>Sales</span><b>{money(m.sales30, m.currency)}</b><Delta now={m.sales30} before={m.sales30Prev} /></div>
+                        <div><span>Orders</span><b>{m.orders30}</b><Delta now={m.orders30} before={m.orders30Prev} /></div>
+                        <div><span>Average order</span><b>{money(aov, m.currency)}</b><Delta now={aov} before={aovPrev} /></div>
+                        <div><span>New customers</span><b>{ex.customers.newThisMonth}</b><i className="muted">{ex.customers.total} in total</i></div>
+                      </div>
+                      <AreaChart color="#2f80ed" fmt={(n) => money(n, m.currency)} points={m.daily.map((v, i) => { const d = new Date(); d.setDate(d.getDate() - (m.daily.length - 1 - i)); return { label: d.toLocaleDateString("en", { day: "numeric", month: "short" }), value: v }; })} />
+                    </div>
+                    <div className="hm-three">
+                      <div className="ep-panel"><div className="ep-panel-head"><h4>Busiest weekdays</h4><span>sales, 30 days</span></div>
+                        <Columns fmt={(n) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n / 100)} items={["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((l, i) => ({ label: l, value: m.weekday[i], color: i >= 5 ? "#f97203" : "#14151a" }))} />
+                      </div>
+                      <div className="ep-panel"><div className="ep-panel-head"><h4>Busiest hours</h4><span>darker = more sales</span></div>
+                        <HeatStrip values={m.hour} fmt={(n) => money(n, m.currency)} />
+                        <p className="muted" style={{ marginTop: 10, fontSize: 12.5 }}>Hours are shown in UTC.</p>
+                      </div>
+                    </div>
+                  </section>
+                );
+              })}
+
+              <div className="hm-three">
+                <div className="ep-panel"><div className="ep-panel-head"><h4>Orders by status</h4><span>last 30 days</span></div>
+                  <Donut center={String(ex.mix.status.reduce((a, x) => a + x.n, 0))} sub="orders" slices={ex.mix.status.map((x) => ({ label: x.label, value: x.n, color: ({ Fulfilled: "#27ae60", "To fulfil": "#e0a100", Unpaid: "#9aa0b8", Cancelled: "#d92d20", Refunded: "#9b51e0" } as Record<string, string>)[x.label] }))} />
+                </div>
+                <div className="ep-panel"><div className="ep-panel-head"><h4>Where orders come from</h4><span>30 days</span></div>
+                  <Donut center={String(ex.mix.channel.reduce((a, x) => a + x.n, 0))} sub="paid" slices={ex.mix.channel.map((x, i) => ({ label: x.label, value: x.n, color: PALETTE[i] }))} />
+                  {ex.mix.market.length > 1 && <><div className="ch-sep" /><HBars empty="" items={ex.mix.market.map((x, i) => ({ label: x.label, value: x.n, note: "orders", color: PALETTE[(i + 2) % PALETTE.length] }))} /></>}
+                </div>
+                <div className="ep-panel"><div className="ep-panel-head"><h4>Customers</h4><span>30 days</span></div>
+                  <Donut center={String(ex.customers.buyers)} sub="buyers" slices={[{ label: "Returning", value: ex.customers.returning, color: "#27ae60" }, { label: "First order", value: Math.max(0, ex.customers.buyers - ex.customers.returning), color: "#2f80ed" }]} />
+                  {ex.customers.top.length > 0 && <><div className="ch-sep" /><HBars color="#14151a" items={ex.customers.top.map((c) => ({ label: c.name, value: c.orders, note: "orders" }))} /></>}
+                </div>
+              </div>
+
+              <div className="hm-glance" aria-label="At a glance">
+                <div className="hm-tile">
+                  <span>Stock health</span>
+                  <Donut center={String(ex.health.healthy + ex.health.low + ex.health.out)} sub="items" slices={[{ label: "Healthy", value: ex.health.healthy, color: "#27ae60" }, { label: "Running low", value: ex.health.low, color: "#e0a100" }, { label: "Sold out", value: ex.health.out, color: "#d92d20" }]} />
+                  <Link href="/admin/inventory" className="hm-more">Open inventory →</Link>
+                </div>
+                <div className="hm-tile">
+                  <span>Gift cards outstanding</span>
+                  <b>{ex.giftCards.balances.length ? ex.giftCards.balances.map((g) => money(g.balance, g.currency)).join(" · ") : "None"}</b>
+                  <small>{ex.giftCards.count} active card{ex.giftCards.count === 1 ? "" : "s"} with a balance</small>
+                  {can("gift_cards.view") && <Link href="/admin/gift-cards" className="hm-more">Gift cards →</Link>}
+                </div>
+                <div className="hm-tile">
+                  <span>Abandoned checkouts</span>
+                  <b>{ex.abandoned}</b>
+                  <small>started paying and left, last 14 days</small>
+                  <Link href="/admin/marketing" className="hm-more">Win them back →</Link>
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="ep-two">
             <div className="ep-panel">
@@ -161,19 +249,17 @@ export function Home() {
             <div className="hm-col">
               <div className="ep-panel">
                 <div className="ep-panel-head"><h4>Visitors</h4><span>last 7 days</span></div>
-                <div className="hm-vis">
+                <Donut center={`${data.visitors.conversion}%`} sub="bought" slices={[{ label: "Bought", value: data.visitors.purchases, color: "#27ae60" }, { label: "Browsed only", value: Math.max(0, data.visitors.sessions - data.visitors.purchases), color: "#d9dce6" }]} />
+                <div className="hm-vis" style={{ marginTop: 14 }}>
                   <div><b>{data.visitors.sessions}</b><span>visits</span></div>
                   <div><b>{data.visitors.today}</b><span>today</span></div>
-                  <div><b>{data.visitors.conversion}%</b><span>bought</span></div>
+                  <div><b>{data.visitors.purchases}</b><span>orders</span></div>
                 </div>
                 {can("analytics.view") && <Link href="/admin/analytics" className="hm-more">Sales insights and traffic →</Link>}
               </div>
               <div className="ep-panel">
                 <div className="ep-panel-head"><h4>Best sellers</h4><span>last 7 days</span></div>
-                <ol className="ep-top-list">
-                  {data.topProducts.map((p, i) => <li key={p.title}><i className="bar" style={{ width: `${Math.round((p.quantity / (data.topProducts[0]?.quantity || 1)) * 100)}%` }} /><span className="rank">{i + 1}</span><span className="name">{p.title}</span><span className="qty">{p.quantity} sold</span></li>)}
-                  {!data.topProducts.length && <li className="ep-none">No sales this week.</li>}
-                </ol>
+                <HBars color="#f97203" empty="No sales this week." items={data.topProducts.map((p) => ({ label: p.title, value: p.quantity, note: "units" }))} />
               </div>
             </div>
           </div>
@@ -181,10 +267,7 @@ export function Home() {
           {data.stock.length > 0 && (
             <div className="ep-panel">
               <div className="ep-panel-head"><h4>Stock to reorder</h4><Link href="/admin/products">Products</Link></div>
-              <table className="ep-table">
-                <thead><tr><th>Product</th><th>SKU</th><th>Market</th><th className="r">Left</th></tr></thead>
-                <tbody>{data.stock.map((s, i) => <tr key={i}><td>{s.product}{s.variant ? ` — ${s.variant}` : ""}</td><td className="dim">{s.sku ?? "–"}</td><td>{s.market}</td><td className="r"><span className={`hm-pill ${s.quantity <= 0 ? "bad" : "warn"}`}>{s.quantity <= 0 ? "Out" : s.quantity}</span></td></tr>)}</tbody>
-              </table>
+              <HBars items={data.stock.map((x) => ({ label: `${x.product}${x.variant ? ` — ${x.variant}` : ""}`, value: x.quantity, note: `${x.market}${x.sku ? ` · ${x.sku}` : ""}`, color: x.quantity <= 2 ? "#d92d20" : "#e0a100" }))} />
             </div>
           )}
           {!setupTop && setupCard}
