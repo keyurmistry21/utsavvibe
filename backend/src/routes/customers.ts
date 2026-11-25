@@ -254,18 +254,32 @@ customersRouter.get("/:id/purchases", async (req, res) => {
 });
 
 customersRouter.patch("/:id", async (req, res) => {
+  const raw = (req.body ?? {}) as Record<string, unknown>;
+  const has = (k: string) => raw[k] !== undefined; // only what was sent is changed
   const d = customerInput.partial().parse(req.body);
+  const cur = await prisma.customer.findUnique({ where: { id: req.params.id } });
+  if (!cur) return void res.status(404).json({ error: "not found" });
   const data: Record<string, unknown> = {};
-  if (d.firstName !== undefined || d.lastName !== undefined) data.name = fullName({ firstName: d.firstName ?? "", lastName: d.lastName ?? "" });
-  if (d.phone !== undefined) data.phone = d.phone || null;
-  if (d.language !== undefined) data.language = d.language;
-  if (d.acceptsEmail !== undefined) data.acceptsEmail = d.acceptsEmail;
-  if (d.acceptsSms !== undefined) data.acceptsSms = d.acceptsSms;
-  if (d.acceptsWhatsapp !== undefined) data.acceptsWhatsapp = d.acceptsWhatsapp;
-  if (d.taxExempt !== undefined) data.taxExempt = d.taxExempt;
-  if (d.address !== undefined) data.address = d.address ? JSON.stringify(d.address) : null;
-  if (d.tags !== undefined) data.tags = JSON.stringify(d.tags);
-  if (d.notes !== undefined) data.notes = d.notes;
+  if (has("firstName") || has("lastName")) {
+    const [f0, ...l0] = cur.name.split(" ");
+    data.name = fullName({ firstName: has("firstName") ? d.firstName ?? "" : f0 ?? "", lastName: has("lastName") ? d.lastName ?? "" : l0.join(" ") });
+  }
+  let email = cur.email, phone = cur.phone;
+  if (has("email")) {
+    email = d.email || null;
+    if (email && email !== cur.email && (await prisma.customer.findUnique({ where: { email } }))) return void res.status(409).json({ error: "A customer with this email already exists" });
+    data.email = email;
+  }
+  if (has("phone")) { phone = d.phone || null; data.phone = phone; }
+  if (!email && !phone) return void res.status(400).json({ error: "Keep an email address or a phone number so you can reach this customer" });
+  if (has("language")) data.language = d.language;
+  if (has("acceptsEmail") || has("email")) data.acceptsEmail = !!email && (has("acceptsEmail") ? !!d.acceptsEmail : cur.acceptsEmail);
+  if (has("acceptsSms") || has("phone")) data.acceptsSms = !!phone && (has("acceptsSms") ? !!d.acceptsSms : cur.acceptsSms);
+  if (has("acceptsWhatsapp") || has("phone")) data.acceptsWhatsapp = !!phone && (has("acceptsWhatsapp") ? !!d.acceptsWhatsapp : cur.acceptsWhatsapp);
+  if (has("taxExempt")) data.taxExempt = d.taxExempt;
+  if (has("address")) data.address = d.address ? JSON.stringify(d.address) : null;
+  if (has("tags")) data.tags = JSON.stringify(d.tags);
+  if (has("notes")) data.notes = d.notes;
   const c = await prisma.customer.update({ where: { id: req.params.id }, data });
   res.json(shape(c));
 });

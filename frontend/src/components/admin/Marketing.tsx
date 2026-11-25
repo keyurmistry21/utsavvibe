@@ -5,6 +5,7 @@ import { api, money } from "@/lib/api";
 import { Switch } from "./Switch";
 import { CopyBox } from "./CopyBox";
 import { useApi } from "./hooks";
+import { Banner } from "./Banner";
 
 type Info = {
   feeds: { market: string; code: string; google: string; meta: string }[];
@@ -43,7 +44,14 @@ export function Marketing() {
       {(error || err) && <div className="error">{error || err}</div>}
       {msg && <div className="okmsg">{msg}</div>}
 
-      <div className="card" style={{ maxWidth: 860 }}>
+      <Banner title="Marketing summary" ring={{ value: info?.stats.sent30d ?? "–", label: "reminders sent", segs: [{ cls: "ok", n: info?.stats.recovered30d ?? 0 }, { cls: "low", n: Math.max(0, (info?.stats.sent30d ?? 0) - (info?.stats.recovered30d ?? 0)) }] }} stats={[
+        { label: "Carts won back (30 days)", value: info?.stats.recovered30d ?? "–", tone: "ok" },
+        { label: "Customers who opted in", value: info?.stats.optedIn ?? "–", tone: "low" },
+        { label: "Abandoned checkouts (14 days)", value: rows?.length ?? "–", tone: "out" },
+        { label: "Reminder emails", value: info ? (info.abandoned.abandonedEnabled ? "On" : "Off") : "–", tone: info?.abandoned.abandonedEnabled ? "ok" : "arch" },
+      ]} />
+
+      <div className="card" style={{ borderRadius: 18 }}>
         <h3>Product feeds</h3>
         <p className="muted" style={{ marginTop: 0 }}>One feed per market, because price, currency and shipping differ. Gift cards are left out. The feeds update on their own as you edit products.</p>
         {info?.feeds.map((f) => (
@@ -61,7 +69,7 @@ export function Marketing() {
         </ol>
       </div>
 
-      <div className="card" style={{ maxWidth: 860 }}>
+      <div className="card" style={{ borderRadius: 18 }}>
         <div className="cardhead">
           <span><h3 style={{ margin: 0 }}>Abandoned checkout emails</h3><div className="muted">Email shoppers who started paying and stopped, with a link that refills their cart.</div></span>
           <Switch checked={on} onChange={setOn} label="Send abandoned checkout emails" />
@@ -78,26 +86,18 @@ export function Marketing() {
         )}
       </div>
 
-      <div className="card">
-        <h3>Recent abandoned checkouts</h3>
-        <div className="tablescroll">
-          <table>
-            <thead><tr><th>Order</th><th>Started</th><th>Customer</th><th>Total</th><th>Wants reminders</th><th>Reminder</th></tr></thead>
-            <tbody>
-              {rows?.map((r) => (
-                <tr key={r.id}>
-                  <td>#{r.number}</td>
-                  <td>{new Date(r.createdAt).toLocaleString("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
-                  <td>{r.name || r.email || "—"}<div className="muted">{r.email}</div></td>
-                  <td>{money(r.total, r.currency)}</td>
-                  <td><span className={`badge ${r.consent ? "ok" : ""}`}>{r.consent ? "Yes" : "No"}</span></td>
-                  <td>{r.reminderSentAt ? <span className="muted">Sent {new Date(r.reminderSentAt).toLocaleDateString()}</span> : <button disabled={!r.consent || !r.email || busy === r.id} title={r.consent ? "" : "This customer didn't ask for reminders"} onClick={() => send(r.id)}>{busy === r.id ? "Sending…" : "Send reminder"}</button>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {rows && !rows.length && <p className="muted">No abandoned checkouts in the last 14 days.</p>}
+      <div className="mk-sec"><h3>Recent abandoned checkouts</h3><span className="muted">Shoppers who started paying and left, last 14 days</span></div>
+      <div className="xr-list">
+        {rows?.map((r) => (
+          <div key={r.id} className={`xr ${r.reminderSentAt ? "ok" : r.consent ? "low" : "arch"}`} style={{ ["--cols" as string]: "70px minmax(0,1.4fr) 110px 150px auto" }}>
+            <span className="xr-main"><b>#{r.number}</b><small>{new Date(r.createdAt).toLocaleString("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></span>
+            <span className="xr-main"><b>{r.name || r.email || "No name"}</b><small>{r.name ? r.email : ""}</small></span>
+            <span className="xr-num">{money(r.total, r.currency)}</span>
+            <span className="xr-chips hide-s"><span className={`badge ${r.consent ? "ok" : ""}`}>{r.consent ? "Wants reminders" : "No reminders"}</span></span>
+            <span className="xr-act">{r.reminderSentAt ? <span className="muted">Sent {new Date(r.reminderSentAt).toLocaleDateString()}</span> : <button disabled={!r.consent || !r.email || busy === r.id} title={r.consent ? "" : "This customer did not tick the reminder box"} onClick={() => send(r.id)}>{busy === r.id ? "Sending…" : "Send reminder"}</button>}</span>
+          </div>
+        ))}
+        {rows && !rows.length && <div className="xr-empty"><div aria-hidden>🛒</div><b>No abandoned checkouts</b><span>Nothing in the last 14 days.</span></div>}
       </div>
     </>
   );

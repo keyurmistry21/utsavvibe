@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, toMajor, toMinor, type Market, type Region, type ShippingRate } from "@/lib/api";
 import { useApi } from "./hooks";
+import { Banner } from "./Banner";
 import { useDirty, useUnsavedGuard } from "./unsaved";
 import { FieldError, useValidation } from "./validation";
 import { Plus } from "../Icons";
@@ -133,22 +134,44 @@ export function Markets() {
   }, []);
   const done = () => { setEditing(null); reload(); };
 
+  const list = data ?? [];
+  const activeN = list.filter((m) => m.active).length;
+  const curs = [...new Set(list.map((m) => m.currency))];
+  const regionsN = list.reduce((a, m) => a + (m.regions?.length ?? 0), 0);
+  const hue = (t: string) => [...t].reduce((a, c) => a + c.charCodeAt(0) * 11, 0) % 360;
+
   return (
     <>
       <div className="pagehead">
         <h2>Markets</h2>
         <button className="primary" onClick={() => setEditing(blankMarket())}>Add market</button>
       </div>
-      <p className="muted">Each market has its own currency, tax and shipping. Add a new location here when you expand.</p>
       {error && <div className="error">{error}</div>}
       {editing && <MarketEditor key={editing.id ?? "new"} initial={editing} onDone={done} />}
-      {data?.map((m) => (
-        <div key={m.id} className="card">
-          <b>{m.name}</b> ({m.code}) · {m.currency} · {m.taxRateBps / 100}% {m.taxInclusive ? "incl." : "excl."} tax · {m.active ? "active" : "inactive"}{" "}
-          <button className="link" onClick={() => setEditing(m)}>Edit</button>
-          <div className="muted">{m.shippingRates.map((r) => `${r.name} ${toMajor(r.amount)}`).join(" · ")}</div>
-        </div>
-      ))}
+      {!editing && (
+        <>
+          <Banner title="Markets summary" ring={{ value: list.length, label: "markets", segs: [{ cls: "ok", n: activeN }, { cls: "arch", n: list.length - activeN }] }} stats={[
+            { label: "Selling now", value: activeN, tone: "ok" },
+            { label: curs.length ? `Currencies · ${curs.join(", ")}` : "Currencies", value: curs.length, tone: "low" },
+            { label: "States and provinces", value: regionsN, tone: "arch" },
+          ]}>
+            <span className="bn-note">Each market has its own currency, tax and shipping. Add a new one here when you expand.</span>
+          </Banner>
+          <div className="xr-list">
+            {list.map((m) => (
+              <button key={m.id} className={`xr ${m.active ? "" : "arch"}`} onClick={() => setEditing(m)} aria-label={`Edit ${m.name}`} style={{ ["--cols" as string]: "52px minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.3fr) auto 18px" }}>
+                <span className="xr-av" style={{ background: `linear-gradient(135deg,hsl(${hue(m.code)} 75% 55%),hsl(${(hue(m.code) + 40) % 360} 70% 40%))` }}>{m.code}</span>
+                <span className="xr-main"><b>{m.name}</b><small>{(m.countries ?? []).join(", ") || "No countries"} · {m.regions?.length ? `${m.regions.length} states or provinces` : "no regions"}</small></span>
+                <span className="xr-main hide-s"><b>{m.currency}</b><small>{m.taxRateBps / 100}% tax {m.taxInclusive ? "included" : "added at checkout"}</small></span>
+                <span className="xr-main hide-s"><b>Shipping</b><small>{m.shippingRates.map((r) => `${r.name} ${toMajor(r.amount)}`).join(" · ") || "No rates"}</small></span>
+                <span className={`badge ${m.active ? "good" : ""}`}>{m.active ? "Active" : "Inactive"}</span>
+                <svg className="iv-go" viewBox="0 0 24 24" aria-hidden><path d="M9 6l6 6-6 6" /></svg>
+              </button>
+            ))}
+            {data && !list.length && <div className="xr-empty"><div aria-hidden>🌍</div><b>No markets yet</b><span>Add your first market to start selling.</span></div>}
+          </div>
+        </>
+      )}
     </>
   );
 }

@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { useApi } from "./hooks";
 import { Modal } from "./Modal";
 import { Select } from "../Select";
+import { Banner } from "./Banner";
 
 type C = { id: string; name: string; channel: "email" | "sms"; subject: string; body: string; audience: string; status: "draft" | "sending" | "sent"; sentCount: number; failedCount: number; createdAt: string; sentAt: string | null };
 type Form = { id?: string; name: string; channel: "email" | "sms"; subject: string; body: string; audience: string };
@@ -32,23 +33,37 @@ export function Campaigns() {
       {data && !data.smsReady && <div className="notice" style={{ marginBottom: 12 }}>Text messages are off. To turn them on, add <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code> and <code>TWILIO_FROM</code> to <code>backend/.env</code>. Send yourself a test first.</div>}
       {(error || err) && <div className="error">{error || err}</div>}
       {msg && <div className="okmsg">{msg}</div>}
-      <div className="card">
-        <table>
-          <thead><tr><th>Campaign</th><th>Channel</th><th>Audience</th><th>Status</th><th /></tr></thead>
-          <tbody>
-            {data?.campaigns.map((c) => (
-              <tr key={c.id}>
-                <td><b>{c.name}</b><div className="muted">{c.channel === "email" ? c.subject : c.body.slice(0, 60)}</div></td>
-                <td>{c.channel === "email" ? "Email" : "Text"}</td>
-                <td>{c.audience === "all" ? "Everyone who opted in" : c.audience === "buyers" ? "Customers who bought" : c.audience.startsWith("tag:") ? `Tag “${c.audience.slice(4)}”` : `Bought in ${c.audience.slice(7).toUpperCase()}`}</td>
-                <td><span className={`badge ${c.status === "sent" ? "good" : c.status === "sending" ? "warn" : ""}`}>{c.status === "sent" ? `Sent · ${c.sentCount}${c.failedCount ? ` (${c.failedCount} failed)` : ""}` : c.status === "sending" ? `Sending… ${c.sentCount}` : "Draft"}</span></td>
-                <td className="r">{c.status === "draft" && <><button className="link" onClick={() => setEdit({ id: c.id, name: c.name, channel: c.channel, subject: c.subject, body: c.body, audience: c.audience })}>Edit</button>{" "}<button className="link" onClick={() => send(c)}>Send</button>{" "}</>}{c.status !== "sending" && <button className="link" onClick={() => del(c)}>Delete</button>}</td>
-              </tr>
-            ))}
-            {data && !data.campaigns.length && <tr><td colSpan={5}>No campaigns yet. Tell customers about Diwali, new arrivals, or a discount code.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      {(() => {
+        const cs = data?.campaigns ?? [];
+        const sent = cs.filter((c) => c.status === "sent").length, drafts = cs.filter((c) => c.status === "draft").length, live = cs.filter((c) => c.status === "sending").length;
+        const delivered = cs.reduce((a, c) => a + c.sentCount, 0);
+        const audience = (c: C) => (c.audience === "all" ? "Everyone who opted in" : c.audience === "buyers" ? "Customers who bought" : c.audience.startsWith("tag:") ? `Tag “${c.audience.slice(4)}”` : `Bought in ${c.audience.slice(7).toUpperCase()}`);
+        return (
+          <>
+            <Banner title="Campaigns summary" ring={{ value: cs.length, label: "campaigns", segs: [{ cls: "ok", n: sent }, { cls: "low", n: live }, { cls: "arch", n: drafts }] }} stats={[
+              { label: "Messages delivered", value: delivered, tone: "ok" },
+              { label: "Sent campaigns", value: sent, tone: "ok" },
+              { label: "Drafts", value: drafts, tone: "arch" },
+              { label: "Sending now", value: live, tone: "low" },
+            ]} />
+            <div className="xr-list">
+              {cs.map((c) => (
+                <div key={c.id} className={`xr ${c.status === "sent" ? "" : c.status === "sending" ? "low" : "arch"}`} style={{ ["--cols" as string]: "46px minmax(0,1.6fr) minmax(0,1fr) 150px auto" }}>
+                  <span className="xr-av" style={{ background: c.channel === "email" ? "linear-gradient(135deg,#2f80ed,#1c4fb0)" : "linear-gradient(135deg,#27ae60,#157a3f)" }} title={c.channel === "email" ? "Email" : "Text message"}>{c.channel === "email" ? "✉" : "💬"}</span>
+                  <span className="xr-main"><b>{c.name}</b><small>{c.channel === "email" ? c.subject : c.body.slice(0, 70)}</small></span>
+                  <span className="xr-sub hide-s">{audience(c)}</span>
+                  <span className="xr-chips"><span className={`badge ${c.status === "sent" ? "good" : c.status === "sending" ? "warn" : ""}`}>{c.status === "sent" ? `Sent · ${c.sentCount}${c.failedCount ? ` (${c.failedCount} failed)` : ""}` : c.status === "sending" ? `Sending… ${c.sentCount}` : "Draft"}</span></span>
+                  <span className="xr-act">
+                    {c.status === "draft" && <><button onClick={() => setEdit({ id: c.id, name: c.name, channel: c.channel, subject: c.subject, body: c.body, audience: c.audience })}>Edit</button><button onClick={() => send(c)}>Send</button></>}
+                    {c.status !== "sending" && <button className="del" onClick={() => del(c)}>Delete</button>}
+                  </span>
+                </div>
+              ))}
+              {data && !cs.length && <div className="xr-empty"><div aria-hidden>📣</div><b>No campaigns yet</b><span>Tell customers about Diwali, new arrivals, or a discount code.</span></div>}
+            </div>
+          </>
+        );
+      })()}
       {edit && <Editor f={edit} ready={data ? { email: data.emailReady, sms: data.smsReady } : { email: false, sms: false }} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} />}
     </>
   );

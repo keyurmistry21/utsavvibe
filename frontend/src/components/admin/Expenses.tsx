@@ -8,7 +8,7 @@ import { useAdminMarket } from "@/lib/adminMarket";
 import { money as moneyErr, maxLen } from "@/lib/validators";
 import { FieldError, useValidation } from "./validation";
 import { Modal } from "./Modal";
-import { Select } from "../Select";
+import { Banner } from "./Banner";
 
 type Exp = { id: string; date: string; amount: number; currency: string; vendor: string; note: string; createdBy: string };
 type List = { items: Exp[]; totals: { currency: string; amount: number }[]; truncated: boolean };
@@ -64,6 +64,16 @@ export function Expenses() {
   useEffect(load, [load]);
   const blank = (): Form => ({ date: today(), amount: "", currency: cur, vendor: "", note: "" });
 
+  const items = data?.items ?? [];
+  const ym = today().slice(0, 7);
+  const thisMonth = items.filter((e) => e.date.startsWith(ym)).reduce((a, e) => a + e.amount, 0);
+  const total = items.reduce((a, e) => a + e.amount, 0);
+  const byVendor = new Map<string, number>();
+  for (const e of items) { const v = e.vendor || "Other"; byVendor.set(v, (byVendor.get(v) ?? 0) + e.amount); }
+  const topVendor = [...byVendor.entries()].sort((a, b) => b[1] - a[1])[0];
+  const c = cur || items[0]?.currency || "";
+  const day = (d: string) => { const x = new Date(`${d}T00:00:00`); return { n: x.getDate(), m: x.toLocaleDateString("en", { month: "short" }) }; };
+
   return (
     <>
       <div className="pagehead">
@@ -73,30 +83,37 @@ export function Expenses() {
           {manage && meta && <button className="primary" disabled={!cur} title={cur ? "" : "Choose a market under Working in first"} onClick={() => setForm(blank())}>Add expense</button>}
         </div>
       </div>
-      <p className="muted">Record what the business spends (stock, packaging, ads, postage) with who you bought from and what it was for. It is subtracted from earnings on the Earnings page to show profit.</p>
       {error && <div className="error">{error}</div>}
-      {manage && !cur && <div className="notice">To add an expense, choose your market under <b>Working in</b> in the sidebar. Expenses are recorded in that market's currency.</div>}
-      {cur && <p className="muted" style={{ fontSize: 13 }}>Showing {cur} expenses (your Working in market). Switch Working in to see another currency.</p>}
-      {data && !!data.totals.length && (
-        <div className="stats">{data.totals.map((t) => <div key={t.currency} className="card stat">Spent · {t.currency}<b>{money(t.amount, t.currency)}</b></div>)}</div>
-      )}
-      <div className="card">
-        <table>
-          <thead><tr><th>Date</th><th>Bought from</th><th>For</th><th>Added by</th><th style={{ textAlign: "right" }}>Amount</th>{manage && <th />}</tr></thead>
-          <tbody>
-            {data?.items.map((e) => (
-              <tr key={e.id}>
-                <td>{e.date}</td><td>{e.vendor || <span className="muted">—</span>}</td><td>{e.note || <span className="muted">—</span>}</td><td className="muted">{e.createdBy}</td>
-                <td style={{ textAlign: "right" }}>{money(e.amount, e.currency)}</td>
-                {manage && <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
-                  <button className="link" onClick={() => setForm({ id: e.id, date: e.date, amount: toMajor(e.amount), currency: e.currency, vendor: e.vendor, note: e.note })}>Edit</button>{" "}
-                  <button className="link" onClick={async () => { if (!confirm(`Delete this ${money(e.amount, e.currency)} expense?`)) return; await api(`/expenses/${e.id}`, { method: "DELETE" }).catch((x) => setError(x.message)); load(); }}>Delete</button>
-                </td>}
-              </tr>
-            ))}
-            {data && !data.items.length && <tr><td colSpan={manage ? 6 : 5} className="muted emptyrow">No expenses yet. Add the first one when you buy something for the business.</td></tr>}
-          </tbody>
-        </table>
+      {manage && !cur && <div className="notice">To add an expense, choose your market under <b>Working in</b> in the sidebar. Expenses are recorded in that market&apos;s currency.</div>}
+
+      <Banner title="Expenses summary" stats={[
+        { label: cur ? `Spent · ${cur}` : "Spent", value: c ? money(total, c) : "–", tone: "out" },
+        { label: "This month", value: c ? money(thisMonth, c) : "–", tone: "low" },
+        { label: "Expenses recorded", value: items.length, tone: "arch" },
+        { label: topVendor ? `Most spent on · ${topVendor[0]}` : "Most spent on", value: topVendor && c ? money(topVendor[1], c) : "–", tone: "ok" },
+      ]}>
+        <span className="bn-note">Record what the business spends. It is subtracted from earnings on the Earnings page to show profit.{cur ? ` Showing ${cur} expenses (your Working in market).` : ""}</span>
+      </Banner>
+
+      <div className="xr-list">
+        {items.map((e) => {
+          const d = day(e.date);
+          return (
+            <div key={e.id} className="xr out" style={{ ["--cols" as string]: "50px minmax(0,1.6fr) minmax(0,1fr) 110px auto" }}>
+              <span className="xr-date"><b>{d.n}</b><small>{d.m}</small></span>
+              <span className="xr-main"><b>{e.vendor || "No vendor"}</b><small>{e.note || "No note"}</small></span>
+              <span className="xr-sub hide-s">Added by {e.createdBy}</span>
+              <span className="xr-num">{money(e.amount, e.currency)}</span>
+              {manage ? (
+                <span className="xr-act">
+                  <button onClick={() => setForm({ id: e.id, date: e.date, amount: toMajor(e.amount), currency: e.currency, vendor: e.vendor, note: e.note })}>Edit</button>
+                  <button className="del" onClick={async () => { if (!confirm(`Delete this ${money(e.amount, e.currency)} expense?`)) return; await api(`/expenses/${e.id}`, { method: "DELETE" }).catch((x) => setError(x.message)); load(); }}>Delete</button>
+                </span>
+              ) : <span />}
+            </div>
+          );
+        })}
+        {data && !items.length && <div className="xr-empty"><div aria-hidden>🧾</div><b>No expenses yet</b><span>Add the first one when you buy something for the business.</span></div>}
         {data?.truncated && <p className="muted">Showing the newest 500. Export the CSV to get all of them.</p>}
       </div>
       {form && meta && <ExpenseForm initial={form} meta={meta} onClose={() => setForm(null)} onSaved={() => { setForm(null); load(); }} />}

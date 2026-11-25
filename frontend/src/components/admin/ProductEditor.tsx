@@ -17,6 +17,8 @@ import { Modal } from "./Modal";
 import { toast } from "@/lib/toast";
 import { PickList } from "./PickList";
 
+const PAL = ["#f97203", "#2f80ed", "#27ae60", "#9b51e0", "#eb5757", "#f2c94c", "#00b8d9", "#ff6b9a"];
+
 export type OptionDef = { name: string; values: string[] };
 type PriceForm = { amount: string };
 export type LocStock = { qty: string; sku: string; barcode: string }; // stock of one variant at one location, with that location's own SKU and barcode
@@ -213,57 +215,56 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
   };
 
   // Quantity per market (with its own SKU, barcode and QR), and the total. Same block for a single product and for each variant.
-  // Stock by location: one block per market. Rows are its locations, grouped by state/province; columns are the variants.
-  // A market without locations gets a single "Whole market" row.
+  // Stock: pick a variant, then set the units at each of a market's locations with simple +/- rows.
+  const [planV, setPlanV] = useState(0);
   const stockMatrix = () => {
-    const single = f.variants.length === 1;
+    const vi = Math.min(planV, f.variants.length - 1);
+    const v = f.variants[vi];
+    const vTotal = (x: VForm) => locs.reduce((a, m) => a + marketQty(x, m.id), 0);
     return (
-      <div className="qtymx">
+      <div className="plan">
+        {f.variants.length > 1 && (
+          <div className="plan-vars" role="tablist" aria-label="Variant">
+            {f.variants.map((x, i) => <button key={i} type="button" role="tab" aria-selected={i === vi} className={i === vi ? "on" : ""} onClick={() => setPlanV(i)}>{x.title}<b>{vTotal(x)}</b></button>)}
+          </div>
+        )}
         {locs.map((m) => {
-          const ml = locsOf(m.id);
+          const ml = [...locsOf(m.id)].sort((a, b) => (a.regionCode ?? "~").localeCompare(b.regionCode ?? "~") || a.name.localeCompare(b.name));
           const regionName = (code: string | null) => (code ? markets.find((x) => x.id === m.id)?.regions.find((r) => r.code === code)?.name ?? code : "");
-          const rows = ml.length ? [...ml].sort((a, b) => regionName(a.regionCode).localeCompare(regionName(b.regionCode)) || a.name.localeCompare(b.name)) : [{ id: `m-${m.id}`, name: "Whole market", regionCode: null as string | null }];
-          const cell = (v: VForm, id: string) => (ml.length ? v.locQty[id] ?? "" : v.stock[m.id]?.qty ?? "");
-          const put = (i: number, v: VForm, id: string, val_: string) => (ml.length ? setVariant(i, { locQty: { ...v.locQty, [id]: val_ } }) : patchLoc(i, m.id, { qty: val_ }));
-          const num = (v: VForm, id: string) => parseInt(cell(v, id) || "0") || 0;
-          const mTotal = f.variants.reduce((a, v) => a + marketQty(v, m.id), 0);
-          const problems = f.variants.map((v, i) => ({ v, msg: val.err(`qty:${i}:${m.id}`) })).filter((x) => x.msg);
-          const grouped = ml.some((l) => l.regionCode);
-          const fillZero = () => setF((cur) => ({ ...cur, variants: cur.variants.map((x) => ({ ...x, locQty: { ...x.locQty, ...Object.fromEntries(ml.filter((l) => (x.locQty[l.id] ?? "").trim() === "").map((l) => [l.id, "0"])) } })) }));
-          const out: React.ReactNode[] = [];
-          let lastRegion: string | null | undefined = undefined;
-          for (const r of rows) {
-            if (grouped && r.regionCode !== lastRegion) {
-              lastRegion = r.regionCode;
-              const same = rows.filter((x) => x.regionCode === r.regionCode);
-              out.push(<tr key={`g-${r.regionCode ?? "none"}`} className="qtymx-g"><th scope="rowgroup">{r.regionCode ? regionName(r.regionCode) : "No state or province set"}</th>{f.variants.map((v, i) => <td key={i} className="c">{same.reduce((a, x) => a + num(v, x.id), 0)}</td>)}{!single && <td className="r">{f.variants.reduce((a, v) => a + same.reduce((b, x) => b + num(v, x.id), 0), 0)}</td>}</tr>);
-            }
-            out.push(
-              <tr key={r.id}>
-                <th scope="row" className={grouped ? "ind" : ""}>{r.name}</th>
-                {f.variants.map((v, i) => {
-                  const bad = !!val.err(`qty:${i}:${m.id}`);
-                  return <td key={i} className={bad ? "bad" : ""}><input type="number" min={0} inputMode="numeric" placeholder="0" aria-label={`${single ? "" : v.title + ", "}${r.name} stock`} aria-invalid={bad || undefined} value={cell(v, r.id)} onChange={(e) => put(i, v, r.id, e.target.value)} onBlur={() => val.touch(`qty:${i}:${m.id}`)} /></td>;
-                })}
-                {!single && <td className="r tot">{f.variants.reduce((a, v) => a + num(v, r.id), 0)}</td>}
-              </tr>,
-            );
-          }
+          const qs = ml.map((l) => parseInt(v.locQty[l.id] || "0") || 0);
+          const filled = ml.length ? ml.some((l) => (v.locQty[l.id] ?? "").trim() !== "") : (v.stock[m.id]?.qty ?? "").trim() !== "";
+          const total = marketQty(v, m.id);
+          const err = val.err(`qty:${vi}:${m.id}`);
           return (
-            <section key={m.id} className="qtymx-m" aria-label={`Stock in ${m.name}`}>
-              <div className="qtymx-h"><b>{m.name}</b><span>{m.code}</span><em>{mTotal} in stock</em>{ml.length > 1 && <button type="button" className="link" onClick={fillZero}>Fill empty with 0</button>}</div>
-              <div className="qtymx-scroll">
-                <table>
-                  <thead><tr><th>Location</th>{f.variants.map((v, i) => <th key={i} className="c">{single ? "In stock" : v.title}</th>)}{!single && <th className="r">Total</th>}</tr></thead>
-                  <tbody>{out}</tbody>
-                  <tfoot><tr><th scope="row">Total</th>{f.variants.map((v, i) => <td key={i} className="c tot">{marketQty(v, m.id)}</td>)}{!single && <td className="r tot">{mTotal}</td>}</tr></tfoot>
-                </table>
-              </div>
-              {problems.length > 0 && <div className="qtymx-err" role="alert">{problems.slice(0, 3).map((p, k) => <div key={k}>{!single ? `${p.v.title}: ` : ""}{p.msg}</div>)}</div>}
+            <section key={m.id} className={`plan-m ${err ? "bad" : ""}`} aria-label={`Stock in ${m.name}`}>
+              <header><div><b>{m.name}</b><span>{m.code}</span></div><em className="plan-sum"><b>{total}</b> units</em></header>
+              {ml.length === 0 ? (
+                <div className="plan-row single">
+                  <label htmlFor={`pt-${vi}-${m.id}`}>{f.variants.length > 1 ? `${v.title} · whole market` : "Whole market"}</label>
+                  <div className="plan-step"><button type="button" aria-label="Remove one" disabled={!(parseInt(v.stock[m.id]?.qty || "0") > 0)} onClick={() => patchLoc(vi, m.id, { qty: String(Math.max(0, (parseInt(v.stock[m.id]?.qty || "0") || 0) - 1)) })}>−</button><input id={`pt-${vi}-${m.id}`} type="number" min={0} inputMode="numeric" placeholder="0" value={v.stock[m.id]?.qty ?? ""} onChange={(e) => patchLoc(vi, m.id, { qty: e.target.value })} onBlur={() => val.touch(`qty:${vi}:${m.id}`)} /><button type="button" aria-label="Add one" onClick={() => patchLoc(vi, m.id, { qty: String((parseInt(v.stock[m.id]?.qty || "0") || 0) + 1) })}>+</button></div>
+                </div>
+              ) : (
+                <ul className="plan-list">
+                  {ml.map((l, i) => {
+                    const raw = v.locQty[l.id] ?? "";
+                    const n = parseInt(raw || "0") || 0;
+                    const put = (x: string) => setVariant(vi, { locQty: { ...v.locQty, [l.id]: x } });
+                    return (
+                      <li key={l.id} className={`plan-row ${raw !== "" && n <= 0 ? "zero" : ""}`} style={{ ["--c" as string]: PAL[i % PAL.length] }}>
+                        <span className="iv-dot" />
+                        <label htmlFor={`pt-${vi}-${l.id}`} className="nm"><b>{l.name}</b><small>{regionName(l.regionCode) || m.code}</small></label>
+                        <div className="plan-step"><button type="button" aria-label={`Remove one at ${l.name}`} disabled={n <= 0} onClick={() => put(String(n - 1))}>−</button><input id={`pt-${vi}-${l.id}`} type="number" min={0} inputMode="numeric" placeholder="0" value={raw} onChange={(e) => put(e.target.value)} onBlur={() => val.touch(`qty:${vi}:${m.id}`)} /><button type="button" aria-label={`Add one at ${l.name}`} onClick={() => put(String(n + 1))}>+</button></div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {ml.length > 1 && <button type="button" className="link plan-zero" onClick={() => setVariant(vi, { locQty: { ...v.locQty, ...Object.fromEntries(ml.filter((l) => (v.locQty[l.id] ?? "").trim() === "").map((l) => [l.id, "0"])) } })}>Fill empty with 0</button>}
+              {err && <div className="qtymx-err" role="alert">{err}</div>}
             </section>
           );
         })}
-        <p className="muted">Type how many are in stock at each location. Leave empty if none. A market's count is the sum of its locations. Add or change locations in Settings → Locations.</p>
+        <p className="muted">Tap + / − or type how many units are at each location. A market's count is the sum of its locations. Locations are set up in Settings → Locations.</p>
       </div>
     );
   };
@@ -435,6 +436,49 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
           <button className="primary" disabled={saving} onClick={save}>{saving ? "Saving…" : f.id ? "Save changes" : "Save product"}</button>
         </div>
       </div>
+      {(() => {
+        // live summary of the product as it is being edited: health ring, key numbers and where the stock is
+        const vTot = (v: VForm) => locs.reduce((a, m) => a + marketQty(v, m.id), 0);
+        const units = f.variants.reduce((a, v) => a + vTot(v), 0);
+        const lowN = f.variants.filter((v) => vTot(v) > 0 && vTot(v) <= 5).length;
+        const outN = f.variants.filter((v) => vTot(v) <= 0).length;
+        const okN = f.variants.length - lowN - outN;
+        const CIRC = 2 * Math.PI * 48;
+        let off = 0;
+        const segs = ([["ok", okN], ["low", lowN], ["out", outN]] as const).filter(([, n]) => n > 0).map(([cls, n]) => { const len = (n / Math.max(1, f.variants.length)) * CIRC; const g = { cls, len: Math.max(0, len - 3), off }; off += len; return g; });
+        const places = locs.flatMap((m) => { const ml = locsOf(m.id); return ml.length ? ml.map((l) => ({ id: l.id, name: l.name, sub: m.code, n: f.variants.reduce((a, v) => a + (parseInt(v.locQty[l.id] || "0") || 0), 0) })) : [{ id: `m-${m.id}`, name: "Whole market", sub: m.code, n: f.variants.reduce((a, v) => a + (parseInt(v.stock[m.id]?.qty || "0") || 0), 0) }]; });
+        const maxP = Math.max(1, ...places.map((p) => p.n));
+        const prices = selected.map((m) => { const xs = f.variants.map((v) => parseFloat(v.prices[m.id]?.amount ?? "")).filter((n) => Number.isFinite(n)); return xs.length ? `${m.code} ${m.currency} ${Math.min(...xs).toFixed(2)}${Math.max(...xs) !== Math.min(...xs) ? "+" : ""}` : ""; }).filter(Boolean);
+        const img = f.images[0]?.thumbUrl;
+        return (
+          <div className="iv"><section className="iv-hero pe-hero" aria-label="Product summary">
+            <div className="pe-hero-id">
+              <span className="pe-hero-img">{img ? <img src={img} alt="" /> : <span aria-hidden>📦</span>}</span>
+              <div><b>{f.title || "New product"}</b><span>{f.variants.length} variant{f.variants.length === 1 ? "" : "s"} · {selected.length} market{selected.length === 1 ? "" : "s"}</span></div>
+            </div>
+            <div className="iv-ring" role="img" aria-label={`${units} units in stock`}>
+              <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="48" className="iv-ring-bg" />{segs.map((g) => <circle key={g.cls} cx="60" cy="60" r="48" className={`iv-ring-seg ${g.cls}`} strokeDasharray={`${g.len} ${CIRC - g.len}`} strokeDashoffset={-g.off} />)}</svg>
+              <div className="iv-ring-mid"><b>{units}</b><span>units</span></div>
+            </div>
+            <div className="iv-stats">
+              <div className="iv-stat ok"><i /><b>{okN}</b><span>Healthy</span></div>
+              <div className="iv-stat low"><i /><b>{lowN}</b><span>Running low</span></div>
+              <div className="iv-stat out"><i /><b>{outN}</b><span>Sold out</span></div>
+            </div>
+            <div className="iv-where" aria-label="Where the stock is">
+              <div className="iv-where-h">{prices.length ? `Price from · ${prices.join(" · ")}` : "Where the stock is"}</div>
+              {!places.length && <div className="muted" style={{ color: "rgba(255,255,255,.7)" }}>Choose a market on the right to see its locations here.</div>}
+              {places.map((p, i) => (
+                <div key={p.id} className="iv-loc" style={{ ["--c" as string]: PAL[i % PAL.length] }}>
+                  <div className="iv-loc-top"><span className="iv-dot" /><b>{p.name}</b><em>{p.n}</em></div>
+                  <div className="iv-loc-sub">{p.sub}</div>
+                  <div className="iv-bar"><span style={{ width: `${Math.max(p.n ? 4 : 0, Math.round((p.n / maxP) * 100))}%` }} /></div>
+                </div>
+              ))}
+            </div>
+          </section></div>
+        );
+      })()}
       <nav className="pe-nav" aria-label="Jump to a section">
         {[["sec-basics", "Basics"], ["sec-media", "Media"], ["sec-variants", "Variants"], ["sec-pricing", "Pricing"], ["sec-inventory", "Inventory"], ["sec-shipping", "Shipping"], ["sec-seo", "Search listing"]].map(([id, label]) => <a key={id} href={`#${id}`} onClick={(e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>{label}</a>)}
       </nav>
@@ -556,66 +600,71 @@ export function ProductEditor({ markets, initial, onDone }: { markets: Market[];
           {hasOptions && (
           <div className="card" id="sec-variant-details">
             <div className="cardhead"><div><h3>Variant details</h3><div className="muted pe-sub">Image, weight, SKU, barcode and, if needed, a different price for one variant.</div></div></div>
-                <div className="vhead">
-                  <b>{f.variants.length} variant{f.variants.length === 1 ? "" : "s"}</b>
-                  <span className="acts"><button className="link" type="button" onClick={() => generate("sku")}>Generate missing SKUs</button><button className="link" type="button" onClick={() => generate("barcode")}>Generate missing barcodes</button></span>
+                <div className="vs-bar"><b>{f.variants.length} variant{f.variants.length === 1 ? "" : "s"}</b><span className="acts"><button className="link" type="button" onClick={() => generate("sku")}>Generate missing SKUs</button><button className="link" type="button" onClick={() => generate("barcode")}>Generate missing barcodes</button></span></div>
+                <div className="vs-cards" role="tablist" aria-label="Variants">
+                  {f.variants.map((v, i) => {
+                    const im = f.images.find((x) => x.id === v.imageId);
+                    const hue = [...v.title].reduce((a, c) => a + c.charCodeAt(0) * 7, 0) % 360;
+                    const price = selected.slice(0, 2).map((m) => (v.prices[m.id]?.amount ? `${m.code} ${v.prices[m.id].amount}` : "")).filter(Boolean).join(" · ");
+                    return (
+                      <button key={v.title + i} type="button" role="tab" aria-selected={active === i} className={`vs-card ${active === i ? "on" : ""}`} onClick={() => setOpenV(i)}>
+                        <span className="vs-thumb" style={im ? undefined : { background: `linear-gradient(135deg,hsl(${hue} 80% 62%),hsl(${(hue + 40) % 360} 75% 48%))` }}>{im ? <img src={im.thumbUrl} alt="" /> : <b>{v.title.slice(0, 2)}</b>}</span>
+                        <span className="vs-meta"><b>{v.title}</b><small>{price || "No price yet"}</small></span>
+                        {f.trackInventory && <span className="vs-stock">{locs.reduce((a, m) => a + marketQty(v, m.id), 0)}</span>}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="vtabs" role="tablist" aria-label="Variants">
-                  {f.variants.map((v, i) => (
-                    <button key={v.title + i} type="button" role="tab" aria-selected={active === i} className={`vtab ${active === i ? "on" : ""}`} onClick={() => setOpenV(i)}>{v.title}</button>
-                  ))}
-                </div>
-                <div className="vlist">
-                  {f.variants.map((v, i) => i !== active ? null : (
-                    <div key={v.title + i} className="vcard" role="tabpanel">
-                      <div className="vpanel-in">
-                      <div className="vtools"><button className="link" type="button" disabled={!v.sku.trim() && !v.barcode.trim()} onClick={() => setCodesFor(i)}>Preview barcode and QR</button>
-                        {v.id && <span className="toggleline"><Switch checked={v.qrActive !== false} onChange={async (on) => { try { await api(`/products/variants/${v.id}/qr`, { method: "PUT", json: { active: on } }); setVariant(i, { qrActive: on }); } catch (e) { alert((e as Error).message); } }} label="QR code active" /><span>{v.qrActive !== false ? "QR code active" : "QR code switched off"}</span></span>}</div>
-                      <div className="mblock">
-                        <div className="mblock-h"><b>Price</b></div>
-                        <div className="mblock-g">
-                          {selected.map((m) => (
-                            <div key={m.id} className="field"><label htmlFor={`pr-${i}-${m.id}`}>{m.name} ({m.currency})</label>
-                              <input id={`pr-${i}-${m.id}`} type="number" step="0.01" min={0} placeholder="0.00" value={v.prices[m.id]?.amount ?? ""} onChange={(e) => setPrice(i, m.id, "amount", e.target.value)} {...val.props(`price:${i}:${m.id}`)} />
-                              <FieldError small k={`price:${i}:${m.id}`} msg={val.err(`price:${i}:${m.id}`)} /></div>
-                          ))}
-                        </div>
+                {f.variants.map((v, i) => i !== active ? null : (
+                  <div key={v.title + i} className="vs-studio" role="tabpanel">
+                    <div className="vs-left">
+                      <div className="vs-photo" style={f.images.find((x) => x.id === v.imageId) ? undefined : { background: `linear-gradient(135deg,hsl(${[...v.title].reduce((a, c) => a + c.charCodeAt(0) * 7, 0) % 360} 80% 62%),#14172b)` }}>
+                        {f.images.find((x) => x.id === v.imageId) ? <img src={f.images.find((x) => x.id === v.imageId)!.url} alt={f.images.find((x) => x.id === v.imageId)!.alt} /> : <span>{v.title}</span>}
                       </div>
-                      {f.trackInventory && selected.length > 0 && <div className="mblock"><div className="mblock-h"><b>SKU and barcode by market</b></div>{codesByMarket(i, v)}</div>}
-                      <div className="field vimg">
-                        <label>Image for this variant</label>
-                        {f.images.length ? (
-                          <div className="vimg-row">
-                            <button type="button" className={!v.imageId ? "on" : ""} onClick={() => setVariant(i, { imageId: null })}>None</button>
-                            {f.images.map((im) => <button type="button" key={im.id} className={v.imageId === im.id ? "on" : ""} onClick={() => setVariant(i, { imageId: im.id })} aria-label="Use this image"><img src={im.thumbUrl} alt={im.alt} /></button>)}
-                          </div>
-                        ) : <p className="muted" style={{ margin: 0 }}>Add product images above and save, then pick one for this variant. The storefront shows it when a customer picks this variant.</p>}
-                      </div>
-                      {f.physical && (
-                        <div className="vgrid">
-                          <div className="field"><label htmlFor={`wt-${i}`}>Weight ({unit})</label>
-                            <input id={`wt-${i}`} type="number" min={0} step="0.001" value={v.weight} onChange={(e) => setVariant(i, { weight: e.target.value })} {...val.props(`weight:${i}`)} />
-                            <FieldError small k={`weight:${i}`} msg={val.err(`weight:${i}`)} />
-                          </div>
+                      {f.images.length ? (
+                        <div className="vs-pick" role="group" aria-label="Image for this variant">
+                          <button type="button" className={!v.imageId ? "on" : ""} onClick={() => setVariant(i, { imageId: null })} aria-label="No image">∅</button>
+                          {f.images.map((im) => <button type="button" key={im.id} className={v.imageId === im.id ? "on" : ""} onClick={() => setVariant(i, { imageId: im.id })} aria-label="Use this image"><img src={im.thumbUrl} alt={im.alt} /></button>)}
                         </div>
-                      )}
-                      <div className="vcodes">
-                        <div className="field"><div className="genrow"><label htmlFor={`sk-${i}`}>Variant SKU (all markets)</label><span className="acts"><button className="link" type="button" onClick={() => generate("sku", [i])}>Generate</button></span></div>
-                          <input id={`sk-${i}`} value={v.sku} onChange={(e) => setVariant(i, { sku: e.target.value })} {...val.props(`sku:${i}`)} />
-                          <FieldError small k={`sku:${i}`} msg={val.err(`sku:${i}`)} />
-                        </div>
-                        <div className="field"><div className="genrow"><label htmlFor={`bc-${i}`}>Variant barcode (all markets)</label><span className="acts"><button className="link" type="button" onClick={() => generate("barcode", [i])}>Generate</button></span></div>
-                          <input id={`bc-${i}`} value={v.barcode} onChange={(e) => setVariant(i, { barcode: e.target.value })} {...val.props(`barcode:${i}`)} />
-                          <FieldError small k={`barcode:${i}`} msg={val.err(`barcode:${i}`)} />
-                        </div>
-                      </div>
+                      ) : <p className="muted" style={{ margin: 0 }}>Add product images above and save, then pick one for this variant. The storefront shows it when a customer picks this variant.</p>}
+                      <div className="vs-qr">
+                        <button className="link" type="button" disabled={!v.sku.trim() && !v.barcode.trim()} onClick={() => setCodesFor(i)}>Preview barcode and QR</button>
+                        {v.id && <span className="toggleline"><Switch checked={v.qrActive !== false} onChange={async (on) => { try { await api(`/products/variants/${v.id}/qr`, { method: "PUT", json: { active: on } }); setVariant(i, { qrActive: on }); } catch (e) { alert((e as Error).message); } }} label="QR code active" /><span>QR active</span></span>}
                       </div>
                     </div>
-                  ))}
-                </div>
-                <div className="toggleline" style={{ marginTop: 16 }}><Switch checked={f.trackInventory} onChange={(v) => set("trackInventory", v)} label="Inventory tracked" /><span>Inventory tracked</span></div>
-                {f.trackInventory && <label className="check"><input type="checkbox" checked={f.continueSelling} onChange={(e) => set("continueSelling", e.target.checked)} />Continue selling when out of stock</label>}
-                <div className="toggleline" style={{ marginTop: 8 }}><Switch checked={f.chargeTax} onChange={(v) => set("chargeTax", v)} label="Charge tax on this product" /><span>Charge tax on this product</span></div>
+                    <div className="vs-right">
+                      <section className="vs-sec"><h4>Price</h4>
+                        <div className="vs-prices">
+                          {selected.map((m) => (
+                            <div key={m.id} className="vs-price">
+                              <label htmlFor={`pr-${i}-${m.id}`}>{m.name}</label>
+                              <div className="vs-money"><span>{m.currency}</span><input id={`pr-${i}-${m.id}`} type="number" step="0.01" min={0} placeholder="0.00" value={v.prices[m.id]?.amount ?? ""} onChange={(e) => setPrice(i, m.id, "amount", e.target.value)} {...val.props(`price:${i}:${m.id}`)} /></div>
+                              <FieldError small k={`price:${i}:${m.id}`} msg={val.err(`price:${i}:${m.id}`)} />
+                              {f.variants.length > 1 && v.prices[m.id]?.amount && <button type="button" className="link vs-all" onClick={() => setAllPrices(m.id, v.prices[m.id].amount)}>Use for all variants</button>}
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                      {f.physical && (
+                        <section className="vs-sec"><h4>Weight</h4>
+                          <div className="vs-money w"><input id={`wt-${i}`} aria-label={`Weight in ${unit}`} type="number" min={0} step="0.001" placeholder="0.0" value={v.weight} onChange={(e) => setVariant(i, { weight: e.target.value })} {...val.props(`weight:${i}`)} /><span>{unit}</span></div>
+                          <FieldError small k={`weight:${i}`} msg={val.err(`weight:${i}`)} />
+                        </section>
+                      )}
+                      <section className="vs-sec"><h4>Codes</h4>
+                        <div className="vs-codes">
+                          <div className="field"><div className="genrow"><label htmlFor={`sk-${i}`}>SKU</label><span className="acts"><button className="link" type="button" onClick={() => generate("sku", [i])}>Generate</button></span></div>
+                            <input id={`sk-${i}`} value={v.sku} onChange={(e) => setVariant(i, { sku: e.target.value })} {...val.props(`sku:${i}`)} />
+                            <FieldError small k={`sku:${i}`} msg={val.err(`sku:${i}`)} /></div>
+                          <div className="field"><div className="genrow"><label htmlFor={`bc-${i}`}>Barcode</label><span className="acts"><button className="link" type="button" onClick={() => generate("barcode", [i])}>Generate</button></span></div>
+                            <input id={`bc-${i}`} value={v.barcode} onChange={(e) => setVariant(i, { barcode: e.target.value })} {...val.props(`barcode:${i}`)} />
+                            <FieldError small k={`barcode:${i}`} msg={val.err(`barcode:${i}`)} /></div>
+                        </div>
+                        {f.trackInventory && selected.length > 0 && <details className="vs-more"><summary>Different SKU or barcode per market</summary>{codesByMarket(i, v)}</details>}
+                      </section>
+                    </div>
+                  </div>
+                ))}
           </div>
           )}
 

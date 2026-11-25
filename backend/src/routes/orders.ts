@@ -68,19 +68,27 @@ ordersRouter.get("/export.csv", async (req, res) => {
   res.send("\uFEFF" + [head.map(csvCell).join(","), ...lines].join("\r\n"));
 });
 
+// A custom period (YYYY-MM-DD to YYYY-MM-DD, both days included) wins over the preset range.
+function dayRange(from?: string, to?: string) {
+  const ok = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  if (!ok(from) && !ok(to)) return null;
+  return { ...(ok(from) && { gte: new Date(`${from}T00:00:00`) }), ...(ok(to) && { lte: new Date(`${to}T23:59:59.999`) }) };
+}
+
 // Numbers above the order list: orders, items, sales and refunds for a period. Sales are kept per currency, never added across markets.
 ordersRouter.get("/stats/summary", async (req, res) => {
-  const { range, market, channel, location } = req.query as Record<string, string | undefined>;
+  const { range, market, channel, location, from, to } = req.query as Record<string, string | undefined>;
   const scope = scopeCodes(req);
   const locScope = scopeLocations(req);
   const now = new Date();
   const start = new Date(now); start.setHours(0, 0, 0, 0);
   if (range === "7d") start.setDate(start.getDate() - 6);
   else if (range === "30d") start.setDate(start.getDate() - 29);
+  else if (range === "90d") start.setDate(start.getDate() - 89);
   else if (range === "year") { start.setMonth(0, 1); }
   const orders = await prisma.order.findMany({
     where: {
-      status: { notIn: ["draft"] }, createdAt: { gte: start },
+      status: { notIn: ["draft"] }, createdAt: dayRange(from, to) ?? { gte: start },
       ...((channel === "online" || channel === "in_store") && { channel }),
       ...(location && { locationId: location }),
       ...(locScope ? { OR: [{ channel: "online" }, { locationId: { in: locScope } }] } : {}),

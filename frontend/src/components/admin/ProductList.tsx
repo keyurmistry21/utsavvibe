@@ -99,6 +99,20 @@ export function ProductList({ onAdd, onEdit }: { onAdd: () => void; onEdit: (han
     catch (e) { setError((e as Error).message); }
   };
 
+  const CIRC = 2 * Math.PI * 48;
+  const ringParts = stats ? ([["ok", stats.active], ["low", stats.draft], ["arch", stats.archived]] as const).filter(([, n]) => n > 0) : [];
+  let off = 0;
+  const ringSegs = ringParts.map(([cls, n]) => { const len = (n / Math.max(1, stats!.total)) * CIRC; const g = { cls, len: Math.max(0, len - 3), off }; off += len; return g; });
+  const duplicate = async (id: string, title: string) => {
+    if (!confirm(`Make a copy of "${title}"? The copy is saved as a draft with no stock, SKUs or barcodes.`)) return;
+    try { const r = await api<{ handle: string }>(`/products/${id}/duplicate`, { method: "POST", toast: "Product duplicated." }); onEdit(r.handle); } catch (e) { setError((e as Error).message); }
+  };
+  // status, stock, markets and price have their own place in the row; type and vendor are in the sub line; empty ones are not shown
+  const extra = cols.filter((c) => !["status", "inventory", "markets", "price", "type", "vendor"].includes(c.key));
+  // one fixed column per market so the prices line up from row to row
+  const mkCodes = [...new Set(items.flatMap((p) => Object.keys(p.prices)))].sort();
+  const hasValue = (c: Col, p: ProductRow) => (c.key === "tags" ? p.tags.length > 0 : true);
+
   return (
     <>
       <div className="pagehead">
@@ -115,87 +129,81 @@ export function ProductList({ onAdd, onEdit }: { onAdd: () => void; onEdit: (han
         </div>
       </div>
 
-      {stats && (
-        <div className="statstrip">
-          <div><span>Products</span><b>{stats.total}</b></div>
-          <div><span>Active</span><b>{stats.active}</b></div>
-          <div><span>Draft</span><b>{stats.draft}</b></div>
-          <div><span>Out of stock</span><b className={stats.outOfStock ? "stock-out" : ""}>{stats.outOfStock}</b></div>
+      <div className="iv">
+        <section className="iv-hero pl-hero" aria-label="Catalogue summary">
+          <div className="iv-ring" role="img" aria-label={stats ? `${stats.active} active, ${stats.draft} draft, ${stats.archived} archived` : "Loading"}>
+            <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="48" className="iv-ring-bg" />{ringSegs.map((g) => <circle key={g.cls} cx="60" cy="60" r="48" className={`iv-ring-seg ${g.cls}`} strokeDasharray={`${g.len} ${CIRC - g.len}`} strokeDashoffset={-g.off} />)}</svg>
+            <div className="iv-ring-mid"><b>{stats?.total ?? "–"}</b><span>products</span></div>
+          </div>
+          <div className="iv-stats pl-stats">
+            <button className={`iv-stat ok ${status === "active" ? "on" : ""}`} onClick={() => setStatus(status === "active" ? "all" : "active")}><i /><b>{stats?.active ?? "–"}</b><span>Active on the store</span></button>
+            <button className={`iv-stat low ${status === "draft" ? "on" : ""}`} onClick={() => setStatus(status === "draft" ? "all" : "draft")}><i /><b>{stats?.draft ?? "–"}</b><span>Drafts</span></button>
+            <button className={`iv-stat arch ${status === "archived" ? "on" : ""}`} onClick={() => setStatus(status === "archived" ? "all" : "archived")}><i /><b>{stats?.archived ?? "–"}</b><span>Archived</span></button>
+            <button className={`iv-stat out ${filter === "out_of_stock" ? "on" : ""}`} onClick={() => setFilter(filter === "out_of_stock" ? "any" : "out_of_stock")}><i /><b>{stats?.outOfStock ?? "–"}</b><span>Out of stock</span></button>
+          </div>
+        </section>
+      </div>
+
+      <div className="pl-tools">
+        <SearchField className="grow" placeholder="Search products, tags, SKUs" value={q} onChange={setQ} />
+        <div className="inv-chips" role="group" aria-label="Status">{VIEWS.map(([k, l]) => <button key={k} className={status === k ? "on" : ""} onClick={() => setStatus(k)}>{l}</button>)}</div>
+        <div className="inv-chips" role="group" aria-label="Stock">{FILTERS.map(([k, l]) => <button key={k} className={(filter === "any" ? "all" : filter) === k ? "on" : ""} onClick={() => setFilter(k === "all" ? "any" : k)}>{l}</button>)}</div>
+        <div className="colwrap">
+          <button className="colbtn iconbtn" aria-label="Sort and choose details" title="Sort and details" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4" /></svg>
+          </button>
+          {menu && <ColumnsMenu columns={COLS} sorts={SORTS} view={view} setView={setView} onClose={() => setMenu(false)} />}
+        </div>
+      </div>
+      {msg && <div className="okmsg" style={{ margin: "0 0 10px" }}>{msg}</div>}
+      {error && <div className="error" style={{ margin: "0 0 10px" }}>{error}</div>}
+
+      {sel.size > 0 && (
+        <div className="pl-bulk" role="toolbar" aria-label="Bulk actions">
+          <label><input type="checkbox" checked={allSel} onChange={toggleAll} aria-label="Select all" /> {sel.size} selected</label>
+          <button onClick={() => bulk("activate")}>Set as active</button>
+          <button onClick={() => bulk("draft")}>Set as draft</button>
+          <button onClick={() => bulk("archive")}>Archive</button>
+          <button className="danger" onClick={() => bulk("delete")}>Delete</button>
+          <button className="link" onClick={() => setSel(new Set())}>Clear</button>
         </div>
       )}
 
-      <div className="card custlistcard">
-        <div className="custtools">
-          <Select className="viewselect" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Product view">
-            {VIEWS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-          </Select>
-          <SearchField className="grow" placeholder="Search and filter" value={q} onChange={setQ} />
-          <div className="colwrap">
-            <button className="colbtn iconbtn" aria-label="Sort and choose columns" title="Sort and columns" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16M15 4v16" /></svg>
-            </button>
-            {menu && <ColumnsMenu columns={COLS} sorts={SORTS} view={view} setView={setView} onClose={() => setMenu(false)} />}
-          </div>
-        </div>
-        <div className="filterchips">
-          {FILTERS.map(([k, l]) => <button key={k} className={(filter === "any" ? "all" : filter) === k ? "on" : ""} onClick={() => setFilter(k === "all" ? "any" : k)}>{l}</button>)}
-        </div>
-        {msg && <div className="okmsg" style={{ margin: "8px 12px" }}>{msg}</div>}
-        {error && <div className="error" style={{ margin: "8px 12px" }}>{error}</div>}
-
-        <div className="tablescroll">
-          <table className="custtable">
-            <thead>
-              {sel.size > 0 ? (
-                <tr className="selbar">
-                  <th className="chk"><input type="checkbox" checked={allSel} onChange={toggleAll} aria-label="Select all" /></th>
-                  <th colSpan={cols.length + 1}>
-                    <span className="bulkbar">
-                      {sel.size} selected
-                      <button onClick={() => bulk("activate")}>Set as active</button>
-                      <button onClick={() => bulk("draft")}>Set as draft</button>
-                      <button onClick={() => bulk("archive")}>Archive</button>
-                      <button className="danger" onClick={() => bulk("delete")}>Delete</button>
-                      <button className="link" onClick={() => setSel(new Set())}>Clear</button>
-                    </span>
-                  </th>
-                </tr>
-              ) : (
-                <tr>
-                  <th className="chk"><input type="checkbox" checked={allSel} onChange={toggleAll} aria-label="Select all" /></th>
-                  <th>Product</th>
-                  {cols.map((c) => <th key={c.key} className={c.right ? "r" : ""}>{c.label}</th>)}
-                </tr>
-              )}
-            </thead>
-            <tbody>
-              {items.map((p) => (
-                <tr key={p.id} className={sel.has(p.id) ? "selected" : ""}>
-                  <td className="chk"><input type="checkbox" checked={sel.has(p.id)} onChange={() => toggleOne(p.id)} aria-label={`Select ${p.title}`} /></td>
-                  <td>
-                    <div className="prodcell">
-                      {p.thumbUrl ? <img className="listthumb" src={p.thumbUrl} alt="" /> : <span className="listthumb noimg" />}
-                      <button className="link namebtn" onClick={() => onEdit(p.handle)}>{p.title}</button>
-                    </div>
-                  </td>
-                  {cols.map((c) => <td key={c.key} className={c.right ? "r" : ""}>{c.render(p)}</td>)}
-                </tr>
-              ))}
-              {data && !items.length && <tr><td colSpan={cols.length + 2} className="muted emptyrow">{q || status !== "all" || filter !== "any" ? "No products match your search or filters." : "No products yet. Add your first product."}</td></tr>}
-              {!data && !error && <tr><td colSpan={cols.length + 2} className="muted emptyrow">Loading…</td></tr>}
-            </tbody>
-          </table>
-        </div>
-
-        {!!data?.total && (
-          <div className="pager">
-            <button aria-label="Previous page" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>‹</button>
-            <span>{from}–{to}</span>
-            <button aria-label="Next page" disabled={to >= data.total} onClick={() => setPage((p) => p + 1)}>›</button>
-            <span className="muted">of {data.total}</span>
-          </div>
-        )}
+      <div className="pl-list">
+        {items.map((p) => {
+          const stock = p.inventory <= 0 ? "out" : p.inventory <= 5 ? "low" : "ok";
+          return (
+            <div key={p.id} className={`pl-row ${stock} ${sel.has(p.id) ? "sel" : ""}`}>
+              <input type="checkbox" className="pl-chk" checked={sel.has(p.id)} onChange={() => toggleOne(p.id)} aria-label={`Select ${p.title}`} />
+              <button className="pl-open" onClick={() => onEdit(p.handle)} aria-label={`Edit ${p.title}`}>
+                <span className="iv-thumb">{p.thumbUrl ? <img src={p.thumbUrl} alt="" /> : <span aria-hidden>📦</span>}</span>
+                <span className="pl-main">
+                  <span className="pl-title"><b>{p.title}</b>{cols.some((c) => c.key === "status") && <Badge value={p.status} />}</span>
+                  <span className="pl-sub">{[p.variantCount > 1 ? `${p.variantCount} variants` : "", p.productType, p.vendor].filter(Boolean).join(" · ") || "Single item"}</span>
+                  {extra.some((c) => hasValue(c, p)) && <span className="pl-extra">{extra.filter((c) => hasValue(c, p)).map((c) => <span key={c.key}><i>{c.label}</i>{c.render(p)}</span>)}</span>}
+                </span>
+                <span className="pl-mk" style={{ ["--n" as string]: Math.max(1, mkCodes.length) }}>
+                  {mkCodes.length ? mkCodes.map((c) => { const x = p.prices[c]; return x ? <span key={c} className="pl-price"><i>{c}</i>{money(x.min, x.currency)}</span> : <span key={c} className="pl-price none">–</span>; }) : (p.markets.length ? p.markets.map((m) => <span key={m} className="chip">{m}</span>) : <span className="muted">Not on sale</span>)}
+                </span>
+                <span className={`iv-total ${stock}`}><b>{p.inventory}</b><small>{stock === "out" ? "sold out" : stock === "low" ? "running low" : "in stock"}</small></span>
+                <svg className="iv-go" viewBox="0 0 24 24" aria-hidden><path d="M9 6l6 6-6 6" /></svg>
+              </button>
+              <button className="pl-dup" title="Duplicate" aria-label={`Duplicate ${p.title}`} onClick={() => duplicate(p.id, p.title)}><svg viewBox="0 0 24 24" aria-hidden><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg></button>
+            </div>
+          );
+        })}
+        {data && !items.length && <div className="iv-empty"><div aria-hidden>🛍️</div><b>{q || status !== "all" || filter !== "any" ? "No products match" : "No products yet"}</b><span>{q || status !== "all" || filter !== "any" ? "Try another search or filter." : "Add your first product to get started."}</span></div>}
+        {!data && !error && <div className="iv-empty"><span>Loading…</span></div>}
       </div>
+
+      {!!data?.total && (
+        <div className="pager">
+          <button aria-label="Previous page" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>‹</button>
+          <span>{from}–{to}</span>
+          <button aria-label="Next page" disabled={to >= data.total} onClick={() => setPage((p) => p + 1)}>›</button>
+          <span className="muted">of {data.total}</span>
+        </div>
+      )}
     </>
   );
 }

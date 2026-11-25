@@ -96,9 +96,9 @@ export function Inventory() {
               <div className="iv-ring-mid"><b>{units}</b><span>units</span></div>
             </div>
             <div className="iv-stats">
-              <button className={`iv-stat ok ${f === "all" ? "on" : ""}`} onClick={() => setF("all")}><i /><b>{variantsN}</b><span>Items tracked</span></button>
-              <button className={`iv-stat low ${f === "low" ? "on" : ""}`} onClick={() => setF(f === "low" ? "all" : "low")}><i /><b>{lowN}</b><span>Running low</span></button>
-              <button className={`iv-stat out ${f === "out" ? "on" : ""}`} onClick={() => setF(f === "out" ? "all" : "out")}><i /><b>{outN}</b><span>Sold out</span></button>
+              <button className={`iv-stat ok ${f === "all" ? "on" : ""}`} onClick={() => setF("all")}><i /><b>{new Set(rows.map((r) => r.productId)).size}</b><span>Products · {variantsN} variant{variantsN === 1 ? "" : "s"}</span></button>
+              <button className={`iv-stat low ${f === "low" ? "on" : ""}`} onClick={() => setF(f === "low" ? "all" : "low")}><i /><b>{lowN}</b><span>Variants running low</span></button>
+              <button className={`iv-stat out ${f === "out" ? "on" : ""}`} onClick={() => setF(f === "out" ? "all" : "out")}><i /><b>{outN}</b><span>Variants sold out</span></button>
             </div>
             <div className="iv-where" aria-label="Where your stock is">
               <div className="iv-where-h">Where your stock is</div>
